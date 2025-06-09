@@ -8,6 +8,12 @@ export default function UrlAnalyzer() {
   const [analysis, setAnalysis] = useState(null);
   const [error, setError] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('pages');
+  const [analysisLog, setAnalysisLog] = useState([]);
+
+  const addLogEntry = (message, type = 'info') => {
+    const timestamp = new Date().toLocaleTimeString();
+    setAnalysisLog((prev) => [...prev, { message, type, timestamp }]);
+  };
 
   const handleAnalyze = async (e) => {
     e.preventDefault();
@@ -16,9 +22,14 @@ export default function UrlAnalyzer() {
     setIsAnalyzing(true);
     setError('');
     setAnalysis(null);
+    setAnalysisLog([]);
 
     try {
-      new URL(url); // Validate URL
+      // Validate URL
+      const urlObj = new URL(url);
+      addLogEntry(`🚀 Starting analysis of ${urlObj.hostname}`, 'success');
+      addLogEntry(`📊 This will analyze up to 100 pages to understand URL structure`, 'info');
+      addLogEntry(`🔍 Check your browser's developer console (F12) for detailed logs`, 'info');
 
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -26,7 +37,7 @@ export default function UrlAnalyzer() {
         body: JSON.stringify({
           url,
           maxDepth: 3,
-          maxPages: 200, // Limit for analysis
+          maxPages: 100, // Reasonable limit for analysis
         }),
       });
 
@@ -36,8 +47,13 @@ export default function UrlAnalyzer() {
         throw new Error(result.error || 'Analysis failed');
       }
 
+      addLogEntry(`✅ Analysis complete! Found ${result.summary.totalUrls} URLs`, 'success');
+      addLogEntry(`📄 Analyzed ${result.summary.pagesAnalyzed} pages`, 'success');
+      addLogEntry(`🔗 Total links discovered: ${result.summary.totalLinksFound || 'N/A'}`, 'info');
+
       setAnalysis(result);
     } catch (err) {
+      addLogEntry(`❌ Error: ${err.message}`, 'error');
       setError(err.message);
     } finally {
       setIsAnalyzing(false);
@@ -72,6 +88,32 @@ export default function UrlAnalyzer() {
     return labels[category] || category;
   };
 
+  const getLogIcon = (type) => {
+    switch (type) {
+      case 'success':
+        return '✅';
+      case 'error':
+        return '❌';
+      case 'warning':
+        return '⚠️';
+      default:
+        return 'ℹ️';
+    }
+  };
+
+  const getLogColor = (type) => {
+    switch (type) {
+      case 'success':
+        return 'text-green-600';
+      case 'error':
+        return 'text-red-600';
+      case 'warning':
+        return 'text-yellow-600';
+      default:
+        return 'text-blue-600';
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
@@ -103,45 +145,69 @@ export default function UrlAnalyzer() {
           </button>
         </form>
 
-        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-          <p className="text-sm text-yellow-800">
-            <strong>Note:</strong> The analyzer will fetch the homepage and a few linked pages to
-            understand the URL structure. Check your browser's developer console (F12) for detailed
-            progress logs.
-          </p>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
-            <p className="text-red-700">{error}</p>
+        {/* Analysis Progress Log */}
+        {(analysisLog.length > 0 || isAnalyzing) && (
+          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-md">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">Analysis Progress</h3>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {analysisLog.map((log, index) => (
+                <div key={index} className="flex items-start text-sm">
+                  <span className="mr-2">{getLogIcon(log.type)}</span>
+                  <span className="text-gray-500 mr-2 text-xs">{log.timestamp}</span>
+                  <span className={getLogColor(log.type)}>{log.message}</span>
+                </div>
+              ))}
+              {isAnalyzing && (
+                <div className="flex items-center text-sm">
+                  <div className="animate-spin mr-2 h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                  <span className="text-blue-600">Analyzing website structure...</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {isAnalyzing && (
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
-            <div className="flex items-center">
-              <svg
-                className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                 <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  fillRule="evenodd"
+                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                  clipRule="evenodd"
                 />
               </svg>
-              <span className="text-blue-800">
-                Discovering and categorizing URLs... This may take a few minutes.
-              </span>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-blue-800">How it works</h3>
+              <div className="mt-2 text-sm text-blue-700 space-y-1">
+                <p>• Crawls up to 100 pages to discover URL patterns</p>
+                <p>• Categorizes URLs by type (content, pagination, admin, etc.)</p>
+                <p>• Shows what to expect in a full crawl</p>
+                <p>
+                  • <strong>Open Developer Console (F12) to see detailed progress logs</strong>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {error && !isAnalyzing && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Analysis Failed</h3>
+                <p className="text-red-700">{error}</p>
+              </div>
             </div>
           </div>
         )}
@@ -298,13 +364,37 @@ export default function UrlAnalyzer() {
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">🚀 Next Steps</h2>
             <div className="flex flex-wrap gap-4">
-              <button className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+              <button
+                onClick={() =>
+                  window.open(`/?url=${encodeURIComponent(url)}&focus=content`, '_blank')
+                }
+                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+              >
                 ✅ Crawl {analysis.summary.categories.pages} Content Pages Only
               </button>
-              <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+              <button
+                onClick={() => window.open(`/?url=${encodeURIComponent(url)}`, '_blank')}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+              >
                 🔄 Crawl All {analysis.summary.totalUrls} URLs
               </button>
-              <button className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium">
+              <button
+                onClick={() => {
+                  const jsonData = JSON.stringify(analysis, null, 2);
+                  const blob = new Blob([jsonData], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `url-analysis-${
+                    new URL(analysis.summary.url || 'website').hostname
+                  }-${new Date().toISOString().split('T')[0]}.json`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium"
+              >
                 📊 Export Analysis Report
               </button>
             </div>
@@ -315,6 +405,40 @@ export default function UrlAnalyzer() {
                 {analysis.summary.categories.pages} content pages will give you meaningful results
                 much faster than processing all {analysis.summary.totalUrls} URLs.
               </p>
+            </div>
+          </div>
+
+          {/* Technical Details */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">🔧 Technical Details</h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2">Analysis Settings</h3>
+                <div className="space-y-1 text-sm text-gray-600">
+                  <div>Max Depth: 3 levels</div>
+                  <div>Max Pages: 100 pages</div>
+                  <div>Pages Analyzed: {analysis.summary.pagesAnalyzed}</div>
+                  <div>Coverage: {Math.round((analysis.summary.pagesAnalyzed / 100) * 100)}%</div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2">URL Distribution</h3>
+                <div className="space-y-1 text-sm text-gray-600">
+                  {Object.entries(analysis.summary.categories)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 4)
+                    .map(([category, count]) => (
+                      <div key={category} className="flex justify-between">
+                        <span>{getCategoryLabel(category)}:</span>
+                        <span>
+                          {count} ({Math.round((count / analysis.summary.totalUrls) * 100)}%)
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
