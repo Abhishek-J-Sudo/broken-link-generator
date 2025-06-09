@@ -1,36 +1,30 @@
 /**
- * Smart URL Analyzer - Detects JavaScript-heavy sites and provides alternatives
- * Replace the existing /api/analyze/route.js with this file
+ * PRODUCTION URL ANALYZER - Fixed version with manual link extraction
+ * Replace /src/app/api/analyze/route.js with this version
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { LinkExtractor } from '@/lib/linkExtractor';
 import { urlUtils, batchUtils } from '@/lib/utils';
 
 export async function POST(request) {
-  console.log('🎯 NEW SMART ANALYZER IS RUNNING!');
-  console.log('🔧 This should appear in your server logs');
   try {
     const { url, maxDepth = 3, maxPages = 100 } = await request.json();
 
-    console.log(`🔍 Analysis request: ${url}, depth: ${maxDepth}, maxPages: ${maxPages}`);
+    console.log(
+      `🔍 PRODUCTION: Starting analysis for ${url}, depth: ${maxDepth}, maxPages: ${maxPages}`
+    );
 
     if (!urlUtils.isValidUrl(url)) {
-      return NextResponse.json(
-        {
-          error: 'Invalid URL format',
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
     }
 
     const analysis = await analyzeUrlsSmart(url, maxDepth, maxPages);
 
-    console.log(`✅ Analysis complete: ${analysis.summary.totalUrls} URLs found`);
+    console.log(`✅ PRODUCTION: Analysis complete: ${analysis.summary.totalUrls} URLs found`);
 
     return NextResponse.json(analysis);
   } catch (error) {
-    console.error('❌ Error analyzing URLs:', error);
+    console.error('❌ PRODUCTION: Error analyzing URLs:', error);
     return NextResponse.json(
       {
         error: 'Failed to analyze URLs',
@@ -43,24 +37,26 @@ export async function POST(request) {
 }
 
 async function analyzeUrlsSmart(startUrl, maxDepth, maxPages) {
-  console.log(`🚀 Starting smart URL analysis for: ${startUrl}`);
+  console.log(`🚀 PRODUCTION: Starting smart URL analysis for: ${startUrl}`);
 
   // Step 1: Fetch and analyze the homepage
   const homepageAnalysis = await analyzeHomepage(startUrl);
 
   if (!homepageAnalysis.hasValidContent) {
-    console.log(`❌ Homepage analysis failed or detected JavaScript-only site`);
+    console.log(`❌ PRODUCTION: Homepage analysis failed or detected JavaScript-only site`);
     return createJavaScriptSiteResponse(startUrl, homepageAnalysis);
   }
 
   // Step 2: If homepage has links, proceed with crawling
-  console.log(`✅ Found ${homepageAnalysis.linkCount} links on homepage, proceeding with crawl`);
+  console.log(
+    `✅ PRODUCTION: Found ${homepageAnalysis.linkCount} links on homepage, proceeding with crawl`
+  );
 
   return await performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis);
 }
 
 async function analyzeHomepage(url) {
-  console.log(`🏠 Analyzing homepage: ${url}`);
+  console.log(`🏠 PRODUCTION: Analyzing homepage: ${url}`);
 
   const content = await fetchPageWithTimeout(url);
 
@@ -73,7 +69,7 @@ async function analyzeHomepage(url) {
     };
   }
 
-  console.log(`📄 Got ${content.length} chars of content`);
+  console.log(`📄 PRODUCTION: Got ${content.length} chars of content`);
 
   // Analyze content quality
   const analysis = {
@@ -109,7 +105,7 @@ async function analyzeHomepage(url) {
 
   analysis.isJavaScriptHeavy = jsIndicators.filter(Boolean).length >= 2;
 
-  console.log(`🔍 Homepage analysis:`, analysis);
+  console.log(`🔍 PRODUCTION: Homepage analysis:`, analysis);
 
   return {
     hasValidContent: analysis.hasLinks && analysis.linkCount > 0,
@@ -120,108 +116,8 @@ async function analyzeHomepage(url) {
   };
 }
 
-async function createJavaScriptSiteResponse(startUrl, homepageAnalysis) {
-  console.log(`🎭 Creating JavaScript site response`);
-
-  const recommendations = [];
-  const alternatives = [];
-
-  // Try to find alternative sources of URLs
-  const sitemapUrls = await tryFindSitemap(startUrl);
-  const robotsUrls = await tryFindRobots(startUrl);
-
-  recommendations.push({
-    type: 'warning',
-    message:
-      'This site uses JavaScript to load content dynamically. Our analyzer can only see the initial HTML.',
-    action: 'Try the full broken link checker instead - it may work better with JavaScript sites',
-  });
-
-  if (sitemapUrls.length > 0) {
-    recommendations.push({
-      type: 'info',
-      message: `Found ${sitemapUrls.length} URLs in sitemap.xml`,
-      action: 'Use sitemap URLs for a more complete analysis',
-    });
-    alternatives.push({
-      type: 'sitemap',
-      urls: sitemapUrls.slice(0, 20), // Show first 20
-      total: sitemapUrls.length,
-    });
-  }
-
-  if (robotsUrls.length > 0) {
-    recommendations.push({
-      type: 'info',
-      message: `Found ${robotsUrls.length} URLs in robots.txt`,
-      action: 'Check robots.txt for additional site structure',
-    });
-  }
-
-  // Suggest common URL patterns to try
-  const commonPatterns = generateCommonUrlPatterns(startUrl);
-  recommendations.push({
-    type: 'suggestion',
-    message: 'Try testing common URL patterns manually',
-    action: 'Use the broken link checker on specific pages',
-  });
-
-  return {
-    summary: {
-      totalUrls: sitemapUrls.length,
-      pagesAnalyzed: 1,
-      totalLinksFound: 0,
-      categories: {
-        pages: sitemapUrls.length,
-        withParams: 0,
-        pagination: 0,
-        dates: 0,
-        media: 0,
-        admin: 0,
-        api: 0,
-        other: 0,
-      },
-      topPatterns: [],
-      recommendations,
-      isJavaScriptSite: true,
-      frameworks: homepageAnalysis.analysis?.frameworkDetection || {},
-    },
-    categories: {
-      pages: sitemapUrls.map((url) => ({
-        url,
-        pattern: 'sitemap-discovered',
-        params: false,
-        sourceUrl: 'sitemap.xml',
-      })),
-      withParams: [],
-      pagination: [],
-      dates: [],
-      media: [],
-      admin: [],
-      api: [],
-      other: [],
-    },
-    allPatterns: [],
-    sampleUrls: {
-      pages: sitemapUrls
-        .slice(0, 20)
-        .map((url) => ({ url, pattern: 'sitemap', sourceUrl: 'sitemap.xml' })),
-      withParams: [],
-      pagination: [],
-      dates: [],
-    },
-    alternatives,
-    commonPatterns,
-  };
-}
-
 async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) {
-  console.log(`🕷️ SMART Performing full crawl starting from: ${startUrl}`);
-
-  const linkExtractor = new LinkExtractor({
-    includeExternal: false,
-    maxLinksPerPage: 1000,
-  });
+  console.log(`🕷️ PRODUCTION: Performing full crawl starting from: ${startUrl}`);
 
   const visitedUrls = new Set();
   const pendingUrls = new Map([[startUrl, { depth: 0, sourceUrl: null }]]);
@@ -241,22 +137,16 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
   let pagesProcessed = 0;
   let totalLinksFound = 0;
 
-  // CRITICAL FIX: Process homepage links we already analyzed
-  console.log(`🔧 SMART Processing homepage links from analysis...`);
+  // Process homepage links first
+  console.log(`🔧 PRODUCTION: Processing homepage links...`);
 
   try {
-    const extractionResult = linkExtractor.extractLinks(homepageAnalysis.content, startUrl, 0);
+    const extractionResult = extractLinksManually(homepageAnalysis.content, startUrl);
 
-    console.log(`🔗 SMART Homepage extraction result: ${extractionResult.links.length} links`);
+    console.log(`🔗 PRODUCTION: Homepage extraction result: ${extractionResult.length} links`);
 
-    extractionResult.links.forEach((link, index) => {
+    extractionResult.forEach((link, index) => {
       totalLinksFound++;
-
-      console.log(
-        `🔗 SMART Processing link ${index + 1}: ${link.url} (internal: ${
-          link.isInternal
-        }, shouldCrawl: ${link.shouldCrawl})`
-      );
 
       const analysis = analyzeUrlPattern(link.url, startUrl);
 
@@ -297,37 +187,38 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
       // Add to pending if should crawl and within depth
       if (link.depth < maxDepth && link.shouldCrawl && !pendingUrls.has(link.url)) {
         pendingUrls.set(link.url, {
-          depth: link.depth + 1, // IMPORTANT: Increment depth
+          depth: link.depth + 1,
           sourceUrl: startUrl,
         });
-        console.log(`➕ SMART Added to crawl queue: ${link.url} at depth ${link.depth + 1}`);
       }
     });
 
-    console.log(`✅ SMART Processed ${extractionResult.links.length} homepage links`);
+    console.log(`✅ PRODUCTION: Processed ${extractionResult.length} homepage links`);
     console.log(
-      `📊 SMART Categories: ${Object.entries(urlCategories)
+      `📊 PRODUCTION: Categories: ${Object.entries(urlCategories)
         .map(([k, v]) => `${k}:${v.length}`)
         .join(', ')}`
     );
-    console.log(`🎯 SMART Queue size: ${pendingUrls.size}, Total URLs: ${allUrls.length}`);
   } catch (error) {
-    console.error(`❌ SMART Error processing homepage links:`, error);
+    console.error(`❌ PRODUCTION: Error processing homepage links:`, error);
   }
 
-  // Mark homepage as visited and remove from pending
+  // Mark homepage as visited
   visitedUrls.add(startUrl);
   pagesProcessed = 1;
   pendingUrls.delete(startUrl);
 
-  console.log(`🚀 SMART Starting additional page crawling with ${pendingUrls.size} URLs in queue`);
+  console.log(
+    `🚀 PRODUCTION: Starting additional page crawling with ${pendingUrls.size} URLs in queue`
+  );
 
-  // Continue crawling other pages (if any and if depth allows)
+  // Continue crawling other pages (limited for performance)
   let crawlCount = 0;
-  while (pendingUrls.size > 0 && pagesProcessed < maxPages && crawlCount < 10) {
-    // Safety limit for now
+  const maxAdditionalPages = Math.min(maxPages - 1, 20); // Limit additional crawling
+
+  while (pendingUrls.size > 0 && crawlCount < maxAdditionalPages) {
     console.log(
-      `📈 SMART Progress: ${pendingUrls.size} pending, ${pagesProcessed} processed, ${totalLinksFound} total links`
+      `📈 PRODUCTION: Progress: ${pendingUrls.size} pending, ${pagesProcessed} processed, ${totalLinksFound} total links`
     );
 
     const iterator = pendingUrls.entries();
@@ -339,31 +230,28 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
     pendingUrls.delete(currentUrl);
     crawlCount++;
 
-    if (visitedUrls.has(currentUrl)) {
-      console.log(`⏭️ SMART Already visited: ${currentUrl}`);
-      continue;
-    }
+    if (visitedUrls.has(currentUrl)) continue;
 
     try {
       visitedUrls.add(currentUrl);
       pagesProcessed++;
 
-      console.log(`🔍 SMART [${pagesProcessed}/${maxPages}] Crawling: ${currentUrl}`);
+      console.log(`🔍 PRODUCTION: [${pagesProcessed}/${maxPages}] Crawling: ${currentUrl}`);
 
-      const pageContent = await fetchPageWithTimeout(currentUrl);
+      const pageContent = await fetchPageWithTimeout(currentUrl, 10000); // Shorter timeout
       if (!pageContent) {
-        console.log(`❌ SMART No content for: ${currentUrl}`);
+        console.log(`❌ PRODUCTION: No content for: ${currentUrl}`);
         continue;
       }
 
-      const extractionResult = linkExtractor.extractLinks(pageContent, currentUrl, metadata.depth);
+      const extractionResult = extractLinksManually(pageContent, currentUrl);
 
-      console.log(`🔗 SMART Found ${extractionResult.links.length} links on ${currentUrl}`);
+      console.log(`🔗 PRODUCTION: Found ${extractionResult.length} links on ${currentUrl}`);
 
       let newLinksAdded = 0;
       let addedToPendingQueue = 0;
 
-      extractionResult.links.forEach((link) => {
+      extractionResult.forEach((link) => {
         totalLinksFound++;
 
         if (!allUrls.find((u) => u.url === link.url)) {
@@ -419,20 +307,18 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
         }
       });
 
-      console.log(`➕ SMART Added ${newLinksAdded} new URLs, ${addedToPendingQueue} to queue`);
+      console.log(
+        `➕ PRODUCTION: Added ${newLinksAdded} new URLs, ${addedToPendingQueue} to queue`
+      );
 
       await batchUtils.delay(1000); // Be respectful
     } catch (error) {
-      console.error(`❌ SMART Error crawling ${currentUrl}:`, error.message);
+      console.error(`❌ PRODUCTION: Error crawling ${currentUrl}:`, error.message);
     }
   }
 
-  console.log(`🏁 SMART Crawl complete! ${allUrls.length} URLs, ${pagesProcessed} pages analyzed`);
   console.log(
-    `📊 SMART Final categories:`,
-    Object.entries(urlCategories)
-      .map(([k, v]) => `${k}:${v.length}`)
-      .join(', ')
+    `🏁 PRODUCTION: Crawl complete! ${allUrls.length} URLs, ${pagesProcessed} pages analyzed`
   );
 
   const patterns = Array.from(urlPatterns.values()).sort((a, b) => b.count - a.count);
@@ -448,8 +334,6 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
     isJavaScriptSite: false,
   };
 
-  console.log(`🎯 SMART Final summary:`, summary);
-
   return {
     summary,
     categories: urlCategories,
@@ -463,19 +347,147 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
   };
 }
 
+function extractLinksManually(html, baseUrl) {
+  const links = [];
+  const baseHostname = new URL(baseUrl).hostname;
+
+  // Find all anchor tags with href attributes
+  const anchorRegex = /<a[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi;
+  let match;
+
+  while ((match = anchorRegex.exec(html)) !== null) {
+    const href = match[1];
+    const linkText = match[2].trim();
+
+    try {
+      // Skip obviously invalid links
+      if (
+        !href ||
+        href.trim() === '' ||
+        href.startsWith('#') ||
+        href.startsWith('mailto:') ||
+        href.startsWith('tel:') ||
+        href.startsWith('javascript:')
+      ) {
+        continue;
+      }
+
+      // Resolve relative URLs
+      let fullUrl;
+      if (href.startsWith('http')) {
+        fullUrl = href;
+      } else {
+        fullUrl = new URL(href, baseUrl).toString();
+      }
+
+      // Check if internal
+      const linkHostname = new URL(fullUrl).hostname;
+      const isInternal = linkHostname === baseHostname;
+      const shouldCrawl = isInternal && !fullUrl.includes('#');
+
+      links.push({
+        url: fullUrl,
+        linkText: linkText || 'No text',
+        isInternal,
+        shouldCrawl,
+        depth: 1,
+      });
+    } catch (error) {
+      // Skip invalid URLs
+      continue;
+    }
+  }
+
+  return links;
+}
+
+async function createJavaScriptSiteResponse(startUrl, homepageAnalysis) {
+  console.log(`🎭 PRODUCTION: Creating JavaScript site response`);
+
+  const recommendations = [];
+  const alternatives = [];
+
+  // Try to find alternative sources of URLs
+  const sitemapUrls = await tryFindSitemap(startUrl);
+
+  recommendations.push({
+    type: 'warning',
+    message:
+      'This site uses JavaScript to load content dynamically. Our analyzer can only see the initial HTML.',
+    action: 'Try the full broken link checker instead - it may work better with JavaScript sites',
+  });
+
+  if (sitemapUrls.length > 0) {
+    recommendations.push({
+      type: 'info',
+      message: `Found ${sitemapUrls.length} URLs in sitemap.xml`,
+      action: 'Use sitemap URLs for a more complete analysis',
+    });
+    alternatives.push({
+      type: 'sitemap',
+      urls: sitemapUrls.slice(0, 20),
+      total: sitemapUrls.length,
+    });
+  }
+
+  return {
+    summary: {
+      totalUrls: sitemapUrls.length,
+      pagesAnalyzed: 1,
+      totalLinksFound: 0,
+      categories: {
+        pages: sitemapUrls.length,
+        withParams: 0,
+        pagination: 0,
+        dates: 0,
+        media: 0,
+        admin: 0,
+        api: 0,
+        other: 0,
+      },
+      topPatterns: [],
+      recommendations,
+      isJavaScriptSite: true,
+      frameworks: homepageAnalysis.analysis?.frameworkDetection || {},
+    },
+    categories: {
+      pages: sitemapUrls.map((url) => ({
+        url,
+        pattern: 'sitemap-discovered',
+        params: false,
+        sourceUrl: 'sitemap.xml',
+      })),
+      withParams: [],
+      pagination: [],
+      dates: [],
+      media: [],
+      admin: [],
+      api: [],
+      other: [],
+    },
+    allPatterns: [],
+    sampleUrls: {
+      pages: sitemapUrls
+        .slice(0, 20)
+        .map((url) => ({ url, pattern: 'sitemap', sourceUrl: 'sitemap.xml' })),
+      withParams: [],
+      pagination: [],
+      dates: [],
+    },
+    alternatives,
+  };
+}
+
 async function tryFindSitemap(baseUrl) {
-  console.log(`🗺️ Looking for sitemap at: ${baseUrl}`);
+  console.log(`🗺️ PRODUCTION: Looking for sitemap at: ${baseUrl}`);
 
   const sitemapUrls = [
     new URL('/sitemap.xml', baseUrl).toString(),
     new URL('/sitemap_index.xml', baseUrl).toString(),
-    new URL('/sitemaps.xml', baseUrl).toString(),
   ];
 
   for (const sitemapUrl of sitemapUrls) {
     try {
-      console.log(`🔍 Trying sitemap: ${sitemapUrl}`);
-
       const response = await fetch(sitemapUrl, {
         method: 'GET',
         headers: { 'User-Agent': 'Mozilla/5.0 Broken Link Checker Bot' },
@@ -484,120 +496,20 @@ async function tryFindSitemap(baseUrl) {
 
       if (response.ok) {
         const content = await response.text();
-        console.log(`✅ Found sitemap: ${sitemapUrl} (${content.length} chars)`);
-
-        // Extract URLs from sitemap XML
         const urlMatches = content.match(/<loc>([^<]+)<\/loc>/g) || [];
         const urls = urlMatches.map((match) => match.replace(/<\/?loc>/g, ''));
 
-        console.log(`🔗 Extracted ${urls.length} URLs from sitemap`);
-        return urls;
+        if (urls.length > 0) {
+          console.log(`✅ PRODUCTION: Found sitemap with ${urls.length} URLs`);
+          return urls;
+        }
       }
     } catch (error) {
-      console.log(`❌ Sitemap not found: ${sitemapUrl}`);
+      // Continue to next sitemap
     }
   }
 
   return [];
-}
-
-async function tryFindRobots(baseUrl) {
-  console.log(`🤖 Looking for robots.txt at: ${baseUrl}`);
-
-  try {
-    const robotsUrl = new URL('/robots.txt', baseUrl).toString();
-    const response = await fetch(robotsUrl, {
-      method: 'GET',
-      headers: { 'User-Agent': 'Mozilla/5.0 Broken Link Checker Bot' },
-      timeout: 10000,
-    });
-
-    if (response.ok) {
-      const content = await response.text();
-      console.log(`✅ Found robots.txt: ${robotsUrl}`);
-
-      // Extract sitemap URLs from robots.txt
-      const sitemapMatches = content.match(/Sitemap:\s*(.+)/gi) || [];
-      const sitemapUrls = sitemapMatches.map((match) => match.replace(/Sitemap:\s*/i, '').trim());
-
-      if (sitemapUrls.length > 0) {
-        console.log(`🗺️ Found sitemaps in robots.txt:`, sitemapUrls);
-
-        // Try to fetch URLs from these sitemaps
-        const allUrls = [];
-        for (const sitemapUrl of sitemapUrls) {
-          try {
-            const sitemapResponse = await fetch(sitemapUrl, { timeout: 10000 });
-            if (sitemapResponse.ok) {
-              const sitemapContent = await sitemapResponse.text();
-              const urlMatches = sitemapContent.match(/<loc>([^<]+)<\/loc>/g) || [];
-              const urls = urlMatches.map((match) => match.replace(/<\/?loc>/g, ''));
-              allUrls.push(...urls);
-            }
-          } catch (error) {
-            console.log(`❌ Could not fetch sitemap: ${sitemapUrl}`);
-          }
-        }
-
-        return allUrls;
-      }
-    }
-  } catch (error) {
-    console.log(`❌ robots.txt not found or accessible`);
-  }
-
-  return [];
-}
-
-function generateCommonUrlPatterns(baseUrl) {
-  const domain = new URL(baseUrl).origin;
-
-  return [
-    `${domain}/about`,
-    `${domain}/contact`,
-    `${domain}/blog`,
-    `${domain}/news`,
-    `${domain}/articles`,
-    `${domain}/guides`,
-    `${domain}/help`,
-    `${domain}/support`,
-    `${domain}/api`,
-    `${domain}/docs`,
-  ];
-}
-
-async function fetchPageWithTimeout(url, timeout = 15000) {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        Connection: 'keep-alive',
-        'Cache-Control': 'no-cache',
-      },
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('text/html')) {
-        return await response.text();
-      }
-    }
-
-    return null;
-  } catch (error) {
-    console.error(`❌ Error fetching ${url}:`, error.message);
-    return null;
-  }
 }
 
 function analyzeUrlPattern(url, baseUrl) {
@@ -615,11 +527,10 @@ function analyzeUrlPattern(url, baseUrl) {
 
     // Check for admin/system URLs
     if (
-      pathname.includes('/admin') ||
       pathname.includes('/wp-admin') ||
+      pathname.includes('/admin') ||
       pathname.includes('/wp-content') ||
-      pathname.includes('/api/') ||
-      pathname.includes('/wp-json/')
+      pathname.includes('/api/')
     ) {
       return { category: 'admin', pattern: 'admin-system', params: hasParams };
     }
@@ -634,44 +545,34 @@ function analyzeUrlPattern(url, baseUrl) {
       '.pdf',
       '.css',
       '.js',
-      '.woff',
       '.ico',
     ];
     if (mediaExtensions.some((ext) => pathname.endsWith(ext))) {
       return { category: 'media', pattern: 'media-files', params: hasParams };
     }
 
-    // Check for date patterns
-    const datePattern = /\/(\d{4})\/(\d{1,2})\//;
-    if (datePattern.test(pathname)) {
+    // Check for date patterns (blog archives)
+    if (/\/\d{4}\/\d{1,2}\//.test(pathname)) {
       return { category: 'dates', pattern: 'date-archive', params: hasParams };
     }
 
     // Check for pagination
-    if (
-      pathname.includes('/page/') ||
-      search.includes('page=') ||
-      search.includes('paged=') ||
-      pathname.match(/\/\d+\/?$/)
-    ) {
+    if (pathname.includes('/page/') || search.includes('page=') || pathname.match(/\/\d+\/?$/)) {
       return { category: 'pagination', pattern: 'pagination', params: hasParams };
     }
 
     // Check for URLs with parameters
     if (hasParams) {
       const paramCount = urlObj.searchParams.size;
-      if (paramCount > 3) {
-        return { category: 'withParams', pattern: `complex-params-${paramCount}`, params: true };
-      }
-      return { category: 'withParams', pattern: 'simple-params', params: true };
+      return {
+        category: 'withParams',
+        pattern: paramCount > 3 ? `complex-params-${paramCount}` : 'simple-params',
+        params: true,
+      };
     }
 
-    // Generate pattern for regular pages
-    let pattern = pathname
-      .replace(/\/\d+/g, '/[ID]')
-      .replace(/\/[a-f0-9-]{32,}/g, '/[HASH]')
-      .replace(/\/\d{4}-\d{2}-\d{2}/g, '/[DATE]');
-
+    // Regular content pages
+    let pattern = pathname.replace(/\/\d+/g, '/[ID]').replace(/\/[a-f0-9-]{32,}/g, '/[HASH]');
     const pathParts = pattern.split('/').filter((p) => p.length > 0);
     if (pathParts.length > 4) {
       pattern = '/' + pathParts.slice(0, 3).join('/') + '/[...]';
@@ -736,4 +637,37 @@ function generateRecommendations(categories, patterns) {
   }
 
   return recommendations;
+}
+
+async function fetchPageWithTimeout(url, timeout = 15000) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        Connection: 'keep-alive',
+        'Cache-Control': 'no-cache',
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/html')) {
+        return await response.text();
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`❌ PRODUCTION: Error fetching ${url}:`, error.message);
+    return null;
+  }
 }
