@@ -135,9 +135,20 @@ async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, sett
     // Add all discovered URLs to the database first (without HTTP status)
     const discoveredLinks = preAnalyzedUrls
       .map((urlData, index) => {
-        // Handle different possible structures
-        const url = typeof urlData === 'string' ? urlData : urlData.url;
-        const sourceUrl = typeof urlData === 'object' ? urlData.sourceUrl || baseUrl : baseUrl;
+        // FIXED: Better handling of different possible structures for source URLs
+        let url, sourceUrl;
+
+        if (typeof urlData === 'string') {
+          url = urlData;
+          sourceUrl = baseUrl; // Default to base URL for simple strings
+        } else if (typeof urlData === 'object' && urlData.url) {
+          url = urlData.url;
+          // FIXED: Check multiple possible source URL properties from analyzer
+          sourceUrl = urlData.sourceUrl || urlData.source_url || urlData.sourcePageUrl || baseUrl;
+        } else {
+          console.warn(`⚠️ Invalid URL at index ${index}:`, urlData);
+          return null;
+        }
 
         if (!url) {
           console.warn(`⚠️ Invalid URL at index ${index}:`, urlData);
@@ -146,7 +157,7 @@ async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, sett
 
         return {
           url: url,
-          sourceUrl: sourceUrl,
+          sourceUrl: sourceUrl, // FIXED: This now properly extracts source URL
           isInternal: urlUtils.isInternalUrl(url, baseUrl),
           depth: 1,
           status: 'pending', // Will be updated when checked
@@ -161,6 +172,15 @@ async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, sett
       .filter(Boolean); // Remove null entries
 
     console.log(`📦 Prepared ${discoveredLinks.length} valid URLs for processing`);
+
+    // DEBUGGING: Log sample of source URLs for verification
+    console.log(
+      '📍 Sample source URLs:',
+      discoveredLinks.slice(0, 3).map((link) => ({
+        url: link.url.substring(0, 50) + '...',
+        sourceUrl: link.sourceUrl,
+      }))
+    );
 
     // Save discovered links to database
     if (discoveredLinks.length > 0) {
@@ -197,10 +217,10 @@ async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, sett
       console.log(`📦 Processing batch ${i + 1}/${batches.length} (${batch.length} URLs)`);
 
       try {
-        // Prepare URLs for checking
+        // FIXED: Prepare URLs for checking with proper source URLs
         const urlsToCheck = batch.map((linkData) => ({
           url: linkData.url,
-          sourceUrl: linkData.sourceUrl,
+          sourceUrl: linkData.sourceUrl, // FIXED: Now uses the properly extracted source URL
           linkText: 'Pre-analyzed link',
         }));
 
@@ -239,7 +259,7 @@ async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, sett
           if (!result.is_working) {
             const brokenLink = {
               url: result.url,
-              sourceUrl: result.sourceUrl,
+              sourceUrl: result.sourceUrl, // FIXED: Now uses the correct source URL from result
               statusCode: result.http_status_code,
               errorType: result.errorType || 'other',
               linkText: result.linkText || 'Pre-analyzed link',
@@ -251,7 +271,7 @@ async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, sett
               console.log(
                 `💔 Found broken link: ${result.url} (${
                   result.http_status_code || result.errorType
-                })`
+                }) from source: ${result.sourceUrl}`
               );
             } catch (dbError) {
               console.error('❌ Error saving broken link:', dbError);

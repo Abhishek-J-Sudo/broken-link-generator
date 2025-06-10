@@ -613,17 +613,24 @@ export default function ResultsPage() {
 
             <div className="flex justify-center space-x-4">
               <button
-                onClick={() => router.push('/analyze')}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                onClick={exportToCSV}
+                disabled={isExporting}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
               >
-                🔍 Analyze Another Site
+                📊 Export CSV
               </button>
               <button
                 onClick={exportToJSON}
                 disabled={isExporting}
                 className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
               >
-                📁 Export Report
+                📁 Export JSON
+              </button>
+              <button
+                onClick={() => router.push('/analyze')}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              >
+                🔍 Analyze Another Site
               </button>
             </div>
           </div>
