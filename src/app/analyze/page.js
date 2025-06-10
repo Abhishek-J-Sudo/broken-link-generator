@@ -5,6 +5,8 @@ import { useState } from 'react';
 import UrlAnalyzer from '@/app/components/UrlAnalyzer';
 import LargeCrawlForm from '@/app/components/LargeCrawlForm';
 import ResultsTable from '@/app/components/ResultsTable';
+import Header from '@/app/components/Header';
+import Footer from '@/app/components/Footer';
 
 export default function UnifiedAnalyzePage() {
   const [currentStep, setCurrentStep] = useState('analyze'); // 'analyze', 'crawl', 'results'
@@ -69,59 +71,7 @@ export default function UnifiedAnalyzePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header with Step Indicator */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">
-              {currentStep === 'analyze' && '🔍 URL Structure Analysis'}
-              {currentStep === 'crawl' && '🚀 Smart Link Checking'}
-              {currentStep === 'results' && '📊 Broken Link Results'}
-            </h1>
-
-            {/* Step Breadcrumb */}
-            <div className="flex items-center space-x-2 text-sm">
-              <button
-                onClick={resetToAnalyze}
-                className={`px-3 py-1 rounded ${
-                  currentStep === 'analyze'
-                    ? 'bg-blue-100 text-blue-800 font-medium'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                1. Analyze
-              </button>
-              <span className="text-gray-300">→</span>
-              <button
-                onClick={() => analysisData && setCurrentStep('crawl')}
-                disabled={!analysisData}
-                className={`px-3 py-1 rounded ${
-                  currentStep === 'crawl'
-                    ? 'bg-blue-100 text-blue-800 font-medium'
-                    : analysisData
-                    ? 'text-gray-500 hover:text-gray-700'
-                    : 'text-gray-300 cursor-not-allowed'
-                }`}
-              >
-                2. Check Links
-              </button>
-              <span className="text-gray-300">→</span>
-              <button
-                onClick={() => crawlResults && setCurrentStep('results')}
-                disabled={!crawlResults}
-                className={`px-3 py-1 rounded ${
-                  currentStep === 'results'
-                    ? 'bg-blue-100 text-blue-800 font-medium'
-                    : crawlResults
-                    ? 'text-gray-500 hover:text-gray-700'
-                    : 'text-gray-300 cursor-not-allowed'
-                }`}
-              >
-                3. Results
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Header />
 
       <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Step 1: URL Analysis */}
@@ -211,6 +161,8 @@ export default function UnifiedAnalyzePage() {
           </div>
         )}
       </div>
+
+      <Footer />
     </div>
   );
 }
