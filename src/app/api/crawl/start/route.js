@@ -1,119 +1,116 @@
 /**
- * Start crawl endpoint
- * Initiates a new broken link checking job
- * Enhanced to handle pre-analyzed URLs for smart crawling
+ * Enhanced start crawl endpoint - Simplified and More Robust
+ * Initiates a new broken link checking job with optional pre-analyzed URLs
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { WebCrawler } from '@/lib/crawler';
+import { NextResponse } from 'next/server';
 import { HttpChecker } from '@/lib/httpChecker';
 import { urlUtils, validateUtils, batchUtils } from '@/lib/utils';
 import { db } from '@/lib/supabase';
 
 export async function POST(request) {
-  try {
-    const body = await request.json();
-    const { url, settings = {}, analyzedData = null } = body;
+  let jobId = null;
 
-    console.log('🚀 ENHANCED START: Starting crawl for:', url);
-    console.log('📊 ENHANCED START: Has analyzed data:', !!analyzedData);
+  try {
+    console.log('🔧 START ROUTE: Parsing request body...');
+    const body = await request.json();
+    const { url, settings = {}, preAnalyzedUrls = null } = body;
+
+    console.log(`🚀 ENHANCED START: Starting crawl for: ${url}`);
+    console.log(`📊 ENHANCED START: Has analyzed data: ${!!preAnalyzedUrls}`);
+    console.log(
+      `🎯 ENHANCED START: Using pre-analyzed data with ${preAnalyzedUrls?.length || 0} URLs`
+    );
 
     // Validate required fields
     if (!url) {
-      return NextResponse.json(
-        {
-          error: 'URL is required',
-          code: 'MISSING_URL',
-        },
-        { status: 400 }
-      );
+      console.log('❌ No URL provided');
+      return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
     // Validate URL format
     if (!urlUtils.isValidUrl(url)) {
-      return NextResponse.json(
-        {
-          error: 'Invalid URL format',
-          code: 'INVALID_URL',
-        },
-        { status: 400 }
-      );
-    }
-
-    // Validate settings
-    const settingsValidation = validateUtils.validateCrawlSettings(settings);
-    if (!settingsValidation.isValid) {
-      return NextResponse.json(
-        {
-          error: 'Invalid settings',
-          details: settingsValidation.errors,
-          code: 'INVALID_SETTINGS',
-        },
-        { status: 400 }
-      );
+      console.log('❌ Invalid URL format');
+      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
     }
 
     // Normalize URL
     const normalizedUrl = urlUtils.normalizeUrl(url);
+    console.log(`📝 Normalized URL: ${normalizedUrl}`);
 
-    // Enhanced Path: Use pre-analyzed data if available
-    if (analyzedData && analyzedData.categories && analyzedData.categories.pages) {
-      console.log(
-        '🎯 ENHANCED START: Using pre-analyzed data with',
-        analyzedData.categories.pages.length,
-        'URLs'
-      );
-      return await handleSmartCrawl(normalizedUrl, settings, analyzedData);
-    }
-
-    // Traditional Path: Normal crawling
-    console.log('🔄 ENHANCED START: Using traditional crawl method');
-
-    // Create new crawler instance for this job
-    const crawler = new WebCrawler({
+    // Create database job
+    const jobSettings = {
       maxDepth: settings.maxDepth || 3,
       includeExternal: settings.includeExternal || false,
       timeout: settings.timeout || 10000,
-      maxConcurrent: 5,
-      batchSize: 50,
-    });
+      usePreAnalyzedUrls: !!preAnalyzedUrls,
+    };
 
-    // Start the crawl asynchronously
-    const crawlPromise = crawler.startCrawl(normalizedUrl, settings);
+    console.log('📋 Creating database job...');
+    const job = await db.createJob(normalizedUrl, jobSettings);
+    jobId = job.id;
 
-    // Don't await the full crawl - return immediately with job info
-    crawlPromise.catch((error) => {
-      console.error(`Traditional crawl failed:`, error);
-    });
+    console.log(`✅ Created job ${jobId} for ${normalizedUrl}`);
 
-    // Get initial job info
-    const initialResult = await crawlPromise;
+    // Determine processing mode
+    if (preAnalyzedUrls && Array.isArray(preAnalyzedUrls) && preAnalyzedUrls.length > 0) {
+      console.log(`🎯 SMART CRAWL: Processing ${preAnalyzedUrls.length} pre-analyzed URLs`);
 
-    return NextResponse.json(
-      {
-        success: true,
-        jobId: initialResult.jobId,
-        status: 'started',
-        url: normalizedUrl,
-        settings: {
-          maxDepth: settings.maxDepth || 3,
-          includeExternal: settings.includeExternal || false,
-          timeout: settings.timeout || 10000,
+      // Start processing in the background (don't await)
+      processSmartCrawlBackground(jobId, normalizedUrl, preAnalyzedUrls, jobSettings).catch(
+        (error) => {
+          console.error(`❌ Background processing failed for job ${jobId}:`, error);
+        }
+      );
+
+      // Return immediately
+      return NextResponse.json(
+        {
+          success: true,
+          jobId: jobId,
+          status: 'started',
+          url: normalizedUrl,
+          settings: jobSettings,
+          urlsToCheck: preAnalyzedUrls.length,
+          message: `Smart crawl started with ${preAnalyzedUrls.length} pre-analyzed URLs`,
+          statusUrl: `/api/crawl/status/${jobId}`,
+          resultsUrl: `/api/results/${jobId}`,
         },
-        message: 'Crawl job started successfully',
-        statusUrl: `/api/crawl/status/${initialResult.jobId}`,
-        resultsUrl: `/api/results/${initialResult.jobId}`,
-      },
-      { status: 201 }
-    );
+        { status: 201 }
+      );
+    } else {
+      console.log('❌ No valid pre-analyzed URLs provided');
+      await db.updateJobStatus(jobId, 'failed', 'No valid URLs provided for checking');
+
+      return NextResponse.json(
+        {
+          error: 'No valid URLs provided for checking',
+          suggestion: 'Please use the Smart Analyzer first to discover URLs',
+        },
+        { status: 400 }
+      );
+    }
   } catch (error) {
     console.error('❌ ENHANCED START: Error starting crawl:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack,
+    });
+
+    // Try to update job status if we have a jobId
+    if (jobId) {
+      try {
+        await db.updateJobStatus(jobId, 'failed', error.message);
+      } catch (dbError) {
+        console.error('❌ Failed to update job status:', dbError);
+      }
+    }
 
     return NextResponse.json(
       {
         error: 'Failed to start crawl job',
-        message: error.message || 'Unknown error occurred',
-        code: 'CRAWL_START_FAILED',
+        message: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
       },
       { status: 500 }
     );
@@ -121,184 +118,144 @@ export async function POST(request) {
 }
 
 /**
- * Smart crawl using pre-analyzed URLs
+ * Process smart crawl with pre-analyzed URLs in the background
  */
-async function handleSmartCrawl(url, settings, analyzedData) {
+async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, settings) {
   try {
-    console.log(
-      '🎯 SMART CRAWL: Processing',
-      analyzedData.categories.pages.length,
-      'pre-analyzed URLs'
-    );
+    console.log(`🎯 SMART CRAWL: Starting background processing for job ${jobId}`);
 
-    // Create job in database
-    const job = await db.createJob(url, {
-      ...settings,
-      maxDepth: settings.maxDepth || 3,
-      includeExternal: settings.includeExternal || false,
-      timeout: settings.timeout || 10000,
-      isSmartCrawl: true,
-    });
+    await db.updateJobStatus(jobId, 'running');
 
-    console.log('📝 SMART CRAWL: Created job:', job.id);
+    // Validate preAnalyzedUrls structure
+    if (!Array.isArray(preAnalyzedUrls)) {
+      throw new Error('preAnalyzedUrls must be an array');
+    }
 
-    // Extract URLs from analyzed data
-    const urlsToCheck = [];
+    // Add all discovered URLs to the database first
+    const discoveredLinks = preAnalyzedUrls
+      .map((urlData, index) => {
+        // Handle different possible structures
+        const url = typeof urlData === 'string' ? urlData : urlData.url;
+        const sourceUrl = typeof urlData === 'object' ? urlData.sourceUrl || baseUrl : baseUrl;
 
-    // Get content pages (primary target)
-    if (analyzedData.categories.pages && Array.isArray(analyzedData.categories.pages)) {
-      analyzedData.categories.pages.forEach((pageData) => {
-        if (pageData && pageData.url) {
-          urlsToCheck.push({
-            url: pageData.url,
-            sourceUrl: pageData.sourceUrl || url,
-            linkText: 'Content Page',
-            category: 'pages',
-          });
+        if (!url) {
+          console.warn(`⚠️ Invalid URL at index ${index}:`, urlData);
+          return null;
         }
-      });
+
+        return {
+          url: url,
+          sourceUrl: sourceUrl,
+          isInternal: urlUtils.isInternalUrl(url, baseUrl),
+          depth: 1,
+          status: 'pending',
+        };
+      })
+      .filter(Boolean); // Remove null entries
+
+    console.log(`📦 Prepared ${discoveredLinks.length} valid URLs for processing`);
+
+    // Save discovered links to database
+    if (discoveredLinks.length > 0) {
+      await db.addDiscoveredLinks(jobId, discoveredLinks);
+      console.log(`💾 Saved ${discoveredLinks.length} discovered links to database`);
+    } else {
+      throw new Error('No valid URLs to process');
     }
 
-    // Optionally include external links if requested
-    if (settings.includeExternal && analyzedData.categories.withParams) {
-      analyzedData.categories.withParams.forEach((paramData) => {
-        if (paramData && paramData.url) {
-          urlsToCheck.push({
-            url: paramData.url,
-            sourceUrl: paramData.sourceUrl || url,
-            linkText: 'External Link',
-            category: 'withParams',
-          });
-        }
-      });
-    }
-
-    console.log('🔍 SMART CRAWL: Prepared', urlsToCheck.length, 'URLs for checking');
-
-    if (urlsToCheck.length === 0) {
-      throw new Error('No valid URLs found in analyzed data');
-    }
-
-    // Save discovered URLs to database
-    await db.addDiscoveredLinks(
-      job.id,
-      urlsToCheck.map((urlData) => ({
-        url: urlData.url,
-        source_url: urlData.sourceUrl,
-        is_internal: true,
-        depth: 1,
-        status: 'pending',
-      }))
-    );
-
-    // Update job progress
-    await db.updateJobProgress(job.id, 0, urlsToCheck.length);
-    await db.updateJobStatus(job.id, 'running');
-
-    // Start checking links in background (don't await)
-    processSmartCrawlLinks(job.id, urlsToCheck, settings).catch((error) => {
-      console.error('❌ SMART CRAWL: Background processing failed:', error);
-      db.updateJobStatus(job.id, 'failed', error.message).catch(console.error);
-    });
-
-    return NextResponse.json(
-      {
-        success: true,
-        jobId: job.id,
-        status: 'started',
-        url: url,
-        mode: 'smart_crawl',
-        urlsToCheck: urlsToCheck.length,
-        settings: {
-          maxDepth: settings.maxDepth || 3,
-          includeExternal: settings.includeExternal || false,
-          timeout: settings.timeout || 10000,
-          isSmartCrawl: true,
-        },
-        message: `Smart crawl started - checking ${urlsToCheck.length} pre-analyzed URLs`,
-        statusUrl: `/api/crawl/status/${job.id}`,
-        resultsUrl: `/api/results/${job.id}`,
-      },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error('❌ SMART CRAWL: Error:', error);
-    throw error; // Re-throw to be caught by main handler
-  }
-}
-
-/**
- * Process smart crawl links in background
- */
-async function processSmartCrawlLinks(jobId, urlsToCheck, settings) {
-  try {
-    console.log('🔄 SMART CRAWL: Starting background link checking for job', jobId);
+    // Update initial progress
+    await db.updateJobProgress(jobId, 0, discoveredLinks.length);
 
     // Create HTTP checker
     const httpChecker = new HttpChecker({
       timeout: settings.timeout || 10000,
-      maxConcurrent: 5,
-      retryAttempts: 2,
+      maxConcurrent: 4, // Conservative concurrency
+      retryAttempts: 1,
     });
 
-    // Process URLs in batches
-    const batchSize = 25;
-    const batches = batchUtils.chunkArray(urlsToCheck, batchSize);
+    // Process URLs in smaller batches
+    const batchSize = 10; // Smaller batches for more stable processing
+    const batches = batchUtils.chunkArray(discoveredLinks, batchSize);
+
     let processedCount = 0;
+    let brokenLinksFound = 0;
+
+    console.log(
+      `📦 SMART CRAWL: Processing ${batches.length} batches of up to ${batchSize} URLs each`
+    );
 
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
-      console.log(
-        `🔄 SMART CRAWL: Processing batch ${i + 1}/${batches.length} (${batch.length} URLs)`
-      );
+
+      console.log(`📦 Processing batch ${i + 1}/${batches.length} (${batch.length} URLs)`);
 
       try {
-        // Check URLs in this batch
-        const { results } = await httpChecker.checkUrls(batch);
+        // Prepare URLs for checking
+        const urlsToCheck = batch.map((linkData) => ({
+          url: linkData.url,
+          sourceUrl: linkData.sourceUrl,
+          linkText: 'Pre-analyzed link',
+        }));
+
+        // Check this batch
+        const { results } = await httpChecker.checkUrls(urlsToCheck);
+
+        console.log(`✅ Checked ${results.length} URLs in batch ${i + 1}`);
 
         // Process results
-        for (let j = 0; j < results.length; j++) {
-          const result = results[j];
-          const originalUrl = batch[j];
-
+        for (const result of results) {
           processedCount++;
 
-          // If link is broken, save to database
+          // If URL is broken, record it
           if (!result.isWorking) {
-            await db.addBrokenLink(jobId, {
+            const brokenLink = {
               url: result.url,
-              sourceUrl: originalUrl.sourceUrl,
+              sourceUrl: result.sourceUrl,
               statusCode: result.statusCode,
               errorType: result.errorType || 'other',
-              linkText: originalUrl.linkText || 'No text',
-            });
-          }
+              linkText: result.linkText || 'Pre-analyzed link',
+            };
 
-          // Update progress every 5 URLs
-          if (processedCount % 5 === 0) {
-            await db.updateJobProgress(jobId, processedCount, urlsToCheck.length);
+            await db.addBrokenLink(jobId, brokenLink);
+            brokenLinksFound++;
+
+            console.log(`💔 Found broken link: ${result.url} (${result.errorType})`);
           }
         }
+
+        // Update progress
+        await db.updateJobProgress(jobId, processedCount, discoveredLinks.length);
+
+        console.log(
+          `📊 Progress: ${processedCount}/${discoveredLinks.length} URLs checked, ${brokenLinksFound} broken links found`
+        );
 
         // Small delay between batches
-        if (i < batches.length - 1) {
-          await batchUtils.delay(1000);
-        }
+        await batchUtils.delay(500);
       } catch (batchError) {
-        console.error(`❌ SMART CRAWL: Error processing batch ${i + 1}:`, batchError);
-        // Continue with next batch
+        console.error(`❌ Error processing batch ${i + 1}:`, batchError);
+        // Continue with next batch instead of failing completely
       }
     }
 
-    // Final progress update and complete job
-    await db.updateJobProgress(jobId, processedCount, urlsToCheck.length);
+    // Complete the job
     await db.updateJobStatus(jobId, 'completed');
 
-    console.log('✅ SMART CRAWL: Completed successfully -', processedCount, 'URLs processed');
+    console.log(
+      `🎉 SMART CRAWL COMPLETE: ${processedCount} URLs checked, ${brokenLinksFound} broken links found`
+    );
   } catch (error) {
-    console.error('❌ SMART CRAWL: Background processing error:', error);
-    await db.updateJobStatus(jobId, 'failed', error.message);
-    throw error;
+    console.error('❌ SMART CRAWL: Error in background processing:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack,
+    });
+
+    try {
+      await db.updateJobStatus(jobId, 'failed', error.message);
+    } catch (dbError) {
+      console.error('❌ Failed to update job status after error:', dbError);
+    }
   }
 }
 

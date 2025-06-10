@@ -1,0 +1,583 @@
+// src/app/results/[jobId]/page.js - Enhanced with Export Functionality
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import ResultsTable from '@/app/components/ResultsTable';
+
+export default function ResultsPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { jobId } = params;
+
+  const [job, setJob] = useState(null);
+  const [results, setResults] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [filters, setFilters] = useState({ errorType: 'all', search: '' });
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Poll for status updates
+  useEffect(() => {
+    if (!jobId) return;
+
+    const pollStatus = async () => {
+      try {
+        const response = await fetch(`/api/crawl/status/${jobId}`);
+        const statusData = await response.json();
+
+        if (response.ok) {
+          setJob(statusData);
+
+          // If job is completed, load results
+          if (statusData.status === 'completed') {
+            await loadResults();
+          }
+        } else {
+          setError(statusData.error || 'Failed to get job status');
+        }
+      } catch (err) {
+        setError('Failed to connect to server');
+      }
+    };
+
+    // Initial load
+    pollStatus();
+
+    // Set up polling interval for running jobs
+    const interval = setInterval(() => {
+      if (job?.status === 'running' || !job) {
+        pollStatus();
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [jobId, job?.status]);
+
+  const loadResults = async (page = 1, filterOptions = filters) => {
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '50',
+      });
+
+      if (filterOptions.errorType && filterOptions.errorType !== 'all') {
+        params.append('errorType', filterOptions.errorType);
+      }
+
+      if (filterOptions.search) {
+        params.append('search', filterOptions.search);
+      }
+
+      const response = await fetch(`/api/results/${jobId}?${params}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setResults(data);
+        setCurrentPage(page);
+      } else {
+        setError(data.error || 'Failed to load results');
+      }
+    } catch (err) {
+      setError('Failed to load results');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+    loadResults(newPage, filters);
+  };
+
+  const handleFilter = (newFilters) => {
+    setFilters(newFilters);
+    loadResults(1, newFilters); // Reset to page 1 when filtering
+  };
+
+  const exportToCSV = async () => {
+    if (!results || !results.brokenLinks) return;
+
+    setIsExporting(true);
+    try {
+      // Get ALL results for export (not just current page)
+      const exportParams = new URLSearchParams({
+        page: '1',
+        limit: '10000', // Large number to get all results
+      });
+
+      if (filters.errorType && filters.errorType !== 'all') {
+        exportParams.append('errorType', filters.errorType);
+      }
+
+      if (filters.search) {
+        exportParams.append('search', filters.search);
+      }
+
+      const response = await fetch(`/api/results/${jobId}?${exportParams}`);
+      const allData = await response.json();
+
+      if (response.ok) {
+        // Create CSV content
+        const csvHeaders = [
+          'Broken URL',
+          'Error Type',
+          'Status Code',
+          'Source Page',
+          'Link Text',
+          'Found At',
+        ];
+        const csvRows = allData.brokenLinks.map((link) => [
+          link.url,
+          link.error_type,
+          link.status_code || 'N/A',
+          link.source_url,
+          link.link_text || 'No text',
+          new Date(link.created_at).toLocaleString(),
+        ]);
+
+        const csvContent = [
+          csvHeaders.join(','),
+          ...csvRows.map((row) =>
+            row.map((field) => `"${String(field).replace(/"/g, '""')}"`).join(',')
+          ),
+        ].join('\n');
+
+        // Create and download file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        if (link.download !== undefined) {
+          const url = URL.createObjectURL(blob);
+          link.setAttribute('href', url);
+          link.setAttribute(
+            'download',
+            `broken-links-${new URL(job.url).hostname}-${
+              new Date().toISOString().split('T')[0]
+            }.csv`
+          );
+          link.style.visibility = 'hidden';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      } else {
+        throw new Error('Failed to fetch all results for export');
+      }
+    } catch (err) {
+      setError('Failed to export data');
+      console.error('Export error:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const exportToJSON = async () => {
+    if (!results) return;
+
+    setIsExporting(true);
+    try {
+      // Get ALL results for export
+      const exportParams = new URLSearchParams({
+        page: '1',
+        limit: '10000',
+      });
+
+      if (filters.errorType && filters.errorType !== 'all') {
+        exportParams.append('errorType', filters.errorType);
+      }
+
+      if (filters.search) {
+        exportParams.append('search', filters.search);
+      }
+
+      const response = await fetch(`/api/results/${jobId}?${exportParams}`);
+      const allData = await response.json();
+
+      if (response.ok) {
+        // Create comprehensive JSON export
+        const exportData = {
+          exportInfo: {
+            exportedAt: new Date().toISOString(),
+            website: job.url,
+            jobId: jobId,
+            totalBrokenLinks: allData.pagination.totalCount,
+            appliedFilters: filters,
+          },
+          jobDetails: {
+            url: job.url,
+            status: job.status,
+            createdAt: job.timestamps.createdAt,
+            completedAt: job.timestamps.completedAt,
+            duration: job.timestamps.elapsedTime,
+            settings: job.settings,
+          },
+          statistics: {
+            totalLinksFound: job.stats?.totalLinksDiscovered || 0,
+            brokenLinksFound: job.stats?.brokenLinksFound || 0,
+            pagesScanned: job.progress?.current || 0,
+            successRate:
+              job.stats?.totalLinksDiscovered > 0
+                ? Math.round(
+                    ((job.stats.totalLinksDiscovered - job.stats.brokenLinksFound) /
+                      job.stats.totalLinksDiscovered) *
+                      100
+                  )
+                : 0,
+          },
+          brokenLinks: allData.brokenLinks.map((link) => ({
+            url: link.url,
+            sourceUrl: link.source_url,
+            errorType: link.error_type,
+            statusCode: link.status_code,
+            linkText: link.link_text,
+            foundAt: link.created_at,
+          })),
+          summary: allData.summary,
+        };
+
+        // Download JSON file
+        const jsonContent = JSON.stringify(exportData, null, 2);
+        const blob = new Blob([jsonContent], { type: 'application/json' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute(
+          'download',
+          `broken-links-report-${new URL(job.url).hostname}-${
+            new Date().toISOString().split('T')[0]
+          }.json`
+        );
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } else {
+        throw new Error('Failed to fetch all results for export');
+      }
+    } catch (err) {
+      setError('Failed to export JSON data');
+      console.error('JSON export error:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const getProgressPercentage = () => {
+    if (!job?.progress) return 0;
+    return job.progress.percentage || 0;
+  };
+
+  const formatDuration = (milliseconds) => {
+    const seconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+
+    if (hours > 0) return `${hours}h ${minutes % 60}m`;
+    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+    return `${seconds}s`;
+  };
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+          <svg
+            className="w-16 h-16 text-red-500 mx-auto mb-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+            />
+          </svg>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => router.push('/')}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading && !job) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading job details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <button
+                onClick={() => router.push('/')}
+                className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-2 flex items-center"
+              >
+                ← Back to Home
+              </button>
+              <h1 className="text-2xl font-bold text-gray-900">Link Check Results</h1>
+              <p className="text-gray-600 break-all">{job?.url}</p>
+            </div>
+
+            {/* Status Badge & Export Actions */}
+            <div className="text-right">
+              <div className="flex items-center space-x-3 mb-2">
+                {/* Export Buttons - only show when completed */}
+                {job?.status === 'completed' && results && (
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={exportToCSV}
+                      disabled={isExporting}
+                      className={`px-3 py-1 text-sm rounded-md ${
+                        isExporting
+                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          : 'bg-green-600 text-white hover:bg-green-700'
+                      }`}
+                    >
+                      {isExporting ? '⏳' : '📊'} Export CSV
+                    </button>
+                    <button
+                      onClick={exportToJSON}
+                      disabled={isExporting}
+                      className={`px-3 py-1 text-sm rounded-md ${
+                        isExporting
+                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
+                    >
+                      {isExporting ? '⏳' : '📁'} Export JSON
+                    </button>
+                  </div>
+                )}
+
+                <span
+                  className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                    job?.status === 'completed'
+                      ? 'bg-green-100 text-green-800'
+                      : job?.status === 'running'
+                      ? 'bg-blue-100 text-blue-800'
+                      : job?.status === 'failed'
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}
+                >
+                  {job?.status}
+                </span>
+              </div>
+              {job?.timestamps?.elapsedTime && (
+                <p className="text-sm text-gray-500">
+                  {formatDuration(job.timestamps.elapsedTime)}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Progress Section */}
+        {job?.status === 'running' && (
+          <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Scan in Progress</h2>
+              <span className="text-sm text-gray-600">
+                {job.progress?.current || 0} / {job.progress?.total || 0} links checked
+              </span>
+            </div>
+
+            <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+              <div
+                className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                style={{ width: `${getProgressPercentage()}%` }}
+              ></div>
+            </div>
+
+            <p className="text-sm text-gray-600">
+              {getProgressPercentage()}% complete
+              {job.progress?.estimatedTimeRemaining && (
+                <>
+                  {' '}
+                  · About {Math.round(job.progress.estimatedTimeRemaining / 60)} minutes remaining
+                </>
+              )}
+            </p>
+          </div>
+        )}
+
+        {/* Stats Summary */}
+        {job && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+              <div className="text-2xl font-bold text-blue-600 mb-2">
+                {job.stats?.totalLinksDiscovered || 0}
+              </div>
+              <div className="text-sm text-gray-600">Links Found</div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+              <div className="text-2xl font-bold text-green-600 mb-2">
+                {(job.stats?.totalLinksDiscovered || 0) - (job.stats?.brokenLinksFound || 0)}
+              </div>
+              <div className="text-sm text-gray-600">Working Links</div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+              <div className="text-2xl font-bold text-red-600 mb-2">
+                {job.stats?.brokenLinksFound || 0}
+              </div>
+              <div className="text-sm text-gray-600">Broken Links</div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+              <div className="text-2xl font-bold text-purple-600 mb-2">
+                {job.progress?.current || 0}
+              </div>
+              <div className="text-sm text-gray-600">Pages Scanned</div>
+            </div>
+          </div>
+        )}
+
+        {/* Export Success Message */}
+        {isExporting && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <svg
+                className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              <span className="text-blue-800">Preparing export file...</span>
+            </div>
+          </div>
+        )}
+
+        {/* Results Table */}
+        {job?.status === 'completed' && results && (
+          <ResultsTable
+            jobId={jobId}
+            brokenLinks={results.brokenLinks}
+            pagination={results.pagination}
+            onPageChange={handlePageChange}
+            onFilter={handleFilter}
+          />
+        )}
+
+        {/* Completed with No Broken Links */}
+        {job?.status === 'completed' && results && results.brokenLinks.length === 0 && (
+          <div className="bg-white rounded-lg shadow-lg p-8 text-center mb-6">
+            <svg
+              className="w-16 h-16 text-green-500 mx-auto mb-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              🎉 Excellent! No Broken Links Found
+            </h3>
+            <p className="text-gray-600 mb-4">
+              All {job.stats?.totalLinksDiscovered || 0} links on your website are working
+              perfectly.
+            </p>
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => router.push('/analyze')}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              >
+                🔍 Analyze Another Site
+              </button>
+              <button
+                onClick={exportToJSON}
+                disabled={isExporting}
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+              >
+                📁 Export Report
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Pending/Running State */}
+        {job?.status === 'running' && (
+          <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+            <div className="animate-pulse">
+              <div className="text-4xl mb-4">🔍</div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Scanning Your Website</h3>
+              <p className="text-gray-600">
+                We're crawling through your pages and checking all links. This page will update
+                automatically when complete.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Failed State */}
+        {job?.status === 'failed' && (
+          <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+            <svg
+              className="w-16 h-16 text-red-500 mx-auto mb-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+              />
+            </svg>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Scan Failed</h3>
+            <p className="text-gray-600 mb-4">
+              {job.errorMessage || 'The scan encountered an error and could not be completed.'}
+            </p>
+            <button
+              onClick={() => router.push('/analyze')}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -4,11 +4,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/supabase';
+import { db, supabase } from '@/lib/supabase';
 
 export async function GET(request, { params }) {
   try {
-    const { jobId } = params;
+    // FIX 1: Await params for Next.js 15 compatibility
+    const { jobId } = await params;
 
     // Validate jobId
     if (!jobId) {
@@ -34,17 +35,18 @@ export async function GET(request, { params }) {
       );
     }
 
+    // FIX 2: Use 'supabase' instead of 'db.supabase'
     // Get additional stats
     const [brokenLinksCount, totalLinksCount] = await Promise.all([
       // Count broken links
-      db.supabase
+      supabase
         .from('broken_links')
         .select('id', { count: 'exact' })
         .eq('job_id', jobId)
         .then(({ count }) => count || 0),
 
       // Count total discovered links
-      db.supabase
+      supabase
         .from('discovered_links')
         .select('id', { count: 'exact' })
         .eq('job_id', jobId)

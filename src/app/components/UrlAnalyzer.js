@@ -1,4 +1,4 @@
-// src/app/components/UrlAnalyzer.js - FIXED VERSION
+// src/app/components/UrlAnalyzer.js - COMPLETE VERSION with ALL original features
 'use client';
 
 import { useState } from 'react';
@@ -12,7 +12,7 @@ export default function UrlAnalyzer({
 }) {
   const [url, setUrl] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysis, setAnalysis] = useState(analysisData);
+  const [analysis, setAnalysis] = useState(null);
   const [error, setError] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('pages');
   const [analysisLog, setAnalysisLog] = useState([]);
@@ -38,6 +38,7 @@ export default function UrlAnalyzer({
       const urlObj = new URL(url);
       addLogEntry(`🚀 Starting analysis of ${urlObj.hostname}`, 'success');
       addLogEntry(`📊 This will analyze up to 100 pages to understand URL structure`, 'info');
+      addLogEntry(`🔍 Check your browser's developer console (F12) for detailed logs`, 'info');
 
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -62,14 +63,23 @@ export default function UrlAnalyzer({
 
       addLogEntry(`✅ Analysis complete! Found ${result.summary.totalUrls || 0} URLs`, 'success');
       addLogEntry(`📄 Analyzed ${result.summary.pagesAnalyzed || 0} pages`, 'success');
+      addLogEntry(`🔗 Total links discovered: ${result.summary.totalLinksFound || 'N/A'}`, 'info');
 
+      // Add debug info if available
+      if (result.summary.debug) {
+        addLogEntry(`🔧 Debug info: ${JSON.stringify(result.summary.debug)}`, 'info');
+      }
+
+      if (result.summary.error) {
+        addLogEntry(`⚠️ Server reported: ${result.summary.error}`, 'warning');
+      }
+
+      setAnalysis(result);
       const enrichedResult = {
         ...result,
-        originalUrl: url,
+        originalUrl: url, // Add the original URL
       };
-
       setAnalysis(enrichedResult);
-
       if (onAnalysisComplete) {
         onAnalysisComplete(enrichedResult);
       }
@@ -81,48 +91,144 @@ export default function UrlAnalyzer({
     }
   };
 
-  const handleSmartCrawl = async (crawlType = 'pages') => {
+  const handleSmartCrawl = async (urlsToCheck = 'pages') => {
     if (!analysis || !url) return;
 
     setIsStartingCrawl(true);
     setError('');
 
     try {
-      addLogEntry(
-        `🚀 Starting ${crawlType === 'pages' ? 'content pages' : 'full'} crawl...`,
-        'success'
-      );
+      // Determine which URLs to check based on user selection
+      let urlsForCrawl = [];
 
-      // Use the regular crawl endpoint with appropriate settings
+      if (urlsToCheck === 'pages') {
+        // Only check content pages - most efficient
+        urlsForCrawl = analysis.categories.pages.map((item) => ({
+          url: item.url,
+          sourceUrl: item.sourceUrl || url,
+          category: 'pages',
+        }));
+      } else if (urlsToCheck === 'all') {
+        // Check all discovered URLs
+        Object.entries(analysis.categories).forEach(([category, urls]) => {
+          if (category !== 'media' && category !== 'admin') {
+            // Skip media and admin
+            urlsForCrawl.push(
+              ...urls.map((item) => ({
+                url: item.url,
+                sourceUrl: item.sourceUrl || url,
+                category,
+              }))
+            );
+          }
+        });
+      }
+
+      console.log(`🚀 ENHANCED START: Starting crawl for: ${url}`);
+      console.log(`📊 ENHANCED START: Has analyzed data: ${!!analysis}`);
+      console.log(`🎯 ENHANCED START: Using pre-analyzed data with ${urlsForCrawl.length} URLs`);
+
+      // Show "Check Links" phase
+      addLogEntry(`🚀 Starting link checking for ${urlsForCrawl.length} URLs...`, 'success');
+      addLogEntry(`⚡ This may take a few minutes depending on the number of links`, 'info');
+
+      // Start crawl with pre-analyzed URLs
       const response = await fetch('/api/crawl/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url,
           settings: {
-            maxDepth: crawlType === 'pages' ? 2 : 3, // Shallower for content-only crawls
+            maxDepth: 2, // Lower depth since we're using pre-analyzed URLs
             includeExternal: false,
             timeout: 10000,
-            crawlType, // Pass the crawl type for potential optimization
+            usePreAnalyzedUrls: true, // Flag to indicate we're using pre-analyzed data
           },
+          preAnalyzedUrls: urlsForCrawl, // Pass the URLs we want to check
         }),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to start crawl');
+        throw new Error(result.error || 'Failed to start smart crawl');
       }
 
-      addLogEntry(`✅ Crawl job created: ${result.jobId}`, 'success');
-      addLogEntry(`🔍 Redirecting to results page...`, 'info');
+      console.log('✅ Smart crawl started:', result);
+      const jobId = result.jobId;
 
-      // Redirect to results page
-      setTimeout(() => {
-        router.push(`/results/${result.jobId}`);
-      }, 1500);
+      // Show checking progress
+      addLogEntry(`✅ Crawl job created: ${jobId}`, 'success');
+      addLogEntry(`🔍 Checking links in progress...`, 'info');
+
+      // Now poll for completion
+      let isComplete = false;
+      let pollCount = 0;
+      const maxPolls = 120; // Maximum 4 minutes of polling (2 second intervals)
+
+      while (!isComplete && pollCount < maxPolls) {
+        pollCount++;
+
+        // Wait 2 seconds between polls
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        try {
+          // Check job status
+          const statusResponse = await fetch(`/api/crawl/status/${jobId}`);
+          const statusData = await statusResponse.json();
+
+          if (statusResponse.ok) {
+            console.log(
+              `📊 Polling ${pollCount}: Status = ${statusData.status}, Progress = ${
+                statusData.progress?.percentage || 0
+              }%`
+            );
+
+            // Update progress in logs
+            if (statusData.progress && statusData.progress.percentage > 0) {
+              addLogEntry(
+                `📊 Progress: ${statusData.progress.current || 0}/${
+                  statusData.progress.total || 0
+                } links checked (${statusData.progress.percentage || 0}%)`,
+                'info'
+              );
+            }
+
+            if (statusData.status === 'completed') {
+              isComplete = true;
+              addLogEntry(
+                `🎉 Link checking complete! Found ${
+                  statusData.stats?.brokenLinksFound || 0
+                } broken links`,
+                'success'
+              );
+
+              // Small delay to show completion message, then redirect
+              setTimeout(() => {
+                router.push(`/results/${jobId}`);
+              }, 1500);
+            } else if (statusData.status === 'failed') {
+              throw new Error(statusData.errorMessage || 'Crawl job failed');
+            }
+            // If status is 'running', continue polling
+          } else {
+            console.error('Error checking status:', statusData);
+          }
+        } catch (pollError) {
+          console.error('Error during polling:', pollError);
+          // Continue polling unless it's a critical error
+        }
+      }
+
+      if (!isComplete) {
+        // Timeout reached
+        addLogEntry(`⚠️ Taking longer than expected. Redirecting to results page...`, 'warning');
+        setTimeout(() => {
+          router.push(`/results/${jobId}`);
+        }, 1000);
+      }
     } catch (err) {
-      console.error('❌ Error starting crawl:', err);
+      console.error('❌ Error starting smart crawl:', err);
       setError(err.message);
       addLogEntry(`❌ Error: ${err.message}`, 'error');
     } finally {
@@ -226,6 +332,21 @@ export default function UrlAnalyzer({
     return analysis.categories[category];
   };
 
+  const exportAnalysis = () => {
+    const jsonData = JSON.stringify(analysis, null, 2);
+    const blob = new Blob([jsonData], { type: 'application/json' });
+    const downloadUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = `url-analysis-${new URL(url).hostname}-${
+      new Date().toISOString().split('T')[0]
+    }.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(downloadUrl);
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
@@ -327,6 +448,96 @@ export default function UrlAnalyzer({
 
       {analysis && analysis.summary && (
         <div className="space-y-6">
+          {/* JavaScript Site Detection */}
+          {analysis.summary.isJavaScriptSite && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg
+                    className="h-6 w-6 text-yellow-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                    />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-lg font-medium text-yellow-800">
+                    JavaScript-Heavy Site Detected
+                  </h3>
+                  <div className="mt-2 text-sm text-yellow-700">
+                    <p>
+                      This website loads its content dynamically using JavaScript. Our static
+                      analyzer can only see the initial HTML shell.
+                    </p>
+
+                    {analysis.summary.frameworks &&
+                      Object.entries(analysis.summary.frameworks).some(
+                        ([, detected]) => detected
+                      ) && (
+                        <div className="mt-3">
+                          <p className="font-medium">Detected frameworks:</p>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {Object.entries(analysis.summary.frameworks)
+                              .filter(([, detected]) => detected)
+                              .map(([framework]) => (
+                                <span
+                                  key={framework}
+                                  className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs"
+                                >
+                                  {framework.charAt(0).toUpperCase() + framework.slice(1)}
+                                </span>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                    <div className="mt-3">
+                      <p className="font-medium">Recommended next steps:</p>
+                      <ul className="list-disc list-inside mt-1 space-y-1">
+                        <li>
+                          Use the <strong>Full Broken Link Checker</strong> instead (may work better
+                          with JavaScript sites)
+                        </li>
+                        <li>Check the sitemap.xml for site structure</li>
+                        <li>Try specific pages manually</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Debug Information */}
+          {analysis.summary.debug && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-3">🔧 Debug Information</h3>
+              <div className="text-sm text-gray-700 space-y-2">
+                <div>
+                  Original Links Found: {analysis.summary.debug.originalLinksCount || 'N/A'}
+                </div>
+                <div>Processed Links: {analysis.summary.debug.processedLinksCount || 'N/A'}</div>
+                {analysis.summary.debug.errors && analysis.summary.debug.errors.length > 0 && (
+                  <div>
+                    <div className="font-medium">Errors:</div>
+                    <ul className="list-disc list-inside ml-4">
+                      {analysis.summary.debug.errors.map((error, i) => (
+                        <li key={i} className="text-red-600">
+                          {error}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           {/* Summary Stats */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">📊 Analysis Summary</h2>
@@ -336,7 +547,9 @@ export default function UrlAnalyzer({
                 <div className="text-2xl font-bold text-blue-600">
                   {getSafeNumber(analysis.summary.totalUrls)}
                 </div>
-                <div className="text-sm text-blue-800">Total URLs Found</div>
+                <div className="text-sm text-blue-800">
+                  {analysis.summary.isJavaScriptSite ? 'URLs Found (Sitemap)' : 'Total URLs Found'}
+                </div>
               </div>
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <div className="text-2xl font-bold text-green-600">
@@ -356,31 +569,76 @@ export default function UrlAnalyzer({
               </div>
             </div>
 
-            {/* Category Breakdown */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {Object.entries(getSafeCategories()).map(([category, count]) => (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`p-3 rounded-lg text-left transition-colors ${
-                    selectedCategory === category
-                      ? 'ring-2 ring-blue-500 bg-blue-50'
-                      : 'hover:bg-gray-50'
-                  }`}
-                >
+            {/* Alternative Sources for JS sites */}
+            {analysis.alternatives && analysis.alternatives.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">
+                  🔍 Alternative URL Sources Found
+                </h3>
+                {analysis.alternatives.map((alt, index) => (
                   <div
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(
-                      category
-                    )}`}
+                    key={index}
+                    className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-3"
                   >
-                    {getCategoryLabel(category)}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium text-blue-900">
+                          {alt.type === 'sitemap' ? '🗺️ Sitemap.xml' : '🤖 Robots.txt'}
+                        </h4>
+                        <p className="text-sm text-blue-700">
+                          Found {alt.total} URLs from {alt.type}
+                        </p>
+                      </div>
+                      <button className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
+                        View URLs
+                      </button>
+                    </div>
+                    {alt.urls && alt.urls.length > 0 && (
+                      <div className="mt-3 text-xs">
+                        <p className="text-blue-600 font-medium">Sample URLs:</p>
+                        <div className="mt-1 space-y-1">
+                          {alt.urls.slice(0, 3).map((url, i) => (
+                            <div key={i} className="font-mono text-blue-800 break-all">
+                              {url}
+                            </div>
+                          ))}
+                          {alt.urls.length > 3 && (
+                            <div className="text-blue-600">... and {alt.urls.length - 3} more</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-lg font-semibold text-gray-900 mt-1">{count}</div>
-                </button>
-              ))}
-            </div>
-          </div>
+                ))}
+              </div>
+            )}
 
+            {/* Category Breakdown - only show if we have real categories */}
+            {!analysis.summary.isJavaScriptSite && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {Object.entries(getSafeCategories()).map(([category, count]) => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedCategory(category)}
+                    className={`p-3 rounded-lg text-left transition-colors ${
+                      selectedCategory === category
+                        ? 'ring-2 ring-blue-500 bg-blue-50'
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(
+                        category
+                      )}`}
+                    >
+                      {getCategoryLabel(category)}
+                    </div>
+                    <div className="text-lg font-semibold text-gray-900 mt-1">{count}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {/* Recommendations */}
           {getSafeRecommendations().length > 0 && (
             <div className="bg-white rounded-lg shadow-lg p-6">
@@ -404,7 +662,36 @@ export default function UrlAnalyzer({
               </div>
             </div>
           )}
-
+          {/* Top URL Patterns */}
+          {getSafePatterns().length > 0 && (
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                🔗 Most Common URL Patterns
+              </h2>
+              <div className="space-y-3">
+                {getSafePatterns()
+                  .slice(0, 8)
+                  .map((pattern, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <code className="text-sm font-mono text-gray-800">{pattern.pattern}</code>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Examples: {(pattern.examples || []).slice(0, 2).join(', ')}
+                          {(pattern.examples || []).length > 2 &&
+                            ` ... +${pattern.examples.length - 2} more`}
+                        </div>
+                      </div>
+                      <span className="ml-4 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                        {pattern.count}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
           {/* URL Category Details */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
@@ -417,7 +704,7 @@ export default function UrlAnalyzer({
             {getSafeCategoryData(selectedCategory).length > 0 ? (
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {getSafeCategoryData(selectedCategory)
-                  .slice(0, 20)
+                  .slice(0, 50)
                   .map((item, index) => (
                     <div key={index} className="p-3 bg-gray-50 rounded-lg">
                       <a
@@ -431,13 +718,14 @@ export default function UrlAnalyzer({
                       {item.pattern && (
                         <div className="text-xs text-gray-500 mt-1">
                           Pattern: <code>{item.pattern}</code>
+                          {item.sourceUrl && ` • Found on: ${new URL(item.sourceUrl).pathname}`}
                         </div>
                       )}
                     </div>
                   ))}
-                {getSafeCategoryData(selectedCategory).length > 20 && (
+                {getSafeCategoryData(selectedCategory).length > 50 && (
                   <div className="text-center py-3 text-gray-500">
-                    ... and {getSafeCategoryData(selectedCategory).length - 20} more URLs
+                    ... and {getSafeCategoryData(selectedCategory).length - 50} more URLs
                   </div>
                 )}
               </div>
@@ -473,7 +761,9 @@ export default function UrlAnalyzer({
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     />
                   </svg>
-                  <span className="text-blue-800">Starting smart crawl...</span>
+                  <span className="text-blue-800">
+                    Starting smart crawl with pre-analyzed URLs...
+                  </span>
                 </div>
               </div>
             )}
@@ -488,7 +778,7 @@ export default function UrlAnalyzer({
                     : 'bg-green-600 text-white hover:bg-green-700'
                 }`}
               >
-                ✅ Check {getSafeCategories().pages} Content Pages Only
+                ✅ Crawl {analysis.summary.categories.pages} Content Pages Only
               </button>
               <button
                 onClick={() => handleSmartCrawl('all')}
@@ -499,16 +789,63 @@ export default function UrlAnalyzer({
                     : 'bg-blue-600 text-white hover:bg-blue-700'
                 }`}
               >
-                🔄 Check All {analysis.summary.totalUrls} URLs
+                🔄 Crawl All {analysis.summary.totalUrls} URLs
+              </button>
+              <button
+                disabled={true}
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium opacity-50 cursor-not-allowed"
+              >
+                📊 Export Analysis Report (Coming Soon)
               </button>
             </div>
 
             <div className="mt-4 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Recommendation:</strong> Based on this analysis, checking only the{' '}
-                {getSafeCategories().pages} content pages will give you meaningful results much
-                faster than processing all {analysis.summary.totalUrls} URLs.
+                <strong>Recommendation:</strong> Based on this analysis, crawling only the{' '}
+                {analysis.summary.categories.pages} content pages will give you meaningful results
+                much faster than processing all {analysis.summary.totalUrls} URLs.
               </p>
+            </div>
+          </div>
+
+          {/* Technical Details */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">🔧 Technical Details</h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2">Analysis Settings</h3>
+                <div className="space-y-1 text-sm text-gray-600">
+                  <div>Max Depth: 3 levels</div>
+                  <div>Max Pages: 100 pages</div>
+                  <div>Pages Analyzed: {getSafeNumber(analysis.summary.pagesAnalyzed)}</div>
+                  <div>
+                    Coverage:{' '}
+                    {Math.round((getSafeNumber(analysis.summary.pagesAnalyzed) / 100) * 100)}%
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2">URL Distribution</h3>
+                <div className="space-y-1 text-sm text-gray-600">
+                  {Object.entries(getSafeCategories())
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 4)
+                    .map(([category, count]) => (
+                      <div key={category} className="flex justify-between">
+                        <span>{getCategoryLabel(category)}:</span>
+                        <span>
+                          {count} (
+                          {Math.round(
+                            (count / Math.max(getSafeNumber(analysis.summary.totalUrls), 1)) * 100
+                          )}
+                          %)
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
