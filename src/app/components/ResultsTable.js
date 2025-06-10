@@ -179,7 +179,7 @@ export default function ResultsTable({
                 placeholder="Search URLs..."
                 defaultValue={currentFilter.search}
                 onChange={handleSearchChange}
-                className="pl-9 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="pl-9 pr-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               <svg
                 className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"
@@ -201,7 +201,7 @@ export default function ResultsTable({
               <select
                 value={currentFilter.statusFilter}
                 onChange={(e) => handleFilterChange('statusFilter', e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="px-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="all">All Links</option>
                 <option value="working">✅ Working Links</option>
@@ -214,7 +214,7 @@ export default function ResultsTable({
               <select
                 value={currentFilter.statusCode}
                 onChange={(e) => handleFilterChange('statusCode', e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="px-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">All Status Codes</option>
                 <option value="200">200 - OK</option>
@@ -230,7 +230,7 @@ export default function ResultsTable({
             <select
               value={currentFilter.errorType}
               onChange={(e) => handleFilterChange('errorType', e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="px-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="all">All Errors</option>
               <option value="404">404 - Not Found</option>

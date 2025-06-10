@@ -567,30 +567,50 @@ export default function ResultsPage() {
           />
         )}
 
-        {/* Completed with No Issues */}
-        {job?.status === 'completed' && results && results.summary?.brokenLinks === 0 && (
+        {/* Completed - Show results summary */}
+        {job?.status === 'completed' && results && (
           <div className="bg-white rounded-lg shadow-lg p-8 text-center mb-6">
             <svg
-              className="w-16 h-16 text-green-500 mx-auto mb-4"
+              className={`w-16 h-16 mx-auto mb-4 ${
+                results.summary?.brokenLinks === 0 ? 'text-green-500' : 'text-yellow-500'
+              }`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
+              {results.summary?.brokenLinks === 0 ? (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              ) : (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                />
+              )}
             </svg>
+
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              🎉 Excellent! No Broken Links Found
+              {results.summary?.brokenLinks === 0
+                ? '🎉 Excellent! No Broken Links Found'
+                : `⚠️ Found ${results.summary?.brokenLinks} Broken Links`}
             </h3>
+
             <p className="text-gray-600 mb-4">
-              All {results.summary?.totalLinksChecked || 0} links on your website are working
-              perfectly with an average response time of{' '}
-              {results.summary?.performance?.averageResponseTime || 0}ms.
+              {results.summary?.brokenLinks === 0
+                ? `All ${
+                    job.stats?.totalLinksDiscovered || 0
+                  } links on your website are working perfectly.`
+                : `${results.summary?.brokenLinks} out of ${
+                    job.stats?.totalLinksDiscovered || 0
+                  } links need attention. Review the details below.`}
             </p>
+
             <div className="flex justify-center space-x-4">
               <button
                 onClick={() => router.push('/analyze')}
