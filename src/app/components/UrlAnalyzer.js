@@ -1,8 +1,14 @@
+// src/app/components/UrlAnalyzer.js - COMPLETE VERSION with ALL original features
 'use client';
 
 import { useState } from 'react';
 
-export default function UrlAnalyzer() {
+export default function UrlAnalyzer({
+  onAnalysisComplete,
+  onStartCrawl,
+  showCrawlButtons = false,
+  analysisData = null,
+}) {
   const [url, setUrl] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState(null);
@@ -66,6 +72,14 @@ export default function UrlAnalyzer() {
       }
 
       setAnalysis(result);
+      const enrichedResult = {
+        ...result,
+        originalUrl: url, // Add the original URL
+      };
+      setAnalysis(enrichedResult);
+      if (onAnalysisComplete) {
+        onAnalysisComplete(enrichedResult);
+      }
     } catch (err) {
       addLogEntry(`❌ Error: ${err.message}`, 'error');
       setError(err.message);
@@ -168,69 +182,6 @@ export default function UrlAnalyzer() {
       return [];
     }
     return analysis.categories[category];
-  };
-
-  const startFocusedCrawl = (focus) => {
-    const contentPages = getSafeCategoryData('pages');
-    const urls = contentPages.map((page) => page.url);
-
-    // Store the analyzed data in sessionStorage for the main crawler
-    const crawlData = {
-      sourceAnalysis: true,
-      focusType: focus,
-      discoveredUrls: urls,
-      totalAnalyzed: analysis.summary.totalUrls,
-      categories: getSafeCategories(),
-      recommendations: analysis.summary.recommendations,
-      timestamp: Date.now(),
-      originalUrl: url,
-    };
-
-    // Store data for main crawler to use
-    sessionStorage.setItem('analyzedCrawlData', JSON.stringify(crawlData));
-
-    // Navigate to main crawler with enhanced parameters
-    const params = new URLSearchParams({
-      url: url,
-      focus: focus,
-      analyzed: 'true',
-      urls: urls.length,
-      source: 'analyzer',
-    });
-
-    window.open(`/?${params.toString()}`, '_blank');
-  };
-
-  const startFullCrawl = () => {
-    const allUrls = [];
-    Object.values(analysis.categories || {}).forEach((category) => {
-      if (Array.isArray(category)) {
-        allUrls.push(...category.map((item) => item.url));
-      }
-    });
-
-    const crawlData = {
-      sourceAnalysis: true,
-      focusType: 'full',
-      discoveredUrls: allUrls,
-      totalAnalyzed: analysis.summary.totalUrls,
-      categories: getSafeCategories(),
-      recommendations: analysis.summary.recommendations,
-      timestamp: Date.now(),
-      originalUrl: url,
-    };
-
-    sessionStorage.setItem('analyzedCrawlData', JSON.stringify(crawlData));
-
-    const params = new URLSearchParams({
-      url: url,
-      focus: 'full',
-      analyzed: 'true',
-      urls: allUrls.length,
-      source: 'analyzer',
-    });
-
-    window.open(`/?${params.toString()}`, '_blank');
   };
 
   const exportAnalysis = () => {
@@ -415,7 +366,6 @@ export default function UrlAnalyzer() {
               </div>
             </div>
           )}
-
           {/* Debug Information */}
           {analysis.summary.debug && (
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
@@ -440,7 +390,6 @@ export default function UrlAnalyzer() {
               </div>
             </div>
           )}
-
           {/* Summary Stats */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">📊 Analysis Summary</h2>
@@ -542,7 +491,6 @@ export default function UrlAnalyzer() {
               </div>
             )}
           </div>
-
           {/* Recommendations */}
           {getSafeRecommendations().length > 0 && (
             <div className="bg-white rounded-lg shadow-lg p-6">
@@ -566,7 +514,6 @@ export default function UrlAnalyzer() {
               </div>
             </div>
           )}
-
           {/* Top URL Patterns */}
           {getSafePatterns().length > 0 && (
             <div className="bg-white rounded-lg shadow-lg p-6">
@@ -597,7 +544,6 @@ export default function UrlAnalyzer() {
               </div>
             </div>
           )}
-
           {/* URL Category Details */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
@@ -639,13 +585,12 @@ export default function UrlAnalyzer() {
               <p className="text-gray-500 italic">No URLs found in this category.</p>
             )}
           </div>
-
           {/* Action Buttons */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">🚀 Next Steps</h2>
             <div className="flex flex-wrap gap-4">
               <button
-                onClick={() => startFocusedCrawl('content')}
+                onClick={() => onStartCrawl && onStartCrawl('content')}
                 className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center gap-2"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -655,11 +600,11 @@ export default function UrlAnalyzer() {
                     clipRule="evenodd"
                   />
                 </svg>
-                Crawl {getSafeNumber(getSafeCategories().pages)} Content Pages Only
+                Check {getSafeNumber(getSafeCategories().pages)} Content Pages Only
               </button>
 
               <button
-                onClick={() => startFullCrawl()}
+                onClick={() => onStartCrawl && onStartCrawl('full')}
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -669,7 +614,7 @@ export default function UrlAnalyzer() {
                     clipRule="evenodd"
                   />
                 </svg>
-                Crawl All {getSafeNumber(analysis.summary.totalUrls)} URLs
+                Check All {getSafeNumber(analysis.summary.totalUrls)} URLs
               </button>
 
               <button
@@ -686,17 +631,7 @@ export default function UrlAnalyzer() {
                 Export Analysis Report
               </button>
             </div>
-
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Recommendation:</strong> Based on this analysis, crawling only the{' '}
-                {getSafeNumber(getSafeCategories().pages)} content pages will give you meaningful
-                results much faster than processing all {getSafeNumber(analysis.summary.totalUrls)}{' '}
-                URLs.
-              </p>
-            </div>
           </div>
-
           {/* Technical Details */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">🔧 Technical Details</h2>
