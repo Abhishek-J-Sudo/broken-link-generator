@@ -35,6 +35,7 @@ export const supabaseAdmin = supabaseServiceKey
 // Database helper functions
 export const db = {
   supabase,
+
   // Job operations
   async createJob(url, settings = {}) {
     const defaultSettings = {
@@ -106,15 +107,16 @@ export const db = {
     return data;
   },
 
-  // Discovered links operations
+  // FIXED: Discovered links operations - now properly handles source URLs
   async addDiscoveredLinks(jobId, urls) {
     const links = urls.map((url) => ({
       job_id: jobId,
       url: url.url,
+      source_url: url.sourceUrl || null, // FIXED: Now stores source URL
       is_internal: url.isInternal,
       depth: url.depth || 0,
       status: url.status || 'pending',
-      // NEW: HTTP status fields (will be null initially, updated when checked)
+      // HTTP status fields (will be null initially, updated when checked)
       http_status_code: url.http_status_code || null,
       response_time: url.response_time || null,
       checked_at: url.checked_at || null,

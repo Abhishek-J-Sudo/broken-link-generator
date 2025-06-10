@@ -155,6 +155,11 @@ async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, sett
           return null;
         }
 
+        // ADDITIONAL FIX: Ensure we have a valid source URL
+        if (!sourceUrl || sourceUrl === '') {
+          sourceUrl = baseUrl;
+        }
+
         return {
           url: url,
           sourceUrl: sourceUrl, // FIXED: This now properly extracts source URL

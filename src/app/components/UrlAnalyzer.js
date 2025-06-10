@@ -101,6 +101,7 @@ export default function UrlAnalyzer({
     }
   };
 
+  // handleSmartCrawl function
   const handleSmartCrawl = async (urlsToCheck = 'pages') => {
     if (!analysis || !url) return;
 
@@ -112,13 +113,14 @@ export default function UrlAnalyzer({
     setError('');
 
     try {
-      // Determine which URLs to check based on user selection
+      // FIXED: Determine which URLs to check based on user selection with proper source URLs
       let urlsForCrawl = [];
 
       if (urlsToCheck === 'pages') {
         urlsForCrawl = analysis.categories.pages.map((item) => ({
           url: item.url,
-          sourceUrl: item.sourceUrl || url,
+          // FIXED: Use the actual source URL from the analysis data
+          sourceUrl: item.sourceUrl || item.source_url || item.sourcePageUrl || url,
           category: 'pages',
         }));
       } else if (urlsToCheck === 'all') {
@@ -127,7 +129,8 @@ export default function UrlAnalyzer({
             urlsForCrawl.push(
               ...urls.map((item) => ({
                 url: item.url,
-                sourceUrl: item.sourceUrl || url,
+                // FIXED: Use the actual source URL from the analysis data
+                sourceUrl: item.sourceUrl || item.source_url || item.sourcePageUrl || url,
                 category,
               }))
             );
@@ -137,6 +140,15 @@ export default function UrlAnalyzer({
 
       addCrawlLogEntry(`🚀 Starting link checking for ${urlsForCrawl.length} URLs...`, 'success');
       addCrawlLogEntry(`⚡ This may take a few minutes depending on the number of links`, 'info');
+
+      // DEBUGGING: Log sample source URLs to verify they're correct
+      console.log(
+        '🔍 Sample URLs for crawl:',
+        urlsForCrawl.slice(0, 3).map((url) => ({
+          url: url.url.substring(0, 50) + '...',
+          sourceUrl: url.sourceUrl,
+        }))
+      );
 
       // Start crawl with pre-analyzed URLs
       const response = await fetch('/api/crawl/start', {
@@ -165,7 +177,7 @@ export default function UrlAnalyzer({
       addCrawlLogEntry(`✅ Crawl job created: ${jobId}`, 'success');
       addCrawlLogEntry(`🔍 Now checking each link for broken status...`, 'info');
 
-      // Now poll for completion with live updates
+      // Rest of the polling logic remains the same...
       let isComplete = false;
       let pollCount = 0;
       const maxPolls = 120;

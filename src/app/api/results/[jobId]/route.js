@@ -1,8 +1,7 @@
 /**
- * Enhanced Results endpoint with HTTP status tracking
+ * FIXED Results endpoint with proper source URL handling
  * Gets comprehensive link results (both working and broken) for a completed crawl job
- * UPDATED: Now shows all links with their HTTP status codes from discovered_links table
- * FIXED for Next.js 15 - awaits params
+ * FIXED: Now properly shows source URLs for all links from discovered_links table
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -61,14 +60,15 @@ export async function GET(request, { params }) {
       );
     }
 
-    // NEW: Get comprehensive link results from discovered_links table (includes HTTP status)
-    // Build query for all discovered links with their HTTP status
+    // FIXED: Get comprehensive link results from discovered_links table (now includes source_url)
+    // Build query for all discovered links with their HTTP status AND source URLs
     let discoveredQuery = db.supabase
       .from('discovered_links')
       .select(
         `
         id,
         url,
+        source_url,
         is_internal,
         depth,
         status,
@@ -127,17 +127,16 @@ export async function GET(request, { params }) {
 
     const { data: brokenLinks } = await brokenLinksQuery;
 
-    // Create a map of broken links for easy lookup
+    // Create a map of broken links for easy lookup (for additional metadata like link_text)
     const brokenLinksMap = new Map();
     brokenLinks?.forEach((link) => {
       brokenLinksMap.set(link.url, {
-        source_url: link.source_url,
         link_text: link.link_text,
         error_type: link.error_type,
       });
     });
 
-    // Enhanced results with HTTP status information
+    // FIXED: Enhanced results with proper source URL information
     const enhancedResults = (discoveredLinks || []).map((link) => {
       const brokenLinkData = brokenLinksMap.get(link.url);
 
@@ -158,8 +157,10 @@ export async function GET(request, { params }) {
         status_category: getStatusCategory(link.http_status_code, link.is_working),
         status_label: getStatusLabel(link.http_status_code, link.is_working, link.error_message),
 
-        // Additional context for broken links
-        source_url: brokenLinkData?.source_url || null,
+        // FIXED: Source URL now comes from discovered_links table
+        source_url: link.source_url || 'Discovery',
+
+        // Additional context for broken links (from broken_links table)
         link_text: brokenLinkData?.link_text || 'Unknown',
         error_type: brokenLinkData?.error_type || null,
 
@@ -239,7 +240,7 @@ export async function GET(request, { params }) {
         settings: job.settings,
       },
 
-      // Enhanced results with HTTP status data
+      // Enhanced results with HTTP status data and FIXED source URLs
       links: filteredResults,
 
       pagination: {
