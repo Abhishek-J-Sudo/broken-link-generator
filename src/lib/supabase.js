@@ -34,6 +34,7 @@ export const supabaseAdmin = supabaseServiceKey
 
 // Database helper functions
 export const db = {
+  supabase,
   // Job operations
   async createJob(url, settings = {}) {
     const defaultSettings = {

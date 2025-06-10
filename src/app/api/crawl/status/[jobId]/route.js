@@ -1,14 +1,15 @@
 /**
  * Crawl status endpoint
  * Gets real-time progress of a crawl job
+ * FIXED for Next.js 15 - awaits params
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db, supabase } from '@/lib/supabase';
+import { db } from '@/lib/supabase';
 
 export async function GET(request, { params }) {
   try {
-    // FIX 1: Await params for Next.js 15 compatibility
+    // FIX: Await params for Next.js 15 compatibility
     const { jobId } = await params;
 
     // Validate jobId
@@ -35,18 +36,17 @@ export async function GET(request, { params }) {
       );
     }
 
-    // FIX 2: Use 'supabase' instead of 'db.supabase'
     // Get additional stats
     const [brokenLinksCount, totalLinksCount] = await Promise.all([
       // Count broken links
-      supabase
+      db.supabase
         .from('broken_links')
         .select('id', { count: 'exact' })
         .eq('job_id', jobId)
         .then(({ count }) => count || 0),
 
       // Count total discovered links
-      supabase
+      db.supabase
         .from('discovered_links')
         .select('id', { count: 'exact' })
         .eq('job_id', jobId)

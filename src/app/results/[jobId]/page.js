@@ -1,4 +1,4 @@
-// src/app/results/[jobId]/page.js - Enhanced with Export Functionality
+// src/app/results/[jobId]/page.js - Fixed version with better error handling
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -35,9 +35,11 @@ export default function ResultsPage() {
             await loadResults();
           }
         } else {
+          console.error('Status fetch error:', statusData);
           setError(statusData.error || 'Failed to get job status');
         }
       } catch (err) {
+        console.error('Status poll error:', err);
         setError('Failed to connect to server');
       }
     };
@@ -70,17 +72,25 @@ export default function ResultsPage() {
         params.append('search', filterOptions.search);
       }
 
-      const response = await fetch(`/api/results/${jobId}?${params}`);
-      const data = await response.json();
+      console.log(`Loading results for job ${jobId} with params:`, params.toString());
 
-      if (response.ok) {
-        setResults(data);
-        setCurrentPage(page);
-      } else {
-        setError(data.error || 'Failed to load results');
+      const response = await fetch(`/api/results/${jobId}?${params}`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Results fetch error:', errorData);
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to load results`);
       }
+
+      const data = await response.json();
+      console.log('Results loaded:', data);
+
+      setResults(data);
+      setCurrentPage(page);
+      setError(''); // Clear any previous errors
     } catch (err) {
-      setError('Failed to load results');
+      console.error('Load results error:', err);
+      setError(err.message || 'Failed to load results');
     } finally {
       setIsLoading(false);
     }
@@ -296,14 +306,26 @@ export default function ResultsPage() {
               d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
             />
           </svg>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Results</h2>
           <p className="text-gray-600 mb-4">{error}</p>
-          <button
-            onClick={() => router.push('/')}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-          >
-            Back to Home
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={() => {
+                setError('');
+                setIsLoading(true);
+                loadResults();
+              }}
+              className="block w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={() => router.push('/')}
+              className="block w-full bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+            >
+              Back to Home
+            </button>
+          </div>
         </div>
       </div>
     );

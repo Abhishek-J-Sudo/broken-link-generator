@@ -1,6 +1,7 @@
 /**
  * Results endpoint
  * Gets broken links results for a completed crawl job
+ * FIXED for Next.js 15 - awaits params and fixes db access
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -9,7 +10,8 @@ import { validateUtils } from '@/lib/utils';
 
 export async function GET(request, { params }) {
   try {
-    const { jobId } = params;
+    // FIX 1: Await params for Next.js 15 compatibility
+    const { jobId } = await params;
     const { searchParams } = new URL(request.url);
 
     // Validate jobId
@@ -41,6 +43,18 @@ export async function GET(request, { params }) {
           code: 'JOB_NOT_FOUND',
         },
         { status: 404 }
+      );
+    }
+
+    // FIX 2: Use db.supabase correctly - ensure it exists
+    if (!db.supabase) {
+      console.error('Database connection not available');
+      return NextResponse.json(
+        {
+          error: 'Database connection error',
+          code: 'DB_CONNECTION_FAILED',
+        },
+        { status: 500 }
       );
     }
 
