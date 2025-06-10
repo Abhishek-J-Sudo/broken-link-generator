@@ -19,6 +19,16 @@ export default function UrlAnalyzer({
   const [isStartingCrawl, setIsStartingCrawl] = useState(false);
   const router = useRouter();
 
+  const [crawlProgress, setCrawlProgress] = useState(null);
+  const [crawlStats, setCrawlStats] = useState(null);
+  const [crawlStatus, setCrawlStatus] = useState('idle'); // idle, starting, running, completed, failed
+  const [crawlLog, setCrawlLog] = useState([]);
+
+  const addCrawlLogEntry = (message, type = 'info') => {
+    const timestamp = new Date().toLocaleTimeString();
+    setCrawlLog((prev) => [...prev, { message, type, timestamp }]);
+  };
+
   const addLogEntry = (message, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
     setAnalysisLog((prev) => [...prev, { message, type, timestamp }]);
@@ -95,6 +105,10 @@ export default function UrlAnalyzer({
     if (!analysis || !url) return;
 
     setIsStartingCrawl(true);
+    setCrawlStatus('starting');
+    setCrawlLog([]);
+    setCrawlProgress(null);
+    setCrawlStats(null);
     setError('');
 
     try {
@@ -102,17 +116,14 @@ export default function UrlAnalyzer({
       let urlsForCrawl = [];
 
       if (urlsToCheck === 'pages') {
-        // Only check content pages - most efficient
         urlsForCrawl = analysis.categories.pages.map((item) => ({
           url: item.url,
           sourceUrl: item.sourceUrl || url,
           category: 'pages',
         }));
       } else if (urlsToCheck === 'all') {
-        // Check all discovered URLs
         Object.entries(analysis.categories).forEach(([category, urls]) => {
           if (category !== 'media' && category !== 'admin') {
-            // Skip media and admin
             urlsForCrawl.push(
               ...urls.map((item) => ({
                 url: item.url,
@@ -124,13 +135,8 @@ export default function UrlAnalyzer({
         });
       }
 
-      console.log(`🚀 ENHANCED START: Starting crawl for: ${url}`);
-      console.log(`📊 ENHANCED START: Has analyzed data: ${!!analysis}`);
-      console.log(`🎯 ENHANCED START: Using pre-analyzed data with ${urlsForCrawl.length} URLs`);
-
-      // Show "Check Links" phase
-      addLogEntry(`🚀 Starting link checking for ${urlsForCrawl.length} URLs...`, 'success');
-      addLogEntry(`⚡ This may take a few minutes depending on the number of links`, 'info');
+      addCrawlLogEntry(`🚀 Starting link checking for ${urlsForCrawl.length} URLs...`, 'success');
+      addCrawlLogEntry(`⚡ This may take a few minutes depending on the number of links`, 'info');
 
       // Start crawl with pre-analyzed URLs
       const response = await fetch('/api/crawl/start', {
@@ -139,12 +145,12 @@ export default function UrlAnalyzer({
         body: JSON.stringify({
           url,
           settings: {
-            maxDepth: 2, // Lower depth since we're using pre-analyzed URLs
+            maxDepth: 2,
             includeExternal: false,
             timeout: 10000,
-            usePreAnalyzedUrls: true, // Flag to indicate we're using pre-analyzed data
+            usePreAnalyzedUrls: true,
           },
-          preAnalyzedUrls: urlsForCrawl, // Pass the URLs we want to check
+          preAnalyzedUrls: urlsForCrawl,
         }),
       });
 
@@ -154,83 +160,96 @@ export default function UrlAnalyzer({
         throw new Error(result.error || 'Failed to start smart crawl');
       }
 
-      console.log('✅ Smart crawl started:', result);
       const jobId = result.jobId;
+      setCrawlStatus('running');
+      addCrawlLogEntry(`✅ Crawl job created: ${jobId}`, 'success');
+      addCrawlLogEntry(`🔍 Now checking each link for broken status...`, 'info');
 
-      // Show checking progress
-      addLogEntry(`✅ Crawl job created: ${jobId}`, 'success');
-      addLogEntry(`🔍 Checking links in progress...`, 'info');
-
-      // Now poll for completion
+      // Now poll for completion with live updates
       let isComplete = false;
       let pollCount = 0;
-      const maxPolls = 120; // Maximum 4 minutes of polling (2 second intervals)
+      const maxPolls = 120;
 
       while (!isComplete && pollCount < maxPolls) {
         pollCount++;
 
-        // Wait 2 seconds between polls
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
         try {
-          // Check job status
           const statusResponse = await fetch(`/api/crawl/status/${jobId}`);
           const statusData = await statusResponse.json();
 
           if (statusResponse.ok) {
-            console.log(
-              `📊 Polling ${pollCount}: Status = ${statusData.status}, Progress = ${
-                statusData.progress?.percentage || 0
-              }%`
-            );
+            // Update progress state
+            setCrawlProgress(statusData.progress);
+            setCrawlStats(statusData.stats);
 
-            // Update progress in logs
+            // Add progress log entries
             if (statusData.progress && statusData.progress.percentage > 0) {
-              addLogEntry(
-                `📊 Progress: ${statusData.progress.current || 0}/${
-                  statusData.progress.total || 0
-                } links checked (${statusData.progress.percentage || 0}%)`,
-                'info'
-              );
+              const progressMsg = `📊 Progress: ${statusData.progress.current || 0}/${
+                statusData.progress.total || 0
+              } links checked (${Math.round(statusData.progress.percentage || 0)}%)`;
+
+              // Only add if it's different from the last log entry
+              if (crawlLog.length === 0 || crawlLog[crawlLog.length - 1].message !== progressMsg) {
+                addCrawlLogEntry(progressMsg, 'progress');
+              }
+            }
+
+            // Show broken links found so far
+            if (statusData.stats && statusData.stats.brokenLinksFound > 0) {
+              const brokenMsg = `🔴 Found ${statusData.stats.brokenLinksFound} broken links so far`;
+              if (
+                crawlLog.length === 0 ||
+                !crawlLog.some((log) => log.message.includes('broken links so far'))
+              ) {
+                addCrawlLogEntry(brokenMsg, 'warning');
+              }
             }
 
             if (statusData.status === 'completed') {
               isComplete = true;
-              addLogEntry(
+              setCrawlStatus('completed');
+              addCrawlLogEntry(
                 `🎉 Link checking complete! Found ${
                   statusData.stats?.brokenLinksFound || 0
-                } broken links`,
+                } broken links out of ${statusData.progress?.total || 0} total links`,
                 'success'
               );
+              addCrawlLogEntry(`📊 Final results are ready for viewing`, 'success');
 
-              // Small delay to show completion message, then redirect
+              // Show completion message for 3 seconds, then redirect
               setTimeout(() => {
-                router.push(`/results/${jobId}`);
-              }, 1500);
+                addCrawlLogEntry(`🔄 Redirecting to detailed results page...`, 'info');
+                setTimeout(() => {
+                  router.push(`/results/${jobId}`);
+                }, 1500);
+              }, 3000);
             } else if (statusData.status === 'failed') {
+              setCrawlStatus('failed');
               throw new Error(statusData.errorMessage || 'Crawl job failed');
             }
-            // If status is 'running', continue polling
-          } else {
-            console.error('Error checking status:', statusData);
           }
         } catch (pollError) {
           console.error('Error during polling:', pollError);
-          // Continue polling unless it's a critical error
+          addCrawlLogEntry(`⚠️ Connection issue, retrying...`, 'warning');
         }
       }
 
       if (!isComplete) {
-        // Timeout reached
-        addLogEntry(`⚠️ Taking longer than expected. Redirecting to results page...`, 'warning');
+        setCrawlStatus('timeout');
+        addCrawlLogEntry(
+          `⚠️ Taking longer than expected. Redirecting to results page...`,
+          'warning'
+        );
         setTimeout(() => {
           router.push(`/results/${jobId}`);
         }, 1000);
       }
     } catch (err) {
-      console.error('❌ Error starting smart crawl:', err);
+      setCrawlStatus('failed');
       setError(err.message);
-      addLogEntry(`❌ Error: ${err.message}`, 'error');
+      addCrawlLogEntry(`❌ Error: ${err.message}`, 'error');
     } finally {
       setIsStartingCrawl(false);
     }
@@ -764,6 +783,102 @@ export default function UrlAnalyzer({
                   <span className="text-blue-800">
                     Starting smart crawl with pre-analyzed URLs...
                   </span>
+                </div>
+              </div>
+            )}
+
+            {/* Live Crawling Progress */}
+            {crawlStatus !== 'idle' && (
+              <div className="bg-white border border-gray-200 rounded-md p-6 mb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">🔍 Live Crawling Progress</h3>
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      crawlStatus === 'running'
+                        ? 'bg-blue-100 text-blue-800'
+                        : crawlStatus === 'completed'
+                        ? 'bg-green-100 text-green-800'
+                        : crawlStatus === 'failed'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}
+                  >
+                    {crawlStatus === 'starting'
+                      ? 'Starting...'
+                      : crawlStatus === 'running'
+                      ? 'Running'
+                      : crawlStatus === 'completed'
+                      ? 'Completed'
+                      : crawlStatus === 'failed'
+                      ? 'Failed'
+                      : 'Timeout'}
+                  </span>
+                </div>
+
+                {/* Progress Bar */}
+                {crawlProgress && crawlProgress.total > 0 && (
+                  <div className="mb-4">
+                    <div className="flex justify-between text-sm text-gray-600 mb-2">
+                      <span>Checking links...</span>
+                      <span>
+                        {crawlProgress.current || 0} / {crawlProgress.total || 0}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div
+                        className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min(crawlProgress.percentage || 0, 100)}%` }}
+                      ></div>
+                    </div>
+                    <div className="text-center text-sm text-gray-500 mt-2">
+                      {Math.round(crawlProgress.percentage || 0)}% complete
+                    </div>
+                  </div>
+                )}
+
+                {/* Stats */}
+                {crawlStats && (
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className="text-center p-3 bg-green-50 rounded-lg">
+                      <div className="text-lg font-semibold text-green-600">
+                        {(crawlStats.totalLinksDiscovered || 0) -
+                          (crawlStats.brokenLinksFound || 0)}
+                      </div>
+                      <div className="text-xs text-green-800">Working Links</div>
+                    </div>
+                    <div className="text-center p-3 bg-red-50 rounded-lg">
+                      <div className="text-lg font-semibold text-red-600">
+                        {crawlStats.brokenLinksFound || 0}
+                      </div>
+                      <div className="text-xs text-red-800">Broken Links</div>
+                    </div>
+                    <div className="text-center p-3 bg-blue-50 rounded-lg">
+                      <div className="text-lg font-semibold text-blue-600">
+                        {crawlStats.pagesProcessed || 0}
+                      </div>
+                      <div className="text-xs text-blue-800">Pages Processed</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Live Log */}
+                <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">Activity Log</h4>
+                  <div className="space-y-2">
+                    {crawlLog.map((log, index) => (
+                      <div key={index} className="flex items-start text-sm">
+                        <span className="mr-2">{getLogIcon(log.type)}</span>
+                        <span className="text-gray-500 mr-2 text-xs">{log.timestamp}</span>
+                        <span className={getLogColor(log.type)}>{log.message}</span>
+                      </div>
+                    ))}
+                    {crawlStatus === 'running' && crawlLog.length === 0 && (
+                      <div className="flex items-center text-sm">
+                        <div className="animate-spin mr-2 h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                        <span className="text-blue-600">Initializing crawl...</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
