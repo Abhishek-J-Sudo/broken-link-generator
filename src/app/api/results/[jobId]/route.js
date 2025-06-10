@@ -1,7 +1,7 @@
 /**
  * Results endpoint
- * Gets broken links results for a completed crawl job
- * FIXED for Next.js 15 - awaits params and fixes db access
+ * Gets different views of crawl job data (broken, working, all links, pages)
+ * UPDATED to support multiple data views
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -25,14 +25,15 @@ export async function GET(request, { params }) {
       );
     }
 
-    // Validate and parse pagination parameters
+    // Parse parameters
     const page = parseInt(searchParams.get('page')) || 1;
     const limit = parseInt(searchParams.get('limit')) || 50;
     const { page: validPage, limit: validLimit } = validateUtils.validatePagination(page, limit);
 
-    // Parse filter parameters
-    const errorType = searchParams.get('errorType'); // Filter by error type
-    const search = searchParams.get('search'); // Search in URLs or link text
+    // NEW: Parse view parameter
+    const view = searchParams.get('view') || 'broken'; // 'broken', 'all', 'working', 'pages'
+    const errorType = searchParams.get('errorType');
+    const search = searchParams.get('search');
 
     // Check if job exists
     const job = await db.getJob(jobId);
@@ -46,7 +47,7 @@ export async function GET(request, { params }) {
       );
     }
 
-    // FIX 2: Use db.supabase correctly - ensure it exists
+    // Database connection check
     if (!db.supabase) {
       console.error('Database connection not available');
       return NextResponse.json(
@@ -58,42 +59,163 @@ export async function GET(request, { params }) {
       );
     }
 
-    // Build query for broken links
-    let query = db.supabase
-      .from('broken_links')
-      .select(
-        `
-        id,
-        url,
-        source_url,
-        status_code,
-        error_type,
-        link_text,
-        created_at
-      `,
-        { count: 'exact' }
-      )
-      .eq('job_id', jobId);
+    let query;
+    let data;
+    let count;
+    let responseData;
 
-    // Apply filters
-    if (errorType && errorType !== 'all') {
-      query = query.eq('error_type', errorType);
-    }
+    // Handle different views
+    switch (view) {
+      case 'all':
+        // All discovered links
+        query = db.supabase
+          .from('discovered_links')
+          .select(
+            `
+            id,
+            url,
+            status,
+            is_internal,
+            depth,
+            created_at
+          `,
+            { count: 'exact' }
+          )
+          .eq('job_id', jobId);
 
-    if (search) {
-      query = query.or(
-        `url.ilike.%${search}%,link_text.ilike.%${search}%,source_url.ilike.%${search}%`
-      );
-    }
+        if (search) {
+          query = query.ilike('url', `%${search}%`);
+        }
 
-    // Apply pagination and ordering
-    const offset = (validPage - 1) * validLimit;
-    query = query.order('created_at', { ascending: false }).range(offset, offset + validLimit - 1);
+        const offset1 = (validPage - 1) * validLimit;
+        query = query
+          .order('created_at', { ascending: false })
+          .range(offset1, offset1 + validLimit - 1);
 
-    const { data: brokenLinks, error, count } = await query;
+        const { data: allLinksData, error: allError, count: allCount } = await query;
+        if (allError) throw new Error(`Database query failed: ${allError.message}`);
 
-    if (error) {
-      throw new Error(`Database query failed: ${error.message}`);
+        data = allLinksData || [];
+        count = allCount || 0;
+        break;
+
+      case 'working':
+        // Working links (discovered but not broken)
+        const { data: brokenUrls } = await db.supabase
+          .from('broken_links')
+          .select('url')
+          .eq('job_id', jobId);
+
+        const brokenUrlList = brokenUrls ? brokenUrls.map((item) => item.url) : [];
+
+        query = db.supabase
+          .from('discovered_links')
+          .select(
+            `
+            id,
+            url,
+            status,
+            is_internal,
+            depth,
+            created_at
+          `,
+            { count: 'exact' }
+          )
+          .eq('job_id', jobId);
+
+        if (brokenUrlList.length > 0) {
+          query = query.not('url', 'in', `(${brokenUrlList.map((url) => `"${url}"`).join(',')})`);
+        }
+
+        if (search) {
+          query = query.ilike('url', `%${search}%`);
+        }
+
+        const offset2 = (validPage - 1) * validLimit;
+        query = query
+          .order('created_at', { ascending: false })
+          .range(offset2, offset2 + validLimit - 1);
+
+        const { data: workingLinksData, error: workingError, count: workingCount } = await query;
+        if (workingError) throw new Error(`Database query failed: ${workingError.message}`);
+
+        data = workingLinksData || [];
+        count = workingCount || 0;
+        break;
+
+      case 'pages':
+        // Scanned pages data
+        query = db.supabase
+          .from('discovered_links')
+          .select(
+            `
+            id,
+            url,
+            status,
+            is_internal,
+            depth,
+            created_at
+          `,
+            { count: 'exact' }
+          )
+          .eq('job_id', jobId)
+          .eq('is_internal', true);
+
+        if (search) {
+          query = query.ilike('url', `%${search}%`);
+        }
+
+        const offset3 = (validPage - 1) * validLimit;
+        query = query
+          .order('created_at', { ascending: false })
+          .range(offset3, offset3 + validLimit - 1);
+
+        const { data: pagesData, error: pagesError, count: pagesCount } = await query;
+        if (pagesError) throw new Error(`Database query failed: ${pagesError.message}`);
+
+        data = pagesData || [];
+        count = pagesCount || 0;
+        break;
+
+      default: // 'broken'
+        // Original broken links logic
+        query = db.supabase
+          .from('broken_links')
+          .select(
+            `
+            id,
+            url,
+            source_url,
+            status_code,
+            error_type,
+            link_text,
+            created_at
+          `,
+            { count: 'exact' }
+          )
+          .eq('job_id', jobId);
+
+        if (errorType && errorType !== 'all') {
+          query = query.eq('error_type', errorType);
+        }
+
+        if (search) {
+          query = query.or(
+            `url.ilike.%${search}%,link_text.ilike.%${search}%,source_url.ilike.%${search}%`
+          );
+        }
+
+        const offset4 = (validPage - 1) * validLimit;
+        query = query
+          .order('created_at', { ascending: false })
+          .range(offset4, offset4 + validLimit - 1);
+
+        const { data: brokenLinksData, error: brokenError, count: brokenCount } = await query;
+        if (brokenError) throw new Error(`Database query failed: ${brokenError.message}`);
+
+        data = brokenLinksData || [];
+        count = brokenCount || 0;
+        break;
     }
 
     // Calculate pagination info
@@ -102,19 +224,34 @@ export async function GET(request, { params }) {
     const hasNextPage = validPage < totalPages;
     const hasPrevPage = validPage > 1;
 
-    // Get summary statistics
-    const summaryQuery = db.supabase.from('broken_links').select('error_type').eq('job_id', jobId);
+    // Get summary statistics (only for broken view)
+    let summary = {};
+    if (view === 'broken') {
+      const summaryQuery = db.supabase
+        .from('broken_links')
+        .select('error_type')
+        .eq('job_id', jobId);
+      const { data: allBrokenLinks } = await summaryQuery;
 
-    const { data: allBrokenLinks } = await summaryQuery;
+      const errorTypeSummary = {};
+      allBrokenLinks?.forEach((link) => {
+        errorTypeSummary[link.error_type] = (errorTypeSummary[link.error_type] || 0) + 1;
+      });
 
-    // Group by error type for summary
-    const errorTypeSummary = {};
-    allBrokenLinks?.forEach((link) => {
-      errorTypeSummary[link.error_type] = (errorTypeSummary[link.error_type] || 0) + 1;
-    });
+      summary = {
+        totalBrokenLinks: totalCount,
+        errorTypes: errorTypeSummary,
+        mostCommonErrors: Object.entries(errorTypeSummary)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 5)
+          .map(([type, count]) => ({ type, count })),
+      };
+    }
 
     const response = {
       jobId,
+      view, // NEW: Include view type
+      dataType: view, // NEW: Include data type
       job: {
         id: job.id,
         url: job.url,
@@ -123,7 +260,7 @@ export async function GET(request, { params }) {
         completedAt: job.completed_at,
         settings: job.settings,
       },
-      brokenLinks: brokenLinks || [],
+      data: data, // Changed from brokenLinks to generic data
       pagination: {
         currentPage: validPage,
         totalPages,
@@ -134,15 +271,9 @@ export async function GET(request, { params }) {
         nextPage: hasNextPage ? validPage + 1 : null,
         prevPage: hasPrevPage ? validPage - 1 : null,
       },
-      summary: {
-        totalBrokenLinks: totalCount,
-        errorTypes: errorTypeSummary,
-        mostCommonErrors: Object.entries(errorTypeSummary)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 5)
-          .map(([type, count]) => ({ type, count })),
-      },
+      summary,
       filters: {
+        view,
         errorType: errorType || null,
         search: search || null,
       },

@@ -2,7 +2,14 @@
 
 import { useState, useEffect } from 'react';
 
-export default function ResultsTable({ jobId, brokenLinks, pagination, onPageChange, onFilter }) {
+export default function ResultsTable({
+  jobId,
+  data,
+  dataType,
+  pagination,
+  onPageChange,
+  onFilter,
+}) {
   const [currentFilter, setCurrentFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -30,6 +37,12 @@ export default function ResultsTable({ jobId, brokenLinks, pagination, onPageCha
     other: 'Other Error',
   };
 
+  const statusColors = {
+    checked: 'bg-green-100 text-green-800',
+    pending: 'bg-yellow-100 text-yellow-800',
+    skipped: 'bg-gray-100 text-gray-800',
+  };
+
   const handleFilterChange = (newFilter) => {
     setCurrentFilter(newFilter);
     if (onFilter) {
@@ -51,7 +64,7 @@ export default function ResultsTable({ jobId, brokenLinks, pagination, onPageCha
   };
 
   const truncateUrl = (url, maxLength = 60) => {
-    if (url.length <= maxLength) return url;
+    if (!url || url.length <= maxLength) return url;
     return url.substring(0, maxLength) + '...';
   };
 
@@ -60,27 +73,76 @@ export default function ResultsTable({ jobId, brokenLinks, pagination, onPageCha
     return statusCode ? `${label} (${statusCode})` : label;
   };
 
-  if (!brokenLinks || brokenLinks.length === 0) {
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleString();
+  };
+
+  // Get table configuration based on data type
+  const getTableConfig = () => {
+    switch (dataType) {
+      case 'broken':
+        return {
+          title: 'Broken Links Found',
+          description: 'Links that are not working properly',
+          noDataMessage: 'No Broken Links Found!',
+          noDataIcon: '✅',
+          noDataSubtext: "Great news! We didn't find any broken links on your website.",
+          headers: ['Broken URL', 'Error Type', 'Found On', 'Link Text'],
+          showFilters: true,
+        };
+      case 'all':
+        return {
+          title: 'All Discovered Links',
+          description: 'All links found during the crawl',
+          noDataMessage: 'No Links Found',
+          noDataIcon: '🔍',
+          noDataSubtext: 'No links were discovered during the crawl.',
+          headers: ['URL', 'Status', 'Type', 'Depth', 'Found At'],
+          showFilters: false,
+        };
+      case 'working':
+        return {
+          title: 'Working Links',
+          description: 'Links that are functioning correctly',
+          noDataMessage: 'No Working Links Found',
+          noDataIcon: '⚠️',
+          noDataSubtext: 'No working links were found during the crawl.',
+          headers: ['URL', 'Status', 'Type', 'Depth', 'Found At'],
+          showFilters: false,
+        };
+      case 'pages':
+        return {
+          title: 'Scanned Pages',
+          description: 'Internal pages that were crawled',
+          noDataMessage: 'No Pages Scanned',
+          noDataIcon: '📄',
+          noDataSubtext: 'No internal pages were scanned during the crawl.',
+          headers: ['Page URL', 'Status', 'Depth', 'Found At'],
+          showFilters: false,
+        };
+      default:
+        return {
+          title: 'Results',
+          description: 'Crawl results',
+          noDataMessage: 'No Data Found',
+          noDataIcon: '❓',
+          noDataSubtext: 'No data available.',
+          headers: ['URL', 'Status', 'Details'],
+          showFilters: false,
+        };
+    }
+  };
+
+  const config = getTableConfig();
+
+  if (!data || data.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-lg p-8 text-center">
         <div className="flex flex-col items-center">
-          <svg
-            className="w-16 h-16 text-green-500 mb-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No Broken Links Found!</h3>
-          <p className="text-gray-600">
-            Great news! We didn't find any broken links on your website.
-          </p>
+          <div className="text-6xl mb-4">{config.noDataIcon}</div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">{config.noDataMessage}</h3>
+          <p className="text-gray-600">{config.noDataSubtext}</p>
         </div>
       </div>
     );
@@ -92,9 +154,9 @@ export default function ResultsTable({ jobId, brokenLinks, pagination, onPageCha
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Broken Links Found</h2>
+            <h2 className="text-xl font-semibold text-gray-900">{config.title}</h2>
             <p className="text-sm text-gray-600">
-              {pagination?.totalCount || 0} broken links total
+              {pagination?.totalCount || 0} {config.description}
             </p>
           </div>
 
@@ -124,21 +186,23 @@ export default function ResultsTable({ jobId, brokenLinks, pagination, onPageCha
               </svg>
             </div>
 
-            {/* Filter */}
-            <select
-              value={currentFilter}
-              onChange={(e) => handleFilterChange(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Errors</option>
-              <option value="404">404 - Not Found</option>
-              <option value="500">500 - Server Error</option>
-              <option value="403">403 - Forbidden</option>
-              <option value="timeout">Timeout</option>
-              <option value="dns_error">DNS Error</option>
-              <option value="connection_error">Connection Error</option>
-              <option value="other">Other</option>
-            </select>
+            {/* Filter - only show for broken links */}
+            {config.showFilters && (
+              <select
+                value={currentFilter}
+                onChange={(e) => handleFilterChange(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Errors</option>
+                <option value="404">404 - Not Found</option>
+                <option value="500">500 - Server Error</option>
+                <option value="403">403 - Forbidden</option>
+                <option value="timeout">Timeout</option>
+                <option value="dns_error">DNS Error</option>
+                <option value="connection_error">Connection Error</option>
+                <option value="other">Other</option>
+              </select>
+            )}
           </div>
         </div>
       </div>
@@ -148,71 +212,158 @@ export default function ResultsTable({ jobId, brokenLinks, pagination, onPageCha
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Broken URL
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Error Type
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Found On
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Link Text
-              </th>
+              {config.headers.map((header, index) => (
+                <th
+                  key={index}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  {header}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {brokenLinks.map((link, index) => (
-              <tr key={link.id || index} className="hover:bg-gray-50">
-                {/* Broken URL */}
-                <td className="px-6 py-4">
-                  <div className="flex flex-col">
-                    <a
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-blue-600 hover:text-blue-800 font-mono break-all"
-                      title={link.url}
-                    >
-                      {truncateUrl(link.url)}
-                    </a>
-                    {link.url.length > 60 && (
-                      <span className="text-xs text-gray-500 mt-1">Click to view full URL</span>
-                    )}
-                  </div>
-                </td>
+            {data.map((item, index) => (
+              <tr key={item.id || index} className="hover:bg-gray-50">
+                {dataType === 'broken' && (
+                  <>
+                    {/* Broken URL */}
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-800 font-mono break-all"
+                          title={item.url}
+                        >
+                          {truncateUrl(item.url)}
+                        </a>
+                        {item.url && item.url.length > 60 && (
+                          <span className="text-xs text-gray-500 mt-1">Click to view full URL</span>
+                        )}
+                      </div>
+                    </td>
 
-                {/* Error Type */}
-                <td className="px-6 py-4">
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      errorTypeColors[link.error_type] || errorTypeColors.other
-                    }`}
-                  >
-                    {formatErrorMessage(link.error_type, link.status_code)}
-                  </span>
-                </td>
+                    {/* Error Type */}
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          errorTypeColors[item.error_type] || errorTypeColors.other
+                        }`}
+                      >
+                        {formatErrorMessage(item.error_type, item.status_code)}
+                      </span>
+                    </td>
 
-                {/* Source URL */}
-                <td className="px-6 py-4">
-                  <a
-                    href={link.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-gray-900 hover:text-blue-600 font-mono"
-                    title={link.source_url}
-                  >
-                    {truncateUrl(link.source_url, 40)}
-                  </a>
-                </td>
+                    {/* Source URL */}
+                    <td className="px-6 py-4">
+                      <a
+                        href={item.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-gray-900 hover:text-blue-600 font-mono"
+                        title={item.source_url}
+                      >
+                        {truncateUrl(item.source_url, 40)}
+                      </a>
+                    </td>
 
-                {/* Link Text */}
-                <td className="px-6 py-4">
-                  <span className="text-sm text-gray-600" title={link.link_text}>
-                    {link.link_text ? truncateUrl(link.link_text, 30) : 'No text'}
-                  </span>
-                </td>
+                    {/* Link Text */}
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-600" title={item.link_text}>
+                        {item.link_text ? truncateUrl(item.link_text, 30) : 'No text'}
+                      </span>
+                    </td>
+                  </>
+                )}
+
+                {(dataType === 'all' || dataType === 'working') && (
+                  <>
+                    {/* URL */}
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-800 font-mono break-all"
+                          title={item.url}
+                        >
+                          {truncateUrl(item.url)}
+                        </a>
+                      </div>
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          statusColors[item.status] || statusColors.pending
+                        }`}
+                      >
+                        {item.status || 'Unknown'}
+                      </span>
+                    </td>
+
+                    {/* Type */}
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-600">
+                        {item.is_internal ? 'Internal' : 'External'}
+                      </span>
+                    </td>
+
+                    {/* Depth */}
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-600">{item.depth || 0}</span>
+                    </td>
+
+                    {/* Found At */}
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-500">{formatDate(item.created_at)}</span>
+                    </td>
+                  </>
+                )}
+
+                {dataType === 'pages' && (
+                  <>
+                    {/* Page URL */}
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-800 font-mono break-all"
+                          title={item.url}
+                        >
+                          {truncateUrl(item.url)}
+                        </a>
+                      </div>
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          statusColors[item.status] || statusColors.pending
+                        }`}
+                      >
+                        {item.status || 'Unknown'}
+                      </span>
+                    </td>
+
+                    {/* Depth */}
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-600">{item.depth || 0}</span>
+                    </td>
+
+                    {/* Found At */}
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-500">{formatDate(item.created_at)}</span>
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
