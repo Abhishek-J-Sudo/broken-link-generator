@@ -1,6 +1,7 @@
 /**
- * Enhanced Start crawl endpoint with analyzed data support
- * Replace /src/app/api/crawl/start/route.js with this version
+ * Start crawl endpoint
+ * Initiates a new broken link checking job
+ * Enhanced to handle pre-analyzed URLs for smart crawling
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -14,8 +15,8 @@ export async function POST(request) {
     const body = await request.json();
     const { url, settings = {}, analyzedData = null } = body;
 
-    console.log(`🚀 ENHANCED START: Starting crawl for: ${url}`);
-    console.log(`📊 ENHANCED START: Has analyzed data: ${!!analyzedData}`);
+    console.log('🚀 ENHANCED START: Starting crawl for:', url);
+    console.log('📊 ENHANCED START: Has analyzed data:', !!analyzedData);
 
     // Validate required fields
     if (!url) {
@@ -52,25 +53,66 @@ export async function POST(request) {
       );
     }
 
+    // Normalize URL
     const normalizedUrl = urlUtils.normalizeUrl(url);
 
-    // Check if we have pre-analyzed data
-    if (analyzedData && analyzedData.sourceAnalysis && analyzedData.discoveredUrls) {
+    // Enhanced Path: Use pre-analyzed data if available
+    if (analyzedData && analyzedData.categories && analyzedData.categories.pages) {
       console.log(
-        `🎯 ENHANCED START: Using pre-analyzed data with ${analyzedData.discoveredUrls.length} URLs`
+        '🎯 ENHANCED START: Using pre-analyzed data with',
+        analyzedData.categories.pages.length,
+        'URLs'
       );
       return await handleSmartCrawl(normalizedUrl, settings, analyzedData);
-    } else {
-      console.log(`🔍 ENHANCED START: Starting traditional crawl`);
-      return await handleTraditionalCrawl(normalizedUrl, settings);
     }
+
+    // Traditional Path: Normal crawling
+    console.log('🔄 ENHANCED START: Using traditional crawl method');
+
+    // Create new crawler instance for this job
+    const crawler = new WebCrawler({
+      maxDepth: settings.maxDepth || 3,
+      includeExternal: settings.includeExternal || false,
+      timeout: settings.timeout || 10000,
+      maxConcurrent: 5,
+      batchSize: 50,
+    });
+
+    // Start the crawl asynchronously
+    const crawlPromise = crawler.startCrawl(normalizedUrl, settings);
+
+    // Don't await the full crawl - return immediately with job info
+    crawlPromise.catch((error) => {
+      console.error(`Traditional crawl failed:`, error);
+    });
+
+    // Get initial job info
+    const initialResult = await crawlPromise;
+
+    return NextResponse.json(
+      {
+        success: true,
+        jobId: initialResult.jobId,
+        status: 'started',
+        url: normalizedUrl,
+        settings: {
+          maxDepth: settings.maxDepth || 3,
+          includeExternal: settings.includeExternal || false,
+          timeout: settings.timeout || 10000,
+        },
+        message: 'Crawl job started successfully',
+        statusUrl: `/api/crawl/status/${initialResult.jobId}`,
+        resultsUrl: `/api/results/${initialResult.jobId}`,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('❌ ENHANCED START: Error starting crawl:', error);
 
     return NextResponse.json(
       {
         error: 'Failed to start crawl job',
-        message: error.message,
+        message: error.message || 'Unknown error occurred',
         code: 'CRAWL_START_FAILED',
       },
       { status: 500 }
@@ -78,57 +120,102 @@ export async function POST(request) {
   }
 }
 
+/**
+ * Smart crawl using pre-analyzed URLs
+ */
 async function handleSmartCrawl(url, settings, analyzedData) {
-  console.log(`🎯 SMART CRAWL: Processing ${analyzedData.discoveredUrls.length} pre-analyzed URLs`);
-
   try {
+    console.log(
+      '🎯 SMART CRAWL: Processing',
+      analyzedData.categories.pages.length,
+      'pre-analyzed URLs'
+    );
+
     // Create job in database
     const job = await db.createJob(url, {
       ...settings,
+      maxDepth: settings.maxDepth || 3,
+      includeExternal: settings.includeExternal || false,
+      timeout: settings.timeout || 10000,
       isSmartCrawl: true,
-      analyzedData: true,
-      focusType: analyzedData.focusType,
-      totalDiscoveredUrls: analyzedData.discoveredUrls.length,
     });
 
-    console.log(`✅ SMART CRAWL: Created job ${job.id}`);
+    console.log('📝 SMART CRAWL: Created job:', job.id);
 
-    // Add discovered URLs to database
-    const discoveredLinks = analyzedData.discoveredUrls.map((url) => ({
-      url,
-      status: 'pending',
-      is_internal: true,
-      depth: 1,
-    }));
+    // Extract URLs from analyzed data
+    const urlsToCheck = [];
 
-    // Add links in batches
-    const batchSize = 100;
-    for (let i = 0; i < discoveredLinks.length; i += batchSize) {
-      const batch = discoveredLinks.slice(i, i + batchSize);
-      await db.addDiscoveredLinks(job.id, batch);
-      console.log(
-        `📝 SMART CRAWL: Added batch ${Math.floor(i / batchSize) + 1} (${batch.length} URLs)`
-      );
+    // Get content pages (primary target)
+    if (analyzedData.categories.pages && Array.isArray(analyzedData.categories.pages)) {
+      analyzedData.categories.pages.forEach((pageData) => {
+        if (pageData && pageData.url) {
+          urlsToCheck.push({
+            url: pageData.url,
+            sourceUrl: pageData.sourceUrl || url,
+            linkText: 'Content Page',
+            category: 'pages',
+          });
+        }
+      });
     }
 
+    // Optionally include external links if requested
+    if (settings.includeExternal && analyzedData.categories.withParams) {
+      analyzedData.categories.withParams.forEach((paramData) => {
+        if (paramData && paramData.url) {
+          urlsToCheck.push({
+            url: paramData.url,
+            sourceUrl: paramData.sourceUrl || url,
+            linkText: 'External Link',
+            category: 'withParams',
+          });
+        }
+      });
+    }
+
+    console.log('🔍 SMART CRAWL: Prepared', urlsToCheck.length, 'URLs for checking');
+
+    if (urlsToCheck.length === 0) {
+      throw new Error('No valid URLs found in analyzed data');
+    }
+
+    // Save discovered URLs to database
+    await db.addDiscoveredLinks(
+      job.id,
+      urlsToCheck.map((urlData) => ({
+        url: urlData.url,
+        source_url: urlData.sourceUrl,
+        is_internal: true,
+        depth: 1,
+        status: 'pending',
+      }))
+    );
+
     // Update job progress
-    await db.updateJobProgress(job.id, 0, discoveredLinks.length);
+    await db.updateJobProgress(job.id, 0, urlsToCheck.length);
     await db.updateJobStatus(job.id, 'running');
 
-    // Start checking links asynchronously
-    checkLinksAsync(job.id, analyzedData.discoveredUrls, settings);
+    // Start checking links in background (don't await)
+    processSmartCrawlLinks(job.id, urlsToCheck, settings).catch((error) => {
+      console.error('❌ SMART CRAWL: Background processing failed:', error);
+      db.updateJobStatus(job.id, 'failed', error.message).catch(console.error);
+    });
 
     return NextResponse.json(
       {
         success: true,
         jobId: job.id,
-        status: 'running',
+        status: 'started',
         url: url,
-        settings: settings,
-        mode: 'smart',
-        totalUrls: analyzedData.discoveredUrls.length,
-        focusType: analyzedData.focusType,
-        message: 'Smart crawl job started successfully using pre-analyzed URLs',
+        mode: 'smart_crawl',
+        urlsToCheck: urlsToCheck.length,
+        settings: {
+          maxDepth: settings.maxDepth || 3,
+          includeExternal: settings.includeExternal || false,
+          timeout: settings.timeout || 10000,
+          isSmartCrawl: true,
+        },
+        message: `Smart crawl started - checking ${urlsToCheck.length} pre-analyzed URLs`,
         statusUrl: `/api/crawl/status/${job.id}`,
         resultsUrl: `/api/results/${job.id}`,
       },
@@ -136,57 +223,18 @@ async function handleSmartCrawl(url, settings, analyzedData) {
     );
   } catch (error) {
     console.error('❌ SMART CRAWL: Error:', error);
-    throw error;
+    throw error; // Re-throw to be caught by main handler
   }
 }
 
-async function handleTraditionalCrawl(url, settings) {
-  console.log(`🔍 TRADITIONAL CRAWL: Starting for ${url}`);
-
-  // Create new crawler instance for this job
-  const crawler = new WebCrawler({
-    maxDepth: settings.maxDepth || 3,
-    includeExternal: settings.includeExternal || false,
-    timeout: settings.timeout || 10000,
-    maxConcurrent: 5,
-    batchSize: 50,
-  });
-
-  // Start the crawl asynchronously
-  const crawlPromise = crawler.startCrawl(url, settings);
-
-  // Don't await the full crawl - return immediately with job info
-  crawlPromise.catch((error) => {
-    console.error(`❌ TRADITIONAL CRAWL: Failed for job:`, error);
-  });
-
-  // Get initial job info
-  const initialResult = await crawlPromise;
-
-  return NextResponse.json(
-    {
-      success: true,
-      jobId: initialResult.jobId,
-      status: 'started',
-      url: url,
-      settings: {
-        maxDepth: settings.maxDepth || 3,
-        includeExternal: settings.includeExternal || false,
-        timeout: settings.timeout || 10000,
-      },
-      mode: 'traditional',
-      message: 'Traditional crawl job started successfully',
-      statusUrl: `/api/crawl/status/${initialResult.jobId}`,
-      resultsUrl: `/api/results/${initialResult.jobId}`,
-    },
-    { status: 201 }
-  );
-}
-
-async function checkLinksAsync(jobId, urls, settings) {
-  console.log(`🔗 ASYNC CHECKER: Starting to check ${urls.length} URLs for job ${jobId}`);
-
+/**
+ * Process smart crawl links in background
+ */
+async function processSmartCrawlLinks(jobId, urlsToCheck, settings) {
   try {
+    console.log('🔄 SMART CRAWL: Starting background link checking for job', jobId);
+
+    // Create HTTP checker
     const httpChecker = new HttpChecker({
       timeout: settings.timeout || 10000,
       maxConcurrent: 5,
@@ -194,78 +242,63 @@ async function checkLinksAsync(jobId, urls, settings) {
     });
 
     // Process URLs in batches
-    const batchSize = 50;
+    const batchSize = 25;
+    const batches = batchUtils.chunkArray(urlsToCheck, batchSize);
     let processedCount = 0;
 
-    for (let i = 0; i < urls.length; i += batchSize) {
-      const batch = urls.slice(i, i + batchSize);
-
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
       console.log(
-        `🔗 ASYNC CHECKER: Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(
-          urls.length / batchSize
-        )} (${batch.length} URLs)`
+        `🔄 SMART CRAWL: Processing batch ${i + 1}/${batches.length} (${batch.length} URLs)`
       );
 
       try {
-        // Prepare URLs for checking
-        const urlsToCheck = batch.map((url) => ({
-          url: typeof url === 'string' ? url : url.url,
-          sourceUrl: 'Analyzer Discovery',
-          linkText: 'Analyzed Link',
-        }));
-
-        // Check this batch
-        const { results } = await httpChecker.checkUrls(urlsToCheck);
+        // Check URLs in this batch
+        const { results } = await httpChecker.checkUrls(batch);
 
         // Process results
         for (let j = 0; j < results.length; j++) {
           const result = results[j];
+          const originalUrl = batch[j];
+
           processedCount++;
 
-          // Update discovered link status
-          await db.supabase
-            .from('discovered_links')
-            .update({ status: 'checked' })
-            .eq('job_id', jobId)
-            .eq('url', result.url);
-
-          // If broken, add to broken links
+          // If link is broken, save to database
           if (!result.isWorking) {
             await db.addBrokenLink(jobId, {
               url: result.url,
-              sourceUrl: result.sourceUrl || 'Analyzer Discovery',
+              sourceUrl: originalUrl.sourceUrl,
               statusCode: result.statusCode,
               errorType: result.errorType || 'other',
-              linkText: result.linkText || 'Analyzed Link',
+              linkText: originalUrl.linkText || 'No text',
             });
+          }
 
-            console.log(
-              `❌ ASYNC CHECKER: Found broken link: ${result.url} (${result.statusCode})`
-            );
+          // Update progress every 5 URLs
+          if (processedCount % 5 === 0) {
+            await db.updateJobProgress(jobId, processedCount, urlsToCheck.length);
           }
         }
 
-        // Update progress
-        await db.updateJobProgress(jobId, processedCount, urls.length);
-
-        console.log(
-          `✅ ASYNC CHECKER: Completed batch - ${processedCount}/${urls.length} total processed`
-        );
+        // Small delay between batches
+        if (i < batches.length - 1) {
+          await batchUtils.delay(1000);
+        }
       } catch (batchError) {
-        console.error(`❌ ASYNC CHECKER: Error processing batch:`, batchError);
+        console.error(`❌ SMART CRAWL: Error processing batch ${i + 1}:`, batchError);
         // Continue with next batch
       }
-
-      // Small delay between batches
-      await batchUtils.delay(500);
     }
 
-    // Complete the job
+    // Final progress update and complete job
+    await db.updateJobProgress(jobId, processedCount, urlsToCheck.length);
     await db.updateJobStatus(jobId, 'completed');
-    console.log(`🎉 ASYNC CHECKER: Job ${jobId} completed! Processed ${processedCount} URLs`);
+
+    console.log('✅ SMART CRAWL: Completed successfully -', processedCount, 'URLs processed');
   } catch (error) {
-    console.error(`❌ ASYNC CHECKER: Error in job ${jobId}:`, error);
+    console.error('❌ SMART CRAWL: Background processing error:', error);
     await db.updateJobStatus(jobId, 'failed', error.message);
+    throw error;
   }
 }
 
