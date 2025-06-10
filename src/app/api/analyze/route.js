@@ -391,6 +391,7 @@ function extractLinksManually(html, baseUrl) {
         isInternal,
         shouldCrawl,
         depth: 1,
+        sourceUrl: baseUrl,
       });
     } catch (error) {
       // Skip invalid URLs
