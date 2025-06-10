@@ -1,6 +1,6 @@
 /**
  * Enhanced start crawl endpoint - Simplified and More Robust
- * Initiates a new broken link checking job with optional pre-analyzed URLs
+ * UPDATED: Now stores HTTP status codes and timing data in database
  */
 
 import { NextResponse } from 'next/server';
@@ -119,6 +119,7 @@ export async function POST(request) {
 
 /**
  * Process smart crawl with pre-analyzed URLs in the background
+ * UPDATED: Now saves HTTP status data to database
  */
 async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, settings) {
   try {
@@ -131,7 +132,7 @@ async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, sett
       throw new Error('preAnalyzedUrls must be an array');
     }
 
-    // Add all discovered URLs to the database first
+    // Add all discovered URLs to the database first (without HTTP status)
     const discoveredLinks = preAnalyzedUrls
       .map((urlData, index) => {
         // Handle different possible structures
@@ -148,7 +149,13 @@ async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, sett
           sourceUrl: sourceUrl,
           isInternal: urlUtils.isInternalUrl(url, baseUrl),
           depth: 1,
-          status: 'pending',
+          status: 'pending', // Will be updated when checked
+          // NEW: Initialize HTTP status fields as null
+          http_status_code: null,
+          response_time: null,
+          checked_at: null,
+          is_working: null,
+          error_message: null,
         };
       })
       .filter(Boolean); // Remove null entries
@@ -202,24 +209,53 @@ async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, sett
 
         console.log(`✅ Checked ${results.length} URLs in batch ${i + 1}`);
 
-        // Process results
+        // Process results and update database
         for (const result of results) {
           processedCount++;
 
-          // If URL is broken, record it
-          if (!result.isWorking) {
+          // UPDATE: Save HTTP status data to discovered_links table
+          try {
+            await db.supabase
+              .from('discovered_links')
+              .update({
+                status: 'checked',
+                http_status_code: result.http_status_code,
+                response_time: result.response_time,
+                checked_at: result.checked_at,
+                is_working: result.is_working,
+                error_message: result.error_message,
+              })
+              .eq('job_id', jobId)
+              .eq('url', result.url);
+
+            console.log(
+              `💾 Updated status for: ${result.url} (${result.http_status_code || 'ERROR'})`
+            );
+          } catch (updateError) {
+            console.error(`❌ Failed to update status for ${result.url}:`, updateError);
+          }
+
+          // If URL is broken, also record in broken_links table
+          if (!result.is_working) {
             const brokenLink = {
               url: result.url,
               sourceUrl: result.sourceUrl,
-              statusCode: result.statusCode,
+              statusCode: result.http_status_code,
               errorType: result.errorType || 'other',
               linkText: result.linkText || 'Pre-analyzed link',
             };
 
-            await db.addBrokenLink(jobId, brokenLink);
-            brokenLinksFound++;
-
-            console.log(`💔 Found broken link: ${result.url} (${result.errorType})`);
+            try {
+              await db.addBrokenLink(jobId, brokenLink);
+              brokenLinksFound++;
+              console.log(
+                `💔 Found broken link: ${result.url} (${
+                  result.http_status_code || result.errorType
+                })`
+              );
+            } catch (dbError) {
+              console.error('❌ Error saving broken link:', dbError);
+            }
           }
         }
 

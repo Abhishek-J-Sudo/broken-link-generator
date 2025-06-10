@@ -1,6 +1,6 @@
 /**
  * HTTP status checker for validating links
- * Handles various types of HTTP requests and error conditions
+ * UPDATED: Now returns detailed status info for database storage
  */
 
 import axios from 'axios';
@@ -37,6 +37,7 @@ export class HttpChecker {
 
   /**
    * Checks a single URL and returns detailed status information
+   * UPDATED: Returns database-ready format
    */
   async checkUrl(url, sourceUrl = null) {
     const startTime = Date.now();
@@ -46,13 +47,22 @@ export class HttpChecker {
       try {
         const response = await axios.get(url, this.axiosConfig);
         const responseTime = Date.now() - startTime;
+        const isWorking = this._isStatusCodeOk(response.status);
 
         const result = {
           url,
           sourceUrl,
+          // NEW: Database fields
+          http_status_code: response.status,
+          response_time: responseTime,
+          checked_at: new Date().toISOString(),
+          is_working: isWorking,
+          error_message: null,
+
+          // Legacy fields (for backward compatibility)
           statusCode: response.status,
           responseTime,
-          isWorking: this._isStatusCodeOk(response.status),
+          isWorking,
           finalUrl: response.request.res?.responseUrl || url,
           redirectCount: response.request._redirectCount || 0,
           headers: this._extractRelevantHeaders(response.headers),
@@ -60,26 +70,35 @@ export class HttpChecker {
           timestamp: new Date().toISOString(),
         };
 
-        // If successful or non-retryable error, return result
-        if (result.isWorking || !this._shouldRetry(response.status)) {
-          if (!result.isWorking) {
-            result.errorType = errorUtils.classifyError(response.status);
-            result.errorMessage = errorUtils.getErrorMessage(result.errorType, response.status);
-          }
-          return result;
+        // If not working, add error classification
+        if (!isWorking) {
+          result.errorType = errorUtils.classifyError(response.status);
+          result.error_message = errorUtils.getErrorMessage(result.errorType, response.status);
         }
+
+        return result;
       } catch (error) {
         const responseTime = Date.now() - startTime;
 
         // If this is the last attempt, return the error
         if (attempt === this.options.retryAttempts) {
+          const errorType = errorUtils.classifyError(null, error);
+
           return {
             url,
             sourceUrl,
+            // NEW: Database fields
+            http_status_code: null,
+            response_time: responseTime,
+            checked_at: new Date().toISOString(),
+            is_working: false,
+            error_message: error.message,
+
+            // Legacy fields
             statusCode: null,
             responseTime,
             isWorking: false,
-            errorType: errorUtils.classifyError(null, error),
+            errorType,
             errorMessage: error.message,
             attempt: attempt + 1,
             timestamp: new Date().toISOString(),
@@ -98,6 +117,7 @@ export class HttpChecker {
 
   /**
    * Checks multiple URLs with concurrency control
+   * UPDATED: Returns database-ready results
    */
   async checkUrls(urls, onProgress = null) {
     const results = [];
@@ -126,6 +146,14 @@ export class HttpChecker {
           const failedResult = {
             url,
             sourceUrl,
+            // NEW: Database fields
+            http_status_code: null,
+            response_time: null,
+            checked_at: new Date().toISOString(),
+            is_working: false,
+            error_message: error.message,
+
+            // Legacy fields
             statusCode: null,
             isWorking: false,
             errorType: 'other',
@@ -164,18 +192,32 @@ export class HttpChecker {
 
   /**
    * Performs a lightweight HEAD request to check if URL exists
+   * UPDATED: Returns database-ready format
    */
   async quickCheck(url) {
+    const startTime = Date.now();
+
     try {
       const response = await axios.head(url, {
         ...this.axiosConfig,
         timeout: 5000, // Shorter timeout for quick checks
       });
 
+      const responseTime = Date.now() - startTime;
+      const isWorking = this._isStatusCodeOk(response.status);
+
       return {
         url,
+        // NEW: Database fields
+        http_status_code: response.status,
+        response_time: responseTime,
+        checked_at: new Date().toISOString(),
+        is_working: isWorking,
+        error_message: null,
+
+        // Legacy fields
         statusCode: response.status,
-        isWorking: this._isStatusCodeOk(response.status),
+        isWorking,
         method: 'HEAD',
       };
     } catch (error) {
@@ -190,18 +232,40 @@ export class HttpChecker {
           },
         });
 
+        const responseTime = Date.now() - startTime;
+        const isWorking = this._isStatusCodeOk(response.status);
+
         return {
           url,
+          // NEW: Database fields
+          http_status_code: response.status,
+          response_time: responseTime,
+          checked_at: new Date().toISOString(),
+          is_working: isWorking,
+          error_message: null,
+
+          // Legacy fields
           statusCode: response.status,
-          isWorking: this._isStatusCodeOk(response.status),
+          isWorking,
           method: 'GET (partial)',
         };
       } catch (getError) {
+        const responseTime = Date.now() - startTime;
+        const errorType = errorUtils.classifyError(null, getError);
+
         return {
           url,
+          // NEW: Database fields
+          http_status_code: null,
+          response_time: responseTime,
+          checked_at: new Date().toISOString(),
+          is_working: false,
+          error_message: getError.message,
+
+          // Legacy fields
           statusCode: null,
           isWorking: false,
-          errorType: errorUtils.classifyError(null, getError),
+          errorType,
           errorMessage: getError.message,
           method: 'HEAD/GET failed',
         };
@@ -271,7 +335,7 @@ export class HttpChecker {
     let timeCount = 0;
 
     results.forEach((result) => {
-      if (result.isWorking) {
+      if (result.is_working) {
         summary.working++;
       } else {
         summary.broken++;
@@ -282,13 +346,14 @@ export class HttpChecker {
       }
 
       // Count status codes
-      if (result.statusCode) {
-        summary.statusCodes[result.statusCode] = (summary.statusCodes[result.statusCode] || 0) + 1;
+      if (result.http_status_code) {
+        summary.statusCodes[result.http_status_code] =
+          (summary.statusCodes[result.http_status_code] || 0) + 1;
       }
 
       // Calculate average response time
-      if (result.responseTime) {
-        totalTime += result.responseTime;
+      if (result.response_time) {
+        totalTime += result.response_time;
         timeCount++;
       }
     });

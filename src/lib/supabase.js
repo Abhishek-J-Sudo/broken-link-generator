@@ -113,6 +113,13 @@ export const db = {
       url: url.url,
       is_internal: url.isInternal,
       depth: url.depth || 0,
+      status: url.status || 'pending',
+      // NEW: HTTP status fields (will be null initially, updated when checked)
+      http_status_code: url.http_status_code || null,
+      response_time: url.response_time || null,
+      checked_at: url.checked_at || null,
+      is_working: url.is_working || null,
+      error_message: url.error_message || null,
     }));
 
     const { data, error } = await supabase
@@ -122,6 +129,27 @@ export const db = {
         ignoreDuplicates: true,
       })
       .select();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // NEW: Update discovered link with HTTP status after checking
+  async updateLinkHttpStatus(jobId, url, statusData) {
+    const { data, error } = await supabase
+      .from('discovered_links')
+      .update({
+        status: 'checked',
+        http_status_code: statusData.http_status_code,
+        response_time: statusData.response_time,
+        checked_at: statusData.checked_at,
+        is_working: statusData.is_working,
+        error_message: statusData.error_message,
+      })
+      .eq('job_id', jobId)
+      .eq('url', url)
+      .select()
+      .single();
 
     if (error) throw error;
     return data;
