@@ -4,13 +4,13 @@ import { useState, useEffect } from 'react';
 
 export default function ResultsTable({
   jobId,
-  brokenLinks,
-  links,
+  brokenLinks, // OLD: backward compatibility
+  links, // NEW: enhanced format with HTTP status
   pagination,
   onPageChange,
   onFilter,
 }) {
-  // BACKWARD COMPATIBILITY: Support both old (brokenLinks) and new (links) data structures
+  // ENHANCED: Support both old (brokenLinks) and new (links) data structures
   const displayData = links || brokenLinks || [];
   const isNewFormat = !!links; // New format has 'links' prop, old format has 'brokenLinks'
 
@@ -62,7 +62,7 @@ export default function ResultsTable({
     other: 'Other Error',
   };
 
-  // FIXED: Better logic for determining what type of "no results" message to show
+  // ENHANCED: Better logic for determining what type of "no results" message to show
   const getNoResultsMessage = () => {
     // Check if any filters are active
     const hasActiveFilters =
@@ -146,7 +146,8 @@ export default function ResultsTable({
       }
     }
   };
-  // FIXED: Always show the header and filters, even when no results
+
+  // ENHANCED: Always show the header and filters, even when no results
   const noResultsInfo = !displayData || displayData.length === 0 ? getNoResultsMessage() : null;
 
   const handleFilterChange = (filterType, value) => {
@@ -226,7 +227,7 @@ export default function ResultsTable({
             </p>
           </div>
 
-          {/* Filters */}
+          {/* Enhanced Filters */}
           <div className="flex flex-col sm:flex-row gap-3">
             {/* Search */}
             <div className="relative">
@@ -310,7 +311,8 @@ export default function ResultsTable({
           </div>
         </div>
       </div>
-      {/* FIXED: Show appropriate no results message */}
+
+      {/* ENHANCED: Show appropriate no results message */}
       {noResultsInfo ? (
         <div className="bg-white rounded-lg p-8 text-center">
           <div className="flex flex-col items-center">
@@ -318,7 +320,7 @@ export default function ResultsTable({
             <h3 className="text-xl font-semibold text-gray-900 mb-2">{noResultsInfo.title}</h3>
             <p className="text-gray-600">{noResultsInfo.description}</p>
 
-            {/* FIXED: Show clear filters button for filtered results */}
+            {/* ENHANCED: Show clear filters button for filtered results */}
             {noResultsInfo.type === 'filtered' && (
               <button
                 onClick={() => {
@@ -337,7 +339,7 @@ export default function ResultsTable({
         </div>
       ) : (
         <>
-          {/* Table */}
+          {/* Enhanced Table */}
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -521,6 +523,7 @@ export default function ResultsTable({
               </tbody>
             </table>
           </div>
+
           {/* Pagination */}
           {pagination && pagination.totalPages > 1 && (
             <div className="px-6 py-4 border-t border-gray-200">
@@ -580,7 +583,7 @@ export default function ResultsTable({
             </div>
           )}
 
-          {/* Summary Statistics */}
+          {/* Enhanced Summary Statistics */}
           {displayData.length > 0 && (
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">

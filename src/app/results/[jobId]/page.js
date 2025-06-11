@@ -1,6 +1,6 @@
-// src/app/results/[jobId]/page.js - Updated for HTTP status tracking
+// src/app/results/[jobId]/page.js - Enhanced version with card UI + modern features
 'use client';
-import Link from 'next/link';
+
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import ResultsTable from '@/app/components/ResultsTable';
@@ -25,6 +25,12 @@ export default function ResultsPage() {
   });
   const [isExporting, setIsExporting] = useState(false);
 
+  // Card-based view state
+  const [selectedView, setSelectedView] = useState('broken');
+  const [allLinksData, setAllLinksData] = useState(null);
+  const [workingLinksData, setWorkingLinksData] = useState(null);
+  const [pagesData, setPagesData] = useState(null);
+
   // Poll for status updates
   useEffect(() => {
     if (!jobId) return;
@@ -37,7 +43,7 @@ export default function ResultsPage() {
         if (response.ok) {
           setJob(statusData);
 
-          // If job is completed, load results
+          // If job is completed, load initial results
           if (statusData.status === 'completed') {
             await loadResults();
           }
@@ -64,18 +70,23 @@ export default function ResultsPage() {
     return () => clearInterval(interval);
   }, [jobId, job?.status]);
 
-  const loadResults = async (page = 1, filterOptions = filters) => {
+  const loadResults = async (page = 1, filterOptions = filters, view = selectedView) => {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: '50',
       });
 
-      // Add filter parameters
-      if (filterOptions.statusFilter && filterOptions.statusFilter !== 'all') {
-        params.append('statusFilter', filterOptions.statusFilter);
+      // Apply modern filtering based on view type
+      if (view === 'working') {
+        params.append('statusFilter', 'working');
+      } else if (view === 'broken') {
+        params.append('statusFilter', 'broken');
+      } else if (view === 'all') {
+        params.append('statusFilter', 'all');
       }
 
+      // Add filter parameters
       if (filterOptions.statusCode) {
         params.append('statusCode', filterOptions.statusCode);
       }
@@ -101,7 +112,21 @@ export default function ResultsPage() {
       const data = await response.json();
       console.log('Results loaded:', data);
 
-      setResults(data);
+      // Store data based on view type
+      switch (view) {
+        case 'all':
+          setAllLinksData(data);
+          break;
+        case 'working':
+          setWorkingLinksData(data);
+          break;
+        case 'pages':
+          setPagesData(data);
+          break;
+        default: // 'broken'
+          setResults(data);
+      }
+
       setCurrentPage(page);
       setError(''); // Clear any previous errors
     } catch (err) {
@@ -112,18 +137,40 @@ export default function ResultsPage() {
     }
   };
 
+  const handleCardClick = async (viewType) => {
+    if (selectedView === viewType) return; // Already selected
+
+    setSelectedView(viewType);
+    setIsLoading(true);
+
+    // Check if we already have this data
+    const existingData = {
+      broken: results,
+      all: allLinksData,
+      working: workingLinksData,
+      pages: pagesData,
+    }[viewType];
+
+    if (!existingData) {
+      await loadResults(1, filters, viewType);
+    } else {
+      setIsLoading(false);
+    }
+  };
+
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
-    loadResults(newPage, filters);
+    loadResults(newPage, filters, selectedView);
   };
 
   const handleFilter = (newFilters) => {
     setFilters(newFilters);
-    loadResults(1, newFilters); // Reset to page 1 when filtering
+    loadResults(1, newFilters, selectedView);
   };
 
   const exportToCSV = async () => {
-    if (!results || !results.links) return;
+    const currentData = getCurrentData();
+    if (!currentData || !currentData.links) return;
 
     setIsExporting(true);
     try {
@@ -133,9 +180,13 @@ export default function ResultsPage() {
         limit: '10000', // Large number to get all results
       });
 
-      // Apply current filters to export
-      if (filters.statusFilter && filters.statusFilter !== 'all') {
-        exportParams.append('statusFilter', filters.statusFilter);
+      // Apply current view and filters to export
+      if (selectedView === 'working') {
+        exportParams.append('statusFilter', 'working');
+      } else if (selectedView === 'broken') {
+        exportParams.append('statusFilter', 'broken');
+      } else if (selectedView === 'all') {
+        exportParams.append('statusFilter', 'all');
       }
 
       if (filters.statusCode) {
@@ -154,7 +205,7 @@ export default function ResultsPage() {
       const allData = await response.json();
 
       if (response.ok) {
-        // Create CSV content with HTTP status information
+        // Create CSV content with enhanced HTTP status information
         const csvHeaders = [
           'URL',
           'Status',
@@ -200,7 +251,7 @@ export default function ResultsPage() {
           link.setAttribute('href', url);
           link.setAttribute(
             'download',
-            `link-check-results-${new URL(job.url).hostname}-${
+            `${selectedView}-links-${new URL(job.url).hostname}-${
               new Date().toISOString().split('T')[0]
             }.csv`
           );
@@ -221,7 +272,8 @@ export default function ResultsPage() {
   };
 
   const exportToJSON = async () => {
-    if (!results) return;
+    const currentData = getCurrentData();
+    if (!currentData) return;
 
     setIsExporting(true);
     try {
@@ -231,9 +283,13 @@ export default function ResultsPage() {
         limit: '10000',
       });
 
-      // Apply current filters
-      if (filters.statusFilter && filters.statusFilter !== 'all') {
-        exportParams.append('statusFilter', filters.statusFilter);
+      // Apply current view and filters
+      if (selectedView === 'working') {
+        exportParams.append('statusFilter', 'working');
+      } else if (selectedView === 'broken') {
+        exportParams.append('statusFilter', 'broken');
+      } else if (selectedView === 'all') {
+        exportParams.append('statusFilter', 'all');
       }
 
       if (filters.statusCode) {
@@ -258,7 +314,8 @@ export default function ResultsPage() {
             exportedAt: new Date().toISOString(),
             website: job.url,
             jobId: jobId,
-            totalLinksChecked: allData.summary?.totalLinksChecked || 0,
+            view: selectedView,
+            totalLinksExported: allData.summary?.totalLinksChecked || 0,
             appliedFilters: filters,
           },
           jobDetails: {
@@ -303,7 +360,7 @@ export default function ResultsPage() {
         link.setAttribute('href', url);
         link.setAttribute(
           'download',
-          `link-check-report-${new URL(job.url).hostname}-${
+          `${selectedView}-links-report-${new URL(job.url).hostname}-${
             new Date().toISOString().split('T')[0]
           }.json`
         );
@@ -321,6 +378,15 @@ export default function ResultsPage() {
     } finally {
       setIsExporting(false);
     }
+  };
+
+  const getCurrentData = () => {
+    return {
+      broken: results,
+      all: allLinksData,
+      working: workingLinksData,
+      pages: pagesData,
+    }[selectedView];
   };
 
   const getProgressPercentage = () => {
@@ -403,7 +469,7 @@ export default function ResultsPage() {
               <p className="text-gray-600 break-all">{job?.url}</p>
               <div
                 onClick={() => router.push('/')}
-                className="block w-ful text-gray-500 p-2 cursor-pointer py-2 rounded-md hover:bg-indigo-200"
+                className="block w-full text-gray-500 p-2 cursor-pointer py-2 rounded-md hover:bg-indigo-200"
               >
                 ⬅ Back to Home
               </div>
@@ -413,7 +479,7 @@ export default function ResultsPage() {
             <div className="text-right">
               <div className="flex items-center space-x-3 mb-2">
                 {/* Export Buttons - only show when completed */}
-                {job?.status === 'completed' && results && (
+                {job?.status === 'completed' && getCurrentData() && (
                   <div className="flex space-x-2">
                     <button
                       onClick={exportToCSV}
@@ -494,43 +560,66 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {/* Enhanced Stats Summary with HTTP Status */}
-        {job && results?.summary && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+        {/* Enhanced Stats Cards with Modern Data */}
+        {job && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <button
+              onClick={() => handleCardClick('all')}
+              className={`bg-white rounded-lg shadow-lg p-6 text-center transition-all hover:shadow-xl hover:scale-105 ${
+                selectedView === 'all' ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+              }`}
+            >
               <div className="text-2xl font-bold text-blue-600 mb-2">
-                {results.summary.totalLinksChecked || 0}
+                {job.stats?.totalLinksDiscovered || 0}
               </div>
-              <div className="text-sm text-gray-600">Links Checked</div>
-            </div>
+              <div className="text-sm text-gray-600">All Links</div>
+              {selectedView === 'all' && <div className="text-xs text-blue-600 mt-1">● Active</div>}
+            </button>
 
-            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+            <button
+              onClick={() => handleCardClick('working')}
+              className={`bg-white rounded-lg shadow-lg p-6 text-center transition-all hover:shadow-xl hover:scale-105 ${
+                selectedView === 'working' ? 'ring-2 ring-green-500 bg-green-50' : ''
+              }`}
+            >
               <div className="text-2xl font-bold text-green-600 mb-2">
-                {results.summary.workingLinks || 0}
+                {(job.stats?.totalLinksDiscovered || 0) - (job.stats?.brokenLinksFound || 0)}
               </div>
               <div className="text-sm text-gray-600">Working Links</div>
-              <div className="text-xs text-gray-500 mt-1">
-                {results.summary.successRate || 0}% success rate
-              </div>
-            </div>
+              {selectedView === 'working' && (
+                <div className="text-xs text-green-600 mt-1">● Active</div>
+              )}
+            </button>
 
-            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+            <button
+              onClick={() => handleCardClick('broken')}
+              className={`bg-white rounded-lg shadow-lg p-6 text-center transition-all hover:shadow-xl hover:scale-105 ${
+                selectedView === 'broken' ? 'ring-2 ring-red-500 bg-red-50' : ''
+              }`}
+            >
               <div className="text-2xl font-bold text-red-600 mb-2">
-                {results.summary.brokenLinks || 0}
+                {job.stats?.brokenLinksFound || 0}
               </div>
               <div className="text-sm text-gray-600">Broken Links</div>
-            </div>
+              {selectedView === 'broken' && (
+                <div className="text-xs text-red-600 mt-1">● Active</div>
+              )}
+            </button>
 
-            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+            <button
+              onClick={() => handleCardClick('pages')}
+              className={`bg-white rounded-lg shadow-lg p-6 text-center transition-all hover:shadow-xl hover:scale-105 ${
+                selectedView === 'pages' ? 'ring-2 ring-purple-500 bg-purple-50' : ''
+              }`}
+            >
               <div className="text-2xl font-bold text-purple-600 mb-2">
-                {results.summary.performance?.averageResponseTime || 0}ms
+                {job.progress?.current || 0}
               </div>
-              <div className="text-sm text-gray-600">Avg Response Time</div>
-              <div className="text-xs text-gray-500 mt-1">
-                {results.summary.performance?.fastLinks || 0} fast,{' '}
-                {results.summary.performance?.slowLinks || 0} slow
-              </div>
-            </div>
+              <div className="text-sm text-gray-600">Pages Scanned</div>
+              {selectedView === 'pages' && (
+                <div className="text-xs text-purple-600 mt-1">● Active</div>
+              )}
+            </button>
           </div>
         )}
 
@@ -562,85 +651,72 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {/* Results Table */}
-        {job?.status === 'completed' && results && (
-          <ResultsTable
-            jobId={jobId}
-            links={results.links}
-            pagination={results.pagination}
-            onPageChange={handlePageChange}
-            onFilter={handleFilter}
-          />
-        )}
+        {/* Enhanced Results Table with HTTP Status Support */}
+        {job?.status === 'completed' &&
+          (() => {
+            const currentData = getCurrentData();
 
-        {/* Completed - Show results summary */}
-        {job?.status === 'completed' && results && (
-          <div className="bg-white rounded-lg shadow-lg p-8 text-center mb-6">
-            <svg
-              className={`w-16 h-16 mx-auto mb-4 ${
-                results.summary?.brokenLinks === 0 ? 'text-green-500' : 'text-yellow-500'
-              }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              {results.summary?.brokenLinks === 0 ? (
+            return currentData ? (
+              <ResultsTable
+                jobId={jobId}
+                links={currentData.links}
+                pagination={currentData.pagination}
+                onPageChange={handlePageChange}
+                onFilter={handleFilter}
+              />
+            ) : (
+              <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+                <div className="animate-pulse">
+                  <div className="text-4xl mb-4">🔄</div>
+                  <p className="text-gray-600">Loading {selectedView} data...</p>
+                </div>
+              </div>
+            );
+          })()}
+
+        {/* Completed - Show results summary for broken links view */}
+        {job?.status === 'completed' &&
+          results &&
+          selectedView === 'broken' &&
+          (results.links || []).length === 0 && (
+            <div className="bg-white rounded-lg shadow-lg p-8 text-center mb-6">
+              <svg
+                className="w-16 h-16 text-green-500 mx-auto mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
                   d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
-              ) : (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-                />
-              )}
-            </svg>
-
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              {results.summary?.brokenLinks === 0
-                ? '🎉 Excellent! No Broken Links Found'
-                : `⚠️ Found ${results.summary?.brokenLinks} Broken Links`}
-            </h3>
-
-            <p className="text-gray-600 mb-4">
-              {results.summary?.brokenLinks === 0
-                ? `All ${
-                    job.stats?.totalLinksDiscovered || 0
-                  } links on your website are working perfectly.`
-                : `${results.summary?.brokenLinks} out of ${
-                    job.stats?.totalLinksDiscovered || 0
-                  } links need attention. Review the details below.`}
-            </p>
-
-            <div className="flex justify-center space-x-4">
-              <button
-                onClick={exportToCSV}
-                disabled={isExporting}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-              >
-                📊 Export CSV
-              </button>
-              <button
-                onClick={exportToJSON}
-                disabled={isExporting}
-                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-              >
-                📁 Export JSON
-              </button>
-              <button
-                onClick={() => router.push('/analyze')}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-              >
-                🔍 Analyze Another Site
-              </button>
+              </svg>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                🎉 Excellent! No Broken Links Found
+              </h3>
+              <p className="text-gray-600 mb-4">
+                All {job.stats?.totalLinksDiscovered || 0} links on your website are working
+                perfectly.
+              </p>
+              <div className="flex justify-center space-x-4">
+                <button
+                  onClick={exportToJSON}
+                  disabled={isExporting}
+                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+                >
+                  📁 Export Report
+                </button>
+                <button
+                  onClick={() => router.push('/analyze')}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                >
+                  🔍 Analyze Another Site
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Pending/Running State */}
         {job?.status === 'running' && (
