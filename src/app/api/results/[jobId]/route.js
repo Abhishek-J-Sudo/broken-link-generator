@@ -89,6 +89,9 @@ export async function GET(request, { params }) {
       discoveredQuery = discoveredQuery.eq('is_working', true);
     } else if (statusFilter === 'broken') {
       discoveredQuery = discoveredQuery.or('is_working.eq.false,is_working.is.null');
+    } else if (statusFilter === 'pages') {
+      // NEW: Filter for internal pages only (scanned pages)
+      discoveredQuery = discoveredQuery.eq('is_internal', true);
     }
 
     // Apply HTTP status code filter

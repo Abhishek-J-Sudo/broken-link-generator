@@ -6,6 +6,7 @@ export default function ResultsTable({
   jobId,
   brokenLinks, // OLD: backward compatibility
   links, // NEW: enhanced format with HTTP status
+  selectedView, // NEW: to know which view is active
   pagination,
   onPageChange,
   onFilter,
@@ -229,7 +230,7 @@ export default function ResultsTable({
 
           {/* Enhanced Filters */}
           <div className="flex flex-col sm:flex-row gap-3">
-            {/* Search */}
+            {/* Search - always available */}
             <div className="relative">
               <input
                 type="text"
@@ -253,52 +254,14 @@ export default function ResultsTable({
               </svg>
             </div>
 
-            {/* Status Filter - only for new format */}
-            {isNewFormat && (
-              <select
-                value={currentFilter.statusFilter}
-                onChange={(e) => handleFilterChange('statusFilter', e.target.value)}
-                className="px-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Links</option>
-                <option value="working">✅ Working Links</option>
-                <option value="broken">❌ Broken Links</option>
-              </select>
-            )}
-
-            {/* HTTP Status Code Filter - only for new format */}
-            {isNewFormat && (
-              <select
-                value={currentFilter.statusCode}
-                onChange={(e) => handleFilterChange('statusCode', e.target.value)}
-                className="px-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">All Status Codes</option>
-                <option value="200">200 - OK</option>
-                <option value="301">301 - Moved Permanently</option>
-                <option value="302">302 - Found</option>
-                <option value="404">404 - Not Found</option>
-                <option value="403">403 - Forbidden</option>
-                <option value="500">500 - Server Error</option>
-              </select>
-            )}
-
-            {/* Error Type Filter - only show when broken links are selected */}
-            {(!isNewFormat ||
-              currentFilter.statusFilter === 'broken' ||
-              currentFilter.statusFilter === 'all') && (
+            {/* FIXED: Only show error filter for 'broken' view ONLY */}
+            {selectedView === 'broken' && (
               <select
                 value={currentFilter.errorType}
                 onChange={(e) => handleFilterChange('errorType', e.target.value)}
                 className="px-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="all">
-                  {currentFilter.statusFilter === 'working'
-                    ? 'No Errors'
-                    : currentFilter.statusFilter === 'all'
-                    ? 'All Types'
-                    : 'All Error Types'}
-                </option>
+                <option value="all">All Error Types</option>
                 <option value="404">404 - Not Found</option>
                 <option value="500">500 - Server Error</option>
                 <option value="403">403 - Forbidden</option>
@@ -345,179 +308,204 @@ export default function ResultsTable({
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {isNewFormat ? 'URL' : 'Broken URL'}
+                    {selectedView === 'pages' ? 'Page URL' : isNewFormat ? 'URL' : 'Broken URL'}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {isNewFormat ? 'Status' : 'Error Type'}
+                    {selectedView === 'pages' ? 'Status' : isNewFormat ? 'Status' : 'Error Type'}
                   </th>
-                  {isNewFormat && (
+                  {selectedView === 'pages' && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Depth
+                    </th>
+                  )}
+                  {isNewFormat && selectedView !== 'pages' && (
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Response Time
                     </th>
                   )}
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {isNewFormat ? 'Source' : 'Found On'}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {isNewFormat ? 'Details' : 'Link Text'}
+                    {selectedView === 'pages' ? 'Found At' : isNewFormat ? 'Source' : 'Found On'}
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {displayData.map((item, index) => (
                   <tr key={item.id || index} className="hover:bg-gray-50">
-                    {/* URL */}
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`text-sm font-mono break-all ${
-                            isNewFormat
-                              ? item.is_working
-                                ? 'text-blue-600 hover:text-blue-800'
-                                : 'text-red-600 hover:text-red-800'
-                              : 'text-red-600 hover:text-red-800'
-                          }`}
-                          title={item.url}
-                        >
-                          {truncateUrl(item.url)}
-                        </a>
-                        {item.url?.length > 60 && (
-                          <span className="text-xs text-gray-500 mt-1">Click to view full URL</span>
-                        )}
-
-                        {/* Internal/External indicator - new format only */}
-                        {isNewFormat && item.is_internal !== undefined && (
-                          <div className="flex items-center mt-1 space-x-2">
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                item.is_internal
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : 'bg-purple-100 text-purple-800'
-                              }`}
+                    {/* NEW: Pages view columns */}
+                    {selectedView === 'pages' ? (
+                      <>
+                        {/* Page URL */}
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-mono break-all text-blue-600 hover:text-blue-800"
+                              title={item.url}
                             >
-                              {item.is_internal ? 'Internal' : 'External'}
-                            </span>
-                            {item.depth > 0 && (
-                              <span className="text-xs text-gray-500">Depth: {item.depth}</span>
+                              {truncateUrl(item.url)}
+                            </a>
+                            {item.url?.length > 60 && (
+                              <span className="text-xs text-gray-500 mt-1">
+                                Click to view full URL
+                              </span>
                             )}
                           </div>
-                        )}
-                      </div>
-                    </td>
+                        </td>
 
-                    {/* Status/Error Type */}
-                    <td className="px-6 py-4">
-                      {isNewFormat ? (
-                        /* New format with HTTP status */
-                        <div className="flex flex-col space-y-1">
-                          {/* HTTP Status Code */}
+                        {/* Status */}
+                        <td className="px-6 py-4">
                           <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(
-                              item
-                            )}`}
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              item.is_working === true
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}
                           >
-                            {item.http_status_code ? `${item.http_status_code}` : 'ERROR'}
+                            {item.is_working === true ? 'Checked' : 'Pending'}
                           </span>
+                        </td>
 
-                          {/* Status Label */}
-                          <span className="text-xs text-gray-600">
-                            {item.status_label || 'Unknown'}
+                        {/* Depth */}
+                        <td className="px-6 py-4">
+                          <span className="text-sm text-gray-600">{item.depth || 0}</span>
+                        </td>
+
+                        {/* Found At */}
+                        <td className="px-6 py-4">
+                          <span className="text-xs text-gray-500">
+                            {item.checked_at ? new Date(item.checked_at).toLocaleString() : 'N/A'}
                           </span>
+                        </td>
+                      </>
+                    ) : (
+                      /* Existing table columns for other views */
+                      <>
+                        {/* URL */}
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`text-sm font-mono break-all ${
+                                isNewFormat
+                                  ? item.is_working
+                                    ? 'text-blue-600 hover:text-blue-800'
+                                    : 'text-red-600 hover:text-red-800'
+                                  : 'text-red-600 hover:text-red-800'
+                              }`}
+                              title={item.url}
+                            >
+                              {truncateUrl(item.url)}
+                            </a>
+                            {item.url?.length > 60 && (
+                              <span className="text-xs text-gray-500 mt-1">
+                                Click to view full URL
+                              </span>
+                            )}
 
-                          {/* Error Type for broken links */}
-                          {!item.is_working && item.error_type && (
+                            {/* Internal/External indicator - new format only */}
+                            {isNewFormat && item.is_internal !== undefined && (
+                              <div className="flex items-center mt-1 space-x-2">
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                    item.is_internal
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-purple-100 text-purple-800'
+                                  }`}
+                                >
+                                  {item.is_internal ? 'Internal' : 'External'}
+                                </span>
+                                {item.depth > 0 && (
+                                  <span className="text-xs text-gray-500">Depth: {item.depth}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Status/Error Type */}
+                        <td className="px-6 py-4">
+                          {isNewFormat ? (
+                            /* New format with HTTP status */
+                            <div className="flex flex-col space-y-1">
+                              {/* HTTP Status Code */}
+                              <span
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(
+                                  item
+                                )}`}
+                              >
+                                {item.http_status_code ? `${item.http_status_code}` : 'ERROR'}
+                              </span>
+
+                              {/* Status Label */}
+                              <span className="text-xs text-gray-600">
+                                {item.status_label || 'Unknown'}
+                              </span>
+
+                              {/* Error Type for broken links */}
+                              {!item.is_working && item.error_type && (
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                    errorTypeColors[item.error_type] || errorTypeColors.other
+                                  }`}
+                                >
+                                  {item.error_type.replace('_', ' ')}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            /* Old format - just error type */
                             <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                 errorTypeColors[item.error_type] || errorTypeColors.other
                               }`}
                             >
-                              {item.error_type.replace('_', ' ')}
+                              {formatErrorMessage(item.error_type, item.status_code)}
                             </span>
                           )}
-                        </div>
-                      ) : (
-                        /* Old format - just error type */
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            errorTypeColors[item.error_type] || errorTypeColors.other
-                          }`}
-                        >
-                          {formatErrorMessage(item.error_type, item.status_code)}
-                        </span>
-                      )}
-                    </td>
+                        </td>
 
-                    {/* Response Time - new format only */}
-                    {isNewFormat && (
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span
-                            className={`text-sm font-medium ${getResponseTimeColor(
-                              item.response_time
-                            )}`}
-                          >
-                            {formatResponseTime(item.response_time)}
-                          </span>
-                          {item.checked_at && (
-                            <span className="text-xs text-gray-500">
-                              {new Date(item.checked_at).toLocaleString()}
-                            </span>
+                        {/* Response Time - new format only */}
+                        {isNewFormat && (
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <span
+                                className={`text-sm font-medium ${getResponseTimeColor(
+                                  item.response_time
+                                )}`}
+                              >
+                                {formatResponseTime(item.response_time)}
+                              </span>
+                              {item.checked_at && (
+                                <span className="text-xs text-gray-500">
+                                  {new Date(item.checked_at).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        )}
+
+                        {/* Source */}
+                        <td className="px-6 py-4">
+                          {item.source_url || item.sourceUrl ? (
+                            <a
+                              href={item.source_url || item.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-gray-500 hover:text-blue-600 font-mono"
+                              title={item.source_url || item.sourceUrl}
+                            >
+                              {truncateUrl(item.source_url || item.sourceUrl, 40)}
+                            </a>
+                          ) : (
+                            <span className="text-sm text-gray-500">Discovery</span>
                           )}
-                        </div>
-                      </td>
+                        </td>
+                      </>
                     )}
-
-                    {/* Source */}
-                    <td className="px-6 py-4">
-                      {item.source_url || item.sourceUrl ? (
-                        <a
-                          href={item.source_url || item.sourceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-gray-900 hover:text-blue-600 font-mono"
-                          title={item.source_url || item.sourceUrl}
-                        >
-                          {truncateUrl(item.source_url || item.sourceUrl, 40)}
-                        </a>
-                      ) : (
-                        <span className="text-sm text-gray-500">Discovery</span>
-                      )}
-                    </td>
-
-                    {/* Details/Link Text */}
-                    <td className="px-6 py-4">
-                      {isNewFormat ? (
-                        /* New format with more details */
-                        <div className="flex flex-col">
-                          {/* Link Text */}
-                          {item.link_text && (
-                            <span className="text-sm text-gray-600 mb-1" title={item.link_text}>
-                              {truncateUrl(item.link_text, 30)}
-                            </span>
-                          )}
-
-                          {/* Error Message for failed links */}
-                          {item.error_message && (
-                            <span className="text-xs text-red-600" title={item.error_message}>
-                              {truncateUrl(item.error_message, 40)}
-                            </span>
-                          )}
-
-                          {/* Working link indicator */}
-                          {item.is_working && (
-                            <span className="text-xs text-green-600">✓ Working</span>
-                          )}
-                        </div>
-                      ) : (
-                        /* Old format - just link text */
-                        <span className="text-sm text-gray-600" title={item.link_text}>
-                          {item.link_text ? truncateUrl(item.link_text, 30) : 'No text'}
-                        </span>
-                      )}
-                    </td>
                   </tr>
                 ))}
               </tbody>
