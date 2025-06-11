@@ -221,7 +221,7 @@ export async function GET(request, { params }) {
 
     // Get working vs broken breakdown
     const workingCount = allLinks?.filter((link) => link.is_working === true).length || 0;
-    const brokenCount = allLinks?.filter((link) => link.is_working === false).length || 0;
+    const brokenCount = allLinks?.filter((link) => link.is_working !== true).length || 0;
 
     // Get error type summary from broken_links
     const errorTypeSummary = {};

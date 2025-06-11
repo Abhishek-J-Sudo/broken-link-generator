@@ -1,6 +1,6 @@
 // src/app/results/[jobId]/page.js - Updated for HTTP status tracking
 'use client';
-
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import ResultsTable from '@/app/components/ResultsTable';
@@ -401,6 +401,12 @@ export default function ResultsPage() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Link Check Results</h1>
               <p className="text-gray-600 break-all">{job?.url}</p>
+              <div
+                onClick={() => router.push('/')}
+                className="block w-ful text-gray-500 p-2 cursor-pointer py-2 rounded-md hover:bg-indigo-200"
+              >
+                ⬅ Back to Home
+              </div>
             </div>
 
             {/* Status Badge & Export Actions */}

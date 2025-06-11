@@ -12,7 +12,6 @@ export default function LargeCrawlForm({
     url: '',
     maxDepth: 3,
     includeExternal: false,
-    useLargeMode: false,
     useAnalyzedData: false,
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -28,7 +27,6 @@ export default function LargeCrawlForm({
         url: analyzedData.originalUrl || '',
         useAnalyzedData: true,
         maxDepth: analyzedData.focusType === 'content' ? 2 : 3,
-        useLargeMode: (analyzedData.discoveredUrls?.length || 0) > 200,
       }));
     }
   }, [isFromAnalyzer, analyzedData]);
@@ -51,9 +49,9 @@ export default function LargeCrawlForm({
 
   const shouldUseLargeMode = () => {
     if (formData.useAnalyzedData && analyzedData) {
-      return (analyzedData.discoveredUrls?.length || 0) > 200 || formData.useLargeMode;
+      return (analyzedData.discoveredUrls?.length || 0) > 200;
     }
-    return parseInt(formData.maxDepth) >= 4 || formData.useLargeMode;
+    return false; // Traditional crawl never uses large mode
   };
 
   const handleSubmit = async (e) => {
@@ -68,11 +66,7 @@ export default function LargeCrawlForm({
       const endpoint = shouldUseLargeMode() ? '/api/crawl/large' : '/api/crawl/start';
 
       setCurrentPhase(
-        formData.useAnalyzedData
-          ? 'Using analyzed data for smart crawling...'
-          : shouldUseLargeMode()
-          ? 'Discovering all links...'
-          : 'Starting crawl...'
+        formData.useAnalyzedData ? 'Using analyzed data for smart crawling...' : 'Starting crawl...'
       );
 
       const requestBody = {
@@ -279,55 +273,6 @@ export default function LargeCrawlForm({
                 </p>
               </div>
             </div>
-
-            <div className="mt-4">
-              <div className="flex items-center">
-                <input
-                  id="useLargeMode"
-                  name="useLargeMode"
-                  type="checkbox"
-                  checked={formData.useLargeMode || shouldUseLargeMode()}
-                  onChange={handleInputChange}
-                  disabled={shouldUseLargeMode()}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="useLargeMode" className="ml-2 block text-sm text-gray-700">
-                  Large site mode (1000+ pages)
-                </label>
-              </div>
-              <p className="mt-1 text-sm text-gray-500">
-                {shouldUseLargeMode()
-                  ? 'Automatically enabled - Uses optimized processing for large sites'
-                  : 'Enable for sites with many pages to avoid timeouts'}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {shouldUseLargeMode() && !formData.useAnalyzedData && (
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path
-                    fillRule="evenodd"
-                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-blue-800">Large Site Mode</h3>
-                <div className="mt-2 text-sm text-blue-700">
-                  <p>This mode processes large sites in two phases:</p>
-                  <ul className="list-disc list-inside mt-1 space-y-1">
-                    <li>Phase 1: Discover all links quickly</li>
-                    <li>Phase 2: Check each link for broken status</li>
-                    <li>Can handle 1000+ pages without timeout issues</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 
@@ -449,9 +394,7 @@ export default function LargeCrawlForm({
                 {currentPhase || 'Processing...'}
               </>
             ) : (
-              `Start ${
-                formData.useAnalyzedData ? 'Smart ' : shouldUseLargeMode() ? 'Large Site ' : ''
-              }Link Check`
+              `Start ${formData.useAnalyzedData ? 'Smart ' : ''}Link Check`
             )}
           </button>
         </div>
