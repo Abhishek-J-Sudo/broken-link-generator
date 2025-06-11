@@ -9,6 +9,9 @@ export default function Footer() {
           <div className="text-sm text-indigo-300 mb-4 md:mb-0">
             Built with Next.js, Supabase, and Vercel
           </div>
+          <div className="text-sm text-indigo-300 mb-4 md:mb-0">
+            @2025 Abhishek Jagtap | Made with Claude.ai
+          </div>
           <div className="flex space-x-6">
             <Link href="/analyze" className="text-sm text-indigo-300 hover:text-white">
               Smart Analyzer

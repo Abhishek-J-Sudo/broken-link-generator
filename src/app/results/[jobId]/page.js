@@ -207,9 +207,28 @@ export default function ResultsPage() {
       const allData = await response.json();
 
       if (response.ok) {
-        // Create CSV content with enhanced HTTP status information
+        // Helper function to validate actual URLs
+        const isValidActualUrl = (url) => {
+          if (!url || typeof url !== 'string') return false;
+          if (url.includes('javascript:')) return false;
+          if (url.includes('mailto:')) return false;
+          if (url.includes('tel:')) return false;
+          if (url.startsWith('#')) return false;
+          if (url.includes('{{') || url.includes('}}')) return false;
+          if (url.includes('<%') || url.includes('%>')) return false;
+
+          try {
+            const urlObj = new URL(url);
+            return urlObj.protocol.startsWith('http') && urlObj.hostname.includes('.');
+          } catch {
+            return false;
+          }
+        };
+
+        // Create CSV content with enhanced HTTP status information + URL Type
         const csvHeaders = [
           'URL',
+          'URL Type', // NEW COLUMN
           'Status',
           'HTTP Code',
           'Response Time (ms)',
@@ -225,6 +244,7 @@ export default function ResultsPage() {
 
         const csvRows = allData.links.map((link) => [
           link.url,
+          isValidActualUrl(link.url) ? 'Valid URL' : 'Non-URL', // NEW COLUMN
           link.status_label || 'Unknown',
           link.http_status_code || 'N/A',
           link.response_time || 'N/A',
@@ -253,7 +273,7 @@ export default function ResultsPage() {
           link.setAttribute('href', url);
           link.setAttribute(
             'download',
-            `${selectedView}-links-${new URL(job.url).hostname}-${
+            `${selectedView}-links-with-url-type-${new URL(job.url).hostname}-${
               new Date().toISOString().split('T')[0]
             }.csv`
           );

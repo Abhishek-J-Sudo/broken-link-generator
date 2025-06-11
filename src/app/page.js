@@ -25,7 +25,7 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="text-center mb-4">
             <h1 className="text-5xl font-bold text-indigo-900 mb-6">
-              Find Every Broken Link on Your Website
+              Find Broken Links on Your Website
             </h1>
             <p className="text-xl text-indigo-700 max-w-3xl mx-auto mb-8">
               Automatically scan your website for broken links and get detailed reports. Supports
