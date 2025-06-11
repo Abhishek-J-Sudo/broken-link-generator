@@ -88,7 +88,7 @@ export async function GET(request, { params }) {
     if (statusFilter === 'working') {
       discoveredQuery = discoveredQuery.eq('is_working', true);
     } else if (statusFilter === 'broken') {
-      discoveredQuery = discoveredQuery.eq('is_working', false);
+      discoveredQuery = discoveredQuery.or('is_working.eq.false,is_working.is.null');
     }
 
     // Apply HTTP status code filter

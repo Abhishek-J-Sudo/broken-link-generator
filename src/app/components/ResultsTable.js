@@ -62,6 +62,93 @@ export default function ResultsTable({
     other: 'Other Error',
   };
 
+  // FIXED: Better logic for determining what type of "no results" message to show
+  const getNoResultsMessage = () => {
+    // Check if any filters are active
+    const hasActiveFilters =
+      (currentFilter.statusFilter && currentFilter.statusFilter !== 'all') ||
+      (currentFilter.statusCode && currentFilter.statusCode !== '') ||
+      (currentFilter.errorType &&
+        currentFilter.errorType !== 'all' &&
+        currentFilter.statusFilter !== 'working') ||
+      (currentFilter.search && currentFilter.search !== '');
+
+    if (hasActiveFilters) {
+      // Filters are active but no results - this is filtered out data
+      return {
+        title: 'No Matching Results Found',
+        description:
+          'No links match your current filter criteria. Try adjusting your filters to see more results.',
+        icon: (
+          <svg
+            className="w-16 h-16 text-gray-400 mb-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+        ),
+        type: 'filtered',
+      };
+    } else {
+      // No filters active - check if we're in broken-only mode or if there genuinely are no broken links
+      const isFilteredBroken =
+        (currentFilter.statusFilter === 'broken' || !isNewFormat) && !hasActiveFilters;
+
+      if (isFilteredBroken) {
+        return {
+          title: 'No Broken Links Found!',
+          description: 'Great news! All your links are working perfectly.',
+          icon: (
+            <svg
+              className="w-16 h-16 text-green-500 mb-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          ),
+          type: 'success',
+        };
+      } else {
+        return {
+          title: 'No Links Found',
+          description: 'No links were discovered during the crawl.',
+          icon: (
+            <svg
+              className="w-16 h-16 text-gray-400 mb-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+              />
+            </svg>
+          ),
+          type: 'empty',
+        };
+      }
+    }
+  };
+  // FIXED: Always show the header and filters, even when no results
+  const noResultsInfo = !displayData || displayData.length === 0 ? getNoResultsMessage() : null;
+
   const handleFilterChange = (filterType, value) => {
     const newFilter = { ...currentFilter, [filterType]: value };
     setCurrentFilter(newFilter);
@@ -119,39 +206,8 @@ export default function ResultsTable({
     return statusCode ? `${label} (${statusCode})` : label;
   };
 
-  if (!displayData || displayData.length === 0) {
-    const isFilteredBroken = currentFilter.statusFilter === 'broken' || !isNewFormat;
-    return (
-      <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-        <div className="flex flex-col items-center">
-          <svg
-            className="w-16 h-16 text-green-500 mb-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">
-            {isFilteredBroken ? 'No Broken Links Found!' : 'No Links Found'}
-          </h3>
-          <p className="text-gray-600">
-            {isFilteredBroken
-              ? 'Great news! All your links are working perfectly.'
-              : 'No links match your current filter criteria.'}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+    <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-5">
       {/* Header with filters */}
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -226,332 +282,377 @@ export default function ResultsTable({
               </select>
             )}
 
-            {/* Error Type Filter */}
-            <select
-              value={currentFilter.errorType}
-              onChange={(e) => handleFilterChange('errorType', e.target.value)}
-              className="px-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Errors</option>
-              <option value="404">404 - Not Found</option>
-              <option value="500">500 - Server Error</option>
-              <option value="403">403 - Forbidden</option>
-              <option value="timeout">Timeout</option>
-              <option value="dns_error">DNS Error</option>
-              <option value="connection_error">Connection Error</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {isNewFormat ? 'URL' : 'Broken URL'}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {isNewFormat ? 'Status' : 'Error Type'}
-              </th>
-              {isNewFormat && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Response Time
-                </th>
-              )}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {isNewFormat ? 'Source' : 'Found On'}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {isNewFormat ? 'Details' : 'Link Text'}
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {displayData.map((item, index) => (
-              <tr key={item.id || index} className="hover:bg-gray-50">
-                {/* URL */}
-                <td className="px-6 py-4">
-                  <div className="flex flex-col">
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`text-sm font-mono break-all ${
-                        isNewFormat
-                          ? item.is_working
-                            ? 'text-blue-600 hover:text-blue-800'
-                            : 'text-red-600 hover:text-red-800'
-                          : 'text-red-600 hover:text-red-800'
-                      }`}
-                      title={item.url}
-                    >
-                      {truncateUrl(item.url)}
-                    </a>
-                    {item.url?.length > 60 && (
-                      <span className="text-xs text-gray-500 mt-1">Click to view full URL</span>
-                    )}
-
-                    {/* Internal/External indicator - new format only */}
-                    {isNewFormat && item.is_internal !== undefined && (
-                      <div className="flex items-center mt-1 space-x-2">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                            item.is_internal
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-purple-100 text-purple-800'
-                          }`}
-                        >
-                          {item.is_internal ? 'Internal' : 'External'}
-                        </span>
-                        {item.depth > 0 && (
-                          <span className="text-xs text-gray-500">Depth: {item.depth}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </td>
-
-                {/* Status/Error Type */}
-                <td className="px-6 py-4">
-                  {isNewFormat ? (
-                    /* New format with HTTP status */
-                    <div className="flex flex-col space-y-1">
-                      {/* HTTP Status Code */}
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(
-                          item
-                        )}`}
-                      >
-                        {item.http_status_code ? `${item.http_status_code}` : 'ERROR'}
-                      </span>
-
-                      {/* Status Label */}
-                      <span className="text-xs text-gray-600">
-                        {item.status_label || 'Unknown'}
-                      </span>
-
-                      {/* Error Type for broken links */}
-                      {!item.is_working && item.error_type && (
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                            errorTypeColors[item.error_type] || errorTypeColors.other
-                          }`}
-                        >
-                          {item.error_type.replace('_', ' ')}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    /* Old format - just error type */
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        errorTypeColors[item.error_type] || errorTypeColors.other
-                      }`}
-                    >
-                      {formatErrorMessage(item.error_type, item.status_code)}
-                    </span>
-                  )}
-                </td>
-
-                {/* Response Time - new format only */}
-                {isNewFormat && (
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span
-                        className={`text-sm font-medium ${getResponseTimeColor(
-                          item.response_time
-                        )}`}
-                      >
-                        {formatResponseTime(item.response_time)}
-                      </span>
-                      {item.checked_at && (
-                        <span className="text-xs text-gray-500">
-                          {new Date(item.checked_at).toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                )}
-
-                {/* Source */}
-                <td className="px-6 py-4">
-                  {item.source_url || item.sourceUrl ? (
-                    <a
-                      href={item.source_url || item.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-gray-900 hover:text-blue-600 font-mono"
-                      title={item.source_url || item.sourceUrl}
-                    >
-                      {truncateUrl(item.source_url || item.sourceUrl, 40)}
-                    </a>
-                  ) : (
-                    <span className="text-sm text-gray-500">Discovery</span>
-                  )}
-                </td>
-
-                {/* Details/Link Text */}
-                <td className="px-6 py-4">
-                  {isNewFormat ? (
-                    /* New format with more details */
-                    <div className="flex flex-col">
-                      {/* Link Text */}
-                      {item.link_text && (
-                        <span className="text-sm text-gray-600 mb-1" title={item.link_text}>
-                          {truncateUrl(item.link_text, 30)}
-                        </span>
-                      )}
-
-                      {/* Error Message for failed links */}
-                      {item.error_message && (
-                        <span className="text-xs text-red-600" title={item.error_message}>
-                          {truncateUrl(item.error_message, 40)}
-                        </span>
-                      )}
-
-                      {/* Working link indicator */}
-                      {item.is_working && <span className="text-xs text-green-600">✓ Working</span>}
-                    </div>
-                  ) : (
-                    /* Old format - just link text */
-                    <span className="text-sm text-gray-600" title={item.link_text}>
-                      {item.link_text ? truncateUrl(item.link_text, 30) : 'No text'}
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      {pagination && pagination.totalPages > 1 && (
-        <div className="px-6 py-4 border-t border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-700">
-              Showing page {pagination.currentPage} of {pagination.totalPages} (
-              {pagination.totalCount} total results)
-            </div>
-
-            <div className="flex space-x-2">
-              <button
-                onClick={() => onPageChange && onPageChange(pagination.prevPage)}
-                disabled={!pagination.hasPrevPage}
-                className={`px-3 py-2 border border-gray-300 rounded-md text-sm font-medium ${
-                  pagination.hasPrevPage
-                    ? 'text-gray-700 bg-white hover:bg-gray-50'
-                    : 'text-gray-400 bg-gray-100 cursor-not-allowed'
-                }`}
+            {/* Error Type Filter - only show when broken links are selected */}
+            {(!isNewFormat ||
+              currentFilter.statusFilter === 'broken' ||
+              currentFilter.statusFilter === 'all') && (
+              <select
+                value={currentFilter.errorType}
+                onChange={(e) => handleFilterChange('errorType', e.target.value)}
+                className="px-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                Previous
-              </button>
-
-              {/* Page numbers */}
-              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                const startPage = Math.max(1, pagination.currentPage - 2);
-                const pageNum = startPage + i;
-                if (pageNum > pagination.totalPages) return null;
-
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => onPageChange && onPageChange(pageNum)}
-                    className={`px-3 py-2 border rounded-md text-sm font-medium ${
-                      pageNum === pagination.currentPage
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-
-              <button
-                onClick={() => onPageChange && onPageChange(pagination.nextPage)}
-                disabled={!pagination.hasNextPage}
-                className={`px-3 py-2 border border-gray-300 rounded-md text-sm font-medium ${
-                  pagination.hasNextPage
-                    ? 'text-gray-700 bg-white hover:bg-gray-50'
-                    : 'text-gray-400 bg-gray-100 cursor-not-allowed'
-                }`}
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Summary Statistics */}
-      {displayData.length > 0 && (
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            {isNewFormat ? (
-              /* New format with working/broken stats */
-              <>
-                <div>
-                  <div className="text-lg font-semibold text-green-600">
-                    {displayData.filter((l) => l.is_working === true).length}
-                  </div>
-                  <div className="text-xs text-gray-600">Working Links</div>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold text-red-600">
-                    {displayData.filter((l) => l.is_working === false).length}
-                  </div>
-                  <div className="text-xs text-gray-600">Broken Links</div>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold text-blue-600">
-                    {displayData.filter((l) => l.response_time && l.response_time < 1000).length}
-                  </div>
-                  <div className="text-xs text-gray-600">Fast Responses (&lt;1s)</div>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold text-orange-600">
-                    {displayData.filter((l) => l.response_time && l.response_time > 5000).length}
-                  </div>
-                  <div className="text-xs text-gray-600">Slow Responses (&gt;5s)</div>
-                </div>
-              </>
-            ) : (
-              /* Old format - just broken link stats */
-              <>
-                <div>
-                  <div className="text-lg font-semibold text-red-600">{displayData.length}</div>
-                  <div className="text-xs text-gray-600">Total Broken</div>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold text-orange-600">
-                    {displayData.filter((l) => l.error_type === '404').length}
-                  </div>
-                  <div className="text-xs text-gray-600">404 Errors</div>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold text-blue-600">
-                    {displayData.filter((l) => l.error_type === '500').length}
-                  </div>
-                  <div className="text-xs text-gray-600">Server Errors</div>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold text-gray-600">
-                    {
-                      displayData.filter((l) =>
-                        ['timeout', 'dns_error', 'connection_error'].includes(l.error_type)
-                      ).length
-                    }
-                  </div>
-                  <div className="text-xs text-gray-600">Connection Issues</div>
-                </div>
-              </>
+                <option value="all">
+                  {currentFilter.statusFilter === 'working'
+                    ? 'No Errors'
+                    : currentFilter.statusFilter === 'all'
+                    ? 'All Types'
+                    : 'All Error Types'}
+                </option>
+                <option value="404">404 - Not Found</option>
+                <option value="500">500 - Server Error</option>
+                <option value="403">403 - Forbidden</option>
+                <option value="timeout">Timeout</option>
+                <option value="dns_error">DNS Error</option>
+                <option value="connection_error">Connection Error</option>
+                <option value="other">Other</option>
+              </select>
             )}
           </div>
         </div>
+      </div>
+      {/* FIXED: Show appropriate no results message */}
+      {noResultsInfo ? (
+        <div className="bg-white rounded-lg p-8 text-center">
+          <div className="flex flex-col items-center">
+            {noResultsInfo.icon}
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">{noResultsInfo.title}</h3>
+            <p className="text-gray-600">{noResultsInfo.description}</p>
+
+            {/* FIXED: Show clear filters button for filtered results */}
+            {noResultsInfo.type === 'filtered' && (
+              <button
+                onClick={() => {
+                  const resetFilters = isNewFormat
+                    ? { statusFilter: 'all', statusCode: '', errorType: 'all', search: '' }
+                    : { errorType: 'all', search: '' };
+                  setCurrentFilter(resetFilters);
+                  if (onFilter) onFilter(resetFilters);
+                }}
+                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Clear All Filters
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {isNewFormat ? 'URL' : 'Broken URL'}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {isNewFormat ? 'Status' : 'Error Type'}
+                  </th>
+                  {isNewFormat && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Response Time
+                    </th>
+                  )}
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {isNewFormat ? 'Source' : 'Found On'}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {isNewFormat ? 'Details' : 'Link Text'}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {displayData.map((item, index) => (
+                  <tr key={item.id || index} className="hover:bg-gray-50">
+                    {/* URL */}
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`text-sm font-mono break-all ${
+                            isNewFormat
+                              ? item.is_working
+                                ? 'text-blue-600 hover:text-blue-800'
+                                : 'text-red-600 hover:text-red-800'
+                              : 'text-red-600 hover:text-red-800'
+                          }`}
+                          title={item.url}
+                        >
+                          {truncateUrl(item.url)}
+                        </a>
+                        {item.url?.length > 60 && (
+                          <span className="text-xs text-gray-500 mt-1">Click to view full URL</span>
+                        )}
+
+                        {/* Internal/External indicator - new format only */}
+                        {isNewFormat && item.is_internal !== undefined && (
+                          <div className="flex items-center mt-1 space-x-2">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                item.is_internal
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-purple-100 text-purple-800'
+                              }`}
+                            >
+                              {item.is_internal ? 'Internal' : 'External'}
+                            </span>
+                            {item.depth > 0 && (
+                              <span className="text-xs text-gray-500">Depth: {item.depth}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Status/Error Type */}
+                    <td className="px-6 py-4">
+                      {isNewFormat ? (
+                        /* New format with HTTP status */
+                        <div className="flex flex-col space-y-1">
+                          {/* HTTP Status Code */}
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(
+                              item
+                            )}`}
+                          >
+                            {item.http_status_code ? `${item.http_status_code}` : 'ERROR'}
+                          </span>
+
+                          {/* Status Label */}
+                          <span className="text-xs text-gray-600">
+                            {item.status_label || 'Unknown'}
+                          </span>
+
+                          {/* Error Type for broken links */}
+                          {!item.is_working && item.error_type && (
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                errorTypeColors[item.error_type] || errorTypeColors.other
+                              }`}
+                            >
+                              {item.error_type.replace('_', ' ')}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        /* Old format - just error type */
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            errorTypeColors[item.error_type] || errorTypeColors.other
+                          }`}
+                        >
+                          {formatErrorMessage(item.error_type, item.status_code)}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Response Time - new format only */}
+                    {isNewFormat && (
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span
+                            className={`text-sm font-medium ${getResponseTimeColor(
+                              item.response_time
+                            )}`}
+                          >
+                            {formatResponseTime(item.response_time)}
+                          </span>
+                          {item.checked_at && (
+                            <span className="text-xs text-gray-500">
+                              {new Date(item.checked_at).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    )}
+
+                    {/* Source */}
+                    <td className="px-6 py-4">
+                      {item.source_url || item.sourceUrl ? (
+                        <a
+                          href={item.source_url || item.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-gray-900 hover:text-blue-600 font-mono"
+                          title={item.source_url || item.sourceUrl}
+                        >
+                          {truncateUrl(item.source_url || item.sourceUrl, 40)}
+                        </a>
+                      ) : (
+                        <span className="text-sm text-gray-500">Discovery</span>
+                      )}
+                    </td>
+
+                    {/* Details/Link Text */}
+                    <td className="px-6 py-4">
+                      {isNewFormat ? (
+                        /* New format with more details */
+                        <div className="flex flex-col">
+                          {/* Link Text */}
+                          {item.link_text && (
+                            <span className="text-sm text-gray-600 mb-1" title={item.link_text}>
+                              {truncateUrl(item.link_text, 30)}
+                            </span>
+                          )}
+
+                          {/* Error Message for failed links */}
+                          {item.error_message && (
+                            <span className="text-xs text-red-600" title={item.error_message}>
+                              {truncateUrl(item.error_message, 40)}
+                            </span>
+                          )}
+
+                          {/* Working link indicator */}
+                          {item.is_working && (
+                            <span className="text-xs text-green-600">✓ Working</span>
+                          )}
+                        </div>
+                      ) : (
+                        /* Old format - just link text */
+                        <span className="text-sm text-gray-600" title={item.link_text}>
+                          {item.link_text ? truncateUrl(item.link_text, 30) : 'No text'}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* Pagination */}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="px-6 py-4 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-700">
+                  Showing page {pagination.currentPage} of {pagination.totalPages} (
+                  {pagination.totalCount} total results)
+                </div>
+
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => onPageChange && onPageChange(pagination.prevPage)}
+                    disabled={!pagination.hasPrevPage}
+                    className={`px-3 py-2 border border-gray-300 rounded-md text-sm font-medium ${
+                      pagination.hasPrevPage
+                        ? 'text-gray-700 bg-white hover:bg-gray-50'
+                        : 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                    }`}
+                  >
+                    Previous
+                  </button>
+
+                  {/* Page numbers */}
+                  {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                    const startPage = Math.max(1, pagination.currentPage - 2);
+                    const pageNum = startPage + i;
+                    if (pageNum > pagination.totalPages) return null;
+
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => onPageChange && onPageChange(pageNum)}
+                        className={`px-3 py-2 border rounded-md text-sm font-medium ${
+                          pageNum === pagination.currentPage
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    onClick={() => onPageChange && onPageChange(pagination.nextPage)}
+                    disabled={!pagination.hasNextPage}
+                    className={`px-3 py-2 border border-gray-300 rounded-md text-sm font-medium ${
+                      pagination.hasNextPage
+                        ? 'text-gray-700 bg-white hover:bg-gray-50'
+                        : 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Summary Statistics */}
+          {displayData.length > 0 && (
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                {isNewFormat ? (
+                  /* New format with working/broken stats */
+                  <>
+                    <div>
+                      <div className="text-lg font-semibold text-green-600">
+                        {displayData.filter((l) => l.is_working === true).length}
+                      </div>
+                      <div className="text-xs text-gray-600">Working Links</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-semibold text-red-600">
+                        {displayData.filter((l) => l.is_working === false).length}
+                      </div>
+                      <div className="text-xs text-gray-600">Broken Links</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-semibold text-blue-600">
+                        {
+                          displayData.filter((l) => l.response_time && l.response_time < 1000)
+                            .length
+                        }
+                      </div>
+                      <div className="text-xs text-gray-600">Fast Responses (&lt;1s)</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-semibold text-orange-600">
+                        {
+                          displayData.filter((l) => l.response_time && l.response_time > 5000)
+                            .length
+                        }
+                      </div>
+                      <div className="text-xs text-gray-600">Slow Responses (&gt;5s)</div>
+                    </div>
+                  </>
+                ) : (
+                  /* Old format - just broken link stats */
+                  <>
+                    <div>
+                      <div className="text-lg font-semibold text-red-600">{displayData.length}</div>
+                      <div className="text-xs text-gray-600">Total Broken</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-semibold text-orange-600">
+                        {displayData.filter((l) => l.error_type === '404').length}
+                      </div>
+                      <div className="text-xs text-gray-600">404 Errors</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-semibold text-blue-600">
+                        {displayData.filter((l) => l.error_type === '500').length}
+                      </div>
+                      <div className="text-xs text-gray-600">Server Errors</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-semibold text-gray-600">
+                        {
+                          displayData.filter((l) =>
+                            ['timeout', 'dns_error', 'connection_error'].includes(l.error_type)
+                          ).length
+                        }
+                      </div>
+                      <div className="text-xs text-gray-600">Connection Issues</div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
