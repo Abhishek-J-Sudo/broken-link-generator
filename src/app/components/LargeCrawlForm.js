@@ -163,9 +163,9 @@ export default function LargeCrawlForm({
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        {/* <h1 className="text-3xl font-bold text-gray-900 mb-2">
           {isFromAnalyzer ? '🎯 Smart Broken Link Checker' : '🔗 Broken Link Checker'}
-        </h1>
+        </h1> */}
         <p className="text-gray-600">
           {isFromAnalyzer
             ? 'Ready to check the URLs discovered by the analyzer for broken links.'
@@ -187,7 +187,7 @@ export default function LargeCrawlForm({
             placeholder="https://example.com"
             required
             disabled={isFromAnalyzer}
-            className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+            className={`w-full px-3 py-2 border text-gray-500 border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
               isFromAnalyzer ? 'bg-gray-100' : ''
             }`}
           />
@@ -249,7 +249,7 @@ export default function LargeCrawlForm({
                   name="maxDepth"
                   value={formData.maxDepth}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border text-gray-500 border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value={1}>1 - Homepage only</option>
                   <option value={2}>2 - One level deep</option>

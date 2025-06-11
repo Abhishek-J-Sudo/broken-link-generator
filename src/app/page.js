@@ -22,8 +22,8 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <div className="bg-gradient-to-br from-indigo-50 to-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="text-center mb-12">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <div className="text-center mb-4">
             <h1 className="text-5xl font-bold text-indigo-900 mb-6">
               Find Every Broken Link on Your Website
             </h1>
@@ -47,19 +47,19 @@ export default function HomePage() {
 
             {/* Value Props */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-              <div className="bg-white/50 rounded-lg p-4">
+              <div className="bg-white/100 rounded-lg p-4 shadow-lg">
                 <div className="text-2xl mb-2">⚡</div>
                 <div className="font-medium text-indigo-900">Lightning Fast</div>
                 <div className="text-sm text-indigo-700">
                   Concurrent processing for quick results
                 </div>
               </div>
-              <div className="bg-white/50 rounded-lg p-4">
+              <div className="bg-white/100 rounded-lg p-4 shadow-lg">
                 <div className="text-2xl mb-2">🎯</div>
                 <div className="font-medium text-indigo-900">Smart Analysis</div>
                 <div className="text-sm text-indigo-700">Analyzes URL structure first</div>
               </div>
-              <div className="bg-white/50 rounded-lg p-4">
+              <div className="bg-white/100 rounded-lg p-4 shadow-lg">
                 <div className="text-2xl mb-2">📊</div>
                 <div className="font-medium text-indigo-900">Detailed Reports</div>
                 <div className="text-sm text-indigo-700">Complete breakdown with context</div>
@@ -70,13 +70,13 @@ export default function HomePage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Main Form */}
           <div className="lg:col-span-3">
-            <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <div className="bg-white rounded-lg shadow-lg p-6 mb-0">
               <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Basic Link Checker</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">🔗 Broken Link Checker</h2>
                 <p className="text-gray-600">
                   Enter a URL to start checking for broken links. For large sites or advanced
                   analysis, try our{' '}
