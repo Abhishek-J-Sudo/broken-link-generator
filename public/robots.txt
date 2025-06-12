@@ -1,0 +1,26 @@
+# robots.txt for Broken Link Checker
+# This tells search engines and crawlers how to behave on your site
+
+User-agent: *
+Allow: /
+Allow: /analyze
+Allow: /results/*
+
+# Block API endpoints from being crawled
+Disallow: /api/
+Disallow: /_next/
+Disallow: /favicon.ico
+
+# Security monitoring endpoint - block from search engines
+Disallow: /api/security/
+
+# Rate limit crawlers to be respectful
+Crawl-delay: 1
+
+# Sitemap (create this later if needed)
+# Sitemap: https://yourdomain.com/sitemap.xml
+
+# Contact info for your bot (helpful for other webmasters)
+# This is your crawler's contact info when it crawls OTHER sites
+User-agent: YourApp Broken Link Checker Bot
+Crawl-delay: 2
