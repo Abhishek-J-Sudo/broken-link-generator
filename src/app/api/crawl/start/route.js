@@ -8,6 +8,13 @@ import { HttpChecker } from '@/lib/httpChecker';
 import { urlUtils, validateUtils, batchUtils } from '@/lib/utils';
 import { securityUtils } from '@/lib/security';
 import { db } from '@/lib/supabase';
+import { validateCrawlRequest, validateRateLimit } from '@/lib/validation';
+
+const securityHeaders = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+};
 
 export async function POST(request) {
   let jobId = null;
@@ -15,25 +22,41 @@ export async function POST(request) {
   try {
     console.log('🔧 START ROUTE: Parsing request body...');
     const body = await request.json();
-    const { url, settings = {}, preAnalyzedUrls = null } = body;
 
-    console.log(`🚀 ENHANCED START: Starting crawl for: ${url}`);
-    console.log(`📊 ENHANCED START: Has analyzed data: ${!!preAnalyzedUrls}`);
+    console.log(`🚀 ENHANCED START: Starting crawl for: ${body.url}`);
+    console.log(`📊 ENHANCED START: Has analyzed data: ${!!body.preAnalyzedUrls}`);
 
-    // Validate required fields
-    if (!url) {
-      console.log('❌ No URL provided');
-      return NextResponse.json({ error: 'URL is required' }, { status: 400 });
+    const clientIP = request.headers.get('x-forwarded-for') || 'unknown';
+    const rateLimit = validateRateLimit(clientIP, 15 * 60 * 1000, 5);
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+        {
+          status: 429,
+          headers: { 'Retry-After': rateLimit.retryAfter.toString(), ...securityHeaders },
+        }
+      );
     }
 
-    // Validate URL format
-    if (!urlUtils.isValidUrl(url)) {
-      console.log('❌ Invalid URL format');
-      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
+    // Validate request with Zod
+    const requestValidation = validateCrawlRequest(body);
+    if (!requestValidation.success) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: requestValidation.errors },
+        { status: 400, headers: securityHeaders }
+      );
     }
+
+    // Extract validated data
+    const {
+      url: validatedUrl,
+      settings: validatedSettings,
+      preAnalyzedUrls: validatedPreAnalyzedUrls,
+    } = requestValidation.data;
 
     // Normalize URL
-    const normalizedUrl = urlUtils.normalizeUrl(url);
+    const normalizedUrl = urlUtils.normalizeUrl(validatedUrl);
     console.log(`📝 Normalized URL: ${normalizedUrl}`);
 
     // NEW: Security validation
@@ -46,12 +69,12 @@ export async function POST(request) {
           reason: validation.reason,
           code: 'SECURITY_BLOCKED',
         },
-        { status: 403 }
+        { status: 403, headers: securityHeaders }
       );
     }
 
     // NEW: Check robots.txt if enabled (optional but recommended)
-    if (settings.respectRobots !== false) {
+    if (validatedSettings.respectRobots !== false) {
       try {
         const robotsCheck = await securityUtils.checkRobotsTxt(normalizedUrl);
         if (!robotsCheck.allowed) {
@@ -61,14 +84,14 @@ export async function POST(request) {
               reason: robotsCheck.reason,
               code: 'ROBOTS_BLOCKED',
             },
-            { status: 403 }
+            { status: 403, headers: securityHeaders }
           );
         }
 
         // Apply crawl delay from robots.txt
         if (robotsCheck.crawlDelay) {
-          settings.delayBetweenRequests = Math.max(
-            settings.delayBetweenRequests || 100,
+          validatedSettings.delayBetweenRequests = Math.max(
+            validatedSettings.delayBetweenRequests || 100,
             robotsCheck.crawlDelay
           );
         }
@@ -79,10 +102,10 @@ export async function POST(request) {
 
     // Create database job
     const jobSettings = {
-      maxDepth: settings.maxDepth || 3,
-      includeExternal: settings.includeExternal || false,
-      timeout: settings.timeout || 10000,
-      usePreAnalyzedUrls: !!preAnalyzedUrls,
+      maxDepth: validatedSettings.maxDepth || 3,
+      includeExternal: validatedSettings.includeExternal || false,
+      timeout: validatedSettings.timeout || 10000,
+      usePreAnalyzedUrls: !!validatedPreAnalyzedUrls,
     };
 
     console.log('📋 Creating database job...');
@@ -92,15 +115,24 @@ export async function POST(request) {
     console.log(`✅ Created job ${jobId} for ${normalizedUrl}`);
 
     // BRANCH 1: SMART ANALYZER PATH (KEEP EXISTING LOGIC UNTOUCHED)
-    if (preAnalyzedUrls && Array.isArray(preAnalyzedUrls) && preAnalyzedUrls.length > 0) {
-      console.log(`🎯 SMART CRAWL: Processing ${preAnalyzedUrls.length} pre-analyzed URLs`);
+    if (
+      validatedPreAnalyzedUrls &&
+      Array.isArray(validatedPreAnalyzedUrls) &&
+      validatedPreAnalyzedUrls.length > 0
+    ) {
+      console.log(
+        `🎯 SMART CRAWL: Processing ${validatedPreAnalyzedUrls.length} pre-analyzed URLs`
+      );
 
       // Start smart processing in the background (EXISTING LOGIC - DON'T CHANGE)
-      processSmartCrawlBackground(jobId, normalizedUrl, preAnalyzedUrls, jobSettings).catch(
-        (error) => {
-          console.error(`❌ Smart crawl background processing failed for job ${jobId}:`, error);
-        }
-      );
+      processSmartCrawlBackground(
+        jobId,
+        normalizedUrl,
+        validatedPreAnalyzedUrls,
+        jobSettings
+      ).catch((error) => {
+        console.error(`❌ Smart crawl background processing failed for job ${jobId}:`, error);
+      });
 
       // Return immediately for smart crawl
       return NextResponse.json(
@@ -110,13 +142,13 @@ export async function POST(request) {
           status: 'started',
           url: normalizedUrl,
           settings: jobSettings,
-          urlsToCheck: preAnalyzedUrls.length,
-          message: `Smart crawl started with ${preAnalyzedUrls.length} pre-analyzed URLs`,
+          urlsToCheck: validatedPreAnalyzedUrls.length,
+          message: `Smart crawl started with ${validatedPreAnalyzedUrls.length} pre-analyzed URLs`,
           statusUrl: `/api/crawl/status/${jobId}`,
           resultsUrl: `/api/results/${jobId}`,
           crawlType: 'smart',
         },
-        { status: 201 }
+        { status: 201, headers: securityHeaders }
       );
     }
 
@@ -142,7 +174,7 @@ export async function POST(request) {
           resultsUrl: `/api/results/${jobId}`,
           crawlType: 'traditional',
         },
-        { status: 201 }
+        { status: 201, headers: securityHeaders }
       );
     }
   } catch (error) {
@@ -167,7 +199,7 @@ export async function POST(request) {
         message: error.message,
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
       },
-      { status: 500 }
+      { status: 500, headers: securityHeaders }
     );
   }
 }

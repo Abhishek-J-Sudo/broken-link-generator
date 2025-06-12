@@ -6,10 +6,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { urlUtils, batchUtils } from '@/lib/utils';
 import { securityUtils } from '@/lib/security';
+import { validateAnalysisRequest, validateRateLimit } from '@/lib/validation';
+
+const securityHeaders = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+};
 
 export async function POST(request) {
   try {
-    const { url, maxDepth = 3, maxPages = 100 } = await request.json();
+    // Rate limiting for analysis (more restrictive)
+    const clientIP = request.headers.get('x-forwarded-for') || 'unknown';
+    const rateLimit = validateRateLimit(clientIP, 15 * 60 * 1000, 3); // 3 analysis per 15 min
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Rate limit exceeded for analysis',
+          retryAfter: rateLimit.retryAfter,
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': rateLimit.retryAfter.toString(),
+            ...securityHeaders,
+          },
+        }
+      );
+    }
+    const body = await request.json();
+    const requestValidation = validateAnalysisRequest(body);
+
+    if (!requestValidation.success) {
+      return NextResponse.json(
+        {
+          error: 'Invalid analysis request',
+          details: requestValidation.errors,
+        },
+        { status: 400 }
+      );
+    }
+
+    const { url, maxDepth = 3, maxPages = 100 } = requestValidation.data;
 
     console.log(
       `🔍 PRODUCTION: Starting analysis for ${url}, depth: ${maxDepth}, maxPages: ${maxPages}`
@@ -55,7 +94,7 @@ export async function POST(request) {
 
     console.log(`✅ PRODUCTION: Analysis complete: ${analysis.summary.totalUrls} URLs found`);
 
-    return NextResponse.json(analysis);
+    return NextResponse.json(analysis, { headers: securityHeaders });
   } catch (error) {
     console.error('❌ PRODUCTION: Error analyzing URLs:', error);
     return NextResponse.json(
@@ -64,7 +103,7 @@ export async function POST(request) {
         message: error.message,
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
       },
-      { status: 500 }
+      { status: 500, headers: securityHeaders }
     );
   }
 }
