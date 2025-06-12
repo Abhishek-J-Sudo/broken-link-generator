@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/supabase';
 import { validateAdvancedRateLimit } from '@/lib/validation';
+import { errorHandler } from '@/lib/errorHandler';
 
 export async function GET(request, { params }) {
   try {
@@ -48,13 +49,10 @@ export async function GET(request, { params }) {
     const job = await db.getJob(jobId);
 
     if (!job) {
-      return NextResponse.json(
-        {
-          error: 'Job not found',
-          code: 'JOB_NOT_FOUND',
-        },
-        { status: 404 }
-      );
+      return await errorHandler.handleError(new Error('Job not found'), request, {
+        step: 'job_lookup',
+        jobId,
+      });
     }
 
     // Get additional stats
@@ -126,14 +124,11 @@ export async function GET(request, { params }) {
   } catch (error) {
     console.error('Error getting crawl status:', error);
 
-    return NextResponse.json(
-      {
-        error: 'Failed to get crawl status',
-        message: error.message,
-        code: 'STATUS_FETCH_FAILED',
-      },
-      { status: 500 }
-    );
+    return await errorHandler.handleError(error, request, {
+      step: 'status_fetch',
+      jobId,
+      endpoint: 'crawl_status',
+    });
   }
 }
 

@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/supabase';
 import { validateUtils } from '@/lib/utils';
+import { errorHandler, handleValidationError } from '@/lib/errorHandler';
 
 export async function GET(request, { params }) {
   try {
@@ -39,13 +40,10 @@ export async function GET(request, { params }) {
     // Check if job exists
     const job = await db.getJob(jobId);
     if (!job) {
-      return NextResponse.json(
-        {
-          error: 'Job not found',
-          code: 'JOB_NOT_FOUND',
-        },
-        { status: 404 }
-      );
+      return await errorHandler.handleError(new Error('Job not found'), request, {
+        step: 'job_lookup',
+        jobId,
+      });
     }
 
     // Ensure database connection
@@ -326,14 +324,11 @@ export async function GET(request, { params }) {
   } catch (error) {
     console.error('Error getting results:', error);
 
-    return NextResponse.json(
-      {
-        error: 'Failed to get results',
-        message: error.message,
-        code: 'RESULTS_FETCH_FAILED',
-      },
-      { status: 500 }
-    );
+    return await errorHandler.handleError(error, request, {
+      step: 'results_fetch',
+      jobId: jobId,
+      filters: { statusFilter, statusCode, errorType, search },
+    });
   }
 }
 

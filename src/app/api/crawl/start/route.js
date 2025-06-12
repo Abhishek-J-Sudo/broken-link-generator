@@ -10,6 +10,7 @@ import { securityUtils } from '@/lib/security';
 import { db } from '@/lib/supabase';
 import { validateCrawlRequest, validateAdvancedRateLimit } from '@/lib/validation';
 import { logBlockedUrl, logInvalidInput, logRobotsBlocked } from '@/lib/securityLogger';
+import { errorHandler, handleValidationError, handleSecurityError } from '@/lib/errorHandler';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -22,7 +23,14 @@ export async function POST(request) {
 
   try {
     console.log('🔧 START ROUTE: Parsing request body...');
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      return await errorHandler.handleError(new Error('Invalid JSON in request body'), request, {
+        step: 'json_parsing',
+      });
+    }
 
     console.log(`🚀 ENHANCED START: Starting crawl for: ${body.url}`);
     console.log(`📊 ENHANCED START: Has analyzed data: ${!!body.preAnalyzedUrls}`);
@@ -43,13 +51,8 @@ export async function POST(request) {
     // Validate request with Zod
     const requestValidation = validateCrawlRequest(body);
     if (!requestValidation.success) {
-      // 🔒 NEW: Log invalid input
       await logInvalidInput(request, requestValidation.errors, body);
-
-      return NextResponse.json(
-        { error: 'Invalid request data', details: requestValidation.errors },
-        { status: 400, headers: securityHeaders }
-      );
+      return await handleValidationError(new Error('Request validation failed'), request);
     }
 
     // Extract validated data
@@ -194,28 +197,21 @@ export async function POST(request) {
     }
   } catch (error) {
     console.error('❌ ENHANCED START: Error starting crawl:', error);
-    console.error('❌ Error details:', {
-      message: error.message,
-      stack: error.stack,
-    });
 
     // Try to update job status if we have a jobId
     if (jobId) {
       try {
-        await db.updateJobStatus(jobId, 'failed', error.message);
+        await db.updateJobStatus(jobId, 'failed', 'Internal error');
       } catch (dbError) {
         console.error('❌ Failed to update job status:', dbError);
       }
     }
 
-    return NextResponse.json(
-      {
-        error: 'Failed to start crawl job',
-        message: error.message,
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-      },
-      { status: 500, headers: securityHeaders }
-    );
+    return await errorHandler.handleError(error, request, {
+      step: 'crawl_start',
+      jobId,
+      url: body?.url,
+    });
   }
 }
 

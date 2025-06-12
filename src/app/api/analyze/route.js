@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { urlUtils, batchUtils } from '@/lib/utils';
 import { securityUtils } from '@/lib/security';
 import { validateAnalysisRequest, validateAdvancedRateLimit } from '@/lib/validation';
+import { errorHandler, handleValidationError, handleSecurityError } from '@/lib/errorHandler';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -35,17 +36,18 @@ export async function POST(request) {
         }
       );
     }
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      return await errorHandler.handleError(new Error('Invalid JSON in request body'), request, {
+        step: 'json_parsing',
+      });
+    }
     const requestValidation = validateAnalysisRequest(body);
 
     if (!requestValidation.success) {
-      return NextResponse.json(
-        {
-          error: 'Invalid analysis request',
-          details: requestValidation.errors,
-        },
-        { status: 400 }
-      );
+      return await handleValidationError(new Error('Analysis request validation failed'), request);
     }
 
     const { url, maxDepth = 3, maxPages = 100 } = requestValidation.data;
@@ -55,7 +57,7 @@ export async function POST(request) {
     );
 
     if (!urlUtils.isValidUrl(url)) {
-      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
+      return await handleValidationError(new Error('Invalid URL format'), request);
     }
 
     //Security validation for Smart Analyzer
@@ -97,14 +99,13 @@ export async function POST(request) {
     return NextResponse.json(analysis, { headers: securityHeaders });
   } catch (error) {
     console.error('❌ PRODUCTION: Error analyzing URLs:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to analyze URLs',
-        message: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-      },
-      { status: 500, headers: securityHeaders }
-    );
+
+    return await errorHandler.handleError(error, request, {
+      step: 'url_analysis',
+      url: body?.url,
+      maxDepth: body?.maxDepth,
+      maxPages: body?.maxPages,
+    });
   }
 }
 
