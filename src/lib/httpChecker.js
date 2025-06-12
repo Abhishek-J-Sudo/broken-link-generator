@@ -5,14 +5,15 @@
 
 import axios from 'axios';
 import { errorUtils, batchUtils } from './utils.js';
+import { securityUtils } from './security.js';
 
 export class HttpChecker {
   constructor(options = {}) {
     this.options = {
       timeout: 10000,
-      maxRedirects: 5,
+      maxRedirects: 3,
       userAgent: 'Broken Link Checker Bot/1.0 (+https://your-domain.com/bot)',
-      maxConcurrent: 5,
+      maxConcurrent: 3,
       retryAttempts: 2,
       retryDelay: 1000,
       respectRobots: true,
@@ -23,15 +24,8 @@ export class HttpChecker {
     this.axiosConfig = {
       timeout: this.options.timeout,
       maxRedirects: this.options.maxRedirects,
-      headers: {
-        'User-Agent': this.options.userAgent,
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate',
-        Connection: 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-      },
-      validateStatus: () => true, // Don't throw on any status code
+      headers: securityUtils.getCrawlHeaders(),
+      validateStatus: () => true,
     };
   }
 
@@ -41,25 +35,44 @@ export class HttpChecker {
    */
   async checkUrl(url, sourceUrl = null) {
     const startTime = Date.now();
-    let attempt = 0;
 
+    // SECURITY: Validate URL before making request
+    const validation = securityUtils.isSafeUrl(url);
+    if (!validation.safe) {
+      console.log(`🚫 BLOCKED URL: ${url} - ${validation.reason}`);
+      return {
+        url,
+        sourceUrl,
+        http_status_code: null,
+        response_time: Date.now() - startTime,
+        checked_at: new Date().toISOString(),
+        is_working: false,
+        error_message: `Security: ${validation.reason}`,
+        statusCode: null,
+        isWorking: false,
+        errorType: 'security_blocked',
+        blocked: true,
+      };
+    }
+
+    let attempt = 0;
     while (attempt <= this.options.retryAttempts) {
       try {
+        // SECURITY: Use secure headers and limited redirects
         const response = await axios.get(url, this.axiosConfig);
         const responseTime = Date.now() - startTime;
         const isWorking = this._isStatusCodeOk(response.status);
 
-        const result = {
+        return {
           url,
           sourceUrl,
-          // NEW: Database fields
           http_status_code: response.status,
           response_time: responseTime,
           checked_at: new Date().toISOString(),
           is_working: isWorking,
           error_message: null,
 
-          // Legacy fields (for backward compatibility)
+          // Legacy compatibility
           statusCode: response.status,
           responseTime,
           isWorking,
@@ -69,32 +82,22 @@ export class HttpChecker {
           attempt: attempt + 1,
           timestamp: new Date().toISOString(),
         };
-
-        // If not working, add error classification
-        if (!isWorking) {
-          result.errorType = errorUtils.classifyError(response.status);
-          result.error_message = errorUtils.getErrorMessage(result.errorType, response.status);
-        }
-
-        return result;
       } catch (error) {
         const responseTime = Date.now() - startTime;
 
-        // If this is the last attempt, return the error
         if (attempt === this.options.retryAttempts) {
           const errorType = errorUtils.classifyError(null, error);
 
           return {
             url,
             sourceUrl,
-            // NEW: Database fields
             http_status_code: null,
             response_time: responseTime,
             checked_at: new Date().toISOString(),
             is_working: false,
             error_message: error.message,
 
-            // Legacy fields
+            // Legacy compatibility
             statusCode: null,
             responseTime,
             isWorking: false,
@@ -107,14 +110,11 @@ export class HttpChecker {
       }
 
       attempt++;
-
-      // Wait before retry
       if (attempt <= this.options.retryAttempts) {
         await batchUtils.delay(this.options.retryDelay * attempt);
       }
     }
   }
-
   /**
    * Checks multiple URLs with concurrency control
    * UPDATED: Returns database-ready results
@@ -123,7 +123,6 @@ export class HttpChecker {
     const results = [];
     const failed = [];
 
-    // Create check functions for each URL
     const checkFunctions = urls.map((urlData) => {
       const url = typeof urlData === 'string' ? urlData : urlData.url;
       const sourceUrl = typeof urlData === 'object' ? urlData.sourceUrl : null;
@@ -146,14 +145,11 @@ export class HttpChecker {
           const failedResult = {
             url,
             sourceUrl,
-            // NEW: Database fields
             http_status_code: null,
             response_time: null,
             checked_at: new Date().toISOString(),
             is_working: false,
             error_message: error.message,
-
-            // Legacy fields
             statusCode: null,
             isWorking: false,
             errorType: 'other',
@@ -177,11 +173,10 @@ export class HttpChecker {
       };
     });
 
-    // Execute with rate limiting
     await batchUtils.rateLimit(
       checkFunctions,
       this.options.maxConcurrent,
-      100 // 100ms delay between requests
+      200 // Increased delay for security
     );
 
     return {
@@ -196,6 +191,24 @@ export class HttpChecker {
    */
   async quickCheck(url) {
     const startTime = Date.now();
+
+    const validation = securityUtils.isSafeUrl(url);
+    if (!validation.safe) {
+      console.log(`🚫 BLOCKED URL in quickCheck: ${url} - ${validation.reason}`);
+      return {
+        url,
+        http_status_code: null,
+        response_time: Date.now() - startTime,
+        checked_at: new Date().toISOString(),
+        is_working: false,
+        error_message: `Security: ${validation.reason}`,
+        statusCode: null,
+        isWorking: false,
+        method: 'BLOCKED',
+        errorType: 'security_blocked',
+        blocked: true,
+      };
+    }
 
     try {
       const response = await axios.head(url, {
@@ -325,6 +338,7 @@ export class HttpChecker {
       total: results.length,
       working: 0,
       broken: 0,
+      blocked: 0, // New: track blocked URLs
       errors: {},
       statusCodes: {},
       averageResponseTime: 0,
@@ -335,7 +349,9 @@ export class HttpChecker {
     let timeCount = 0;
 
     results.forEach((result) => {
-      if (result.is_working) {
+      if (result.blocked) {
+        summary.blocked++;
+      } else if (result.is_working) {
         summary.working++;
       } else {
         summary.broken++;
@@ -381,7 +397,13 @@ export class HttpChecker {
 
         // Additional validation
         if (url.startsWith('http://') || url.startsWith('https://')) {
-          valid.push(urlData);
+          // ADD THIS: Security validation
+          const validation = securityUtils.isSafeUrl(url);
+          if (!validation.safe) {
+            invalid.push({ url, reason: `Security: ${validation.reason}` });
+          } else {
+            valid.push(urlData);
+          }
         } else {
           invalid.push({ url, reason: 'Invalid protocol' });
         }

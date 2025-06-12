@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import SecurityNotice from '@/app/components/SecurityNotice';
+import Link from 'next/link';
 
 export default function LargeCrawlForm({
   onJobStarted,
@@ -155,16 +157,25 @@ export default function LargeCrawlForm({
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+    <div className="w-full p-6 bg-white rounded-lg shadow-lg">
       <div className="mb-6">
         {/* <h1 className="text-3xl font-bold text-gray-900 mb-2">
           {isFromAnalyzer ? '🎯 Smart Broken Link Checker' : '🔗 Broken Link Checker'}
         </h1> */}
-        <p className="text-gray-600">
-          {isFromAnalyzer
-            ? 'Ready to check the URLs discovered by the analyzer for broken links.'
-            : 'Optimized for both small and large websites. Can handle 1000+ pages efficiently.'}
-        </p>
+        <div className="mb-0">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">🔗 Broken Link Checker</h2>
+          <p className="text-gray-600">
+            Enter a URL to start checking for broken links. For large sites or advanced analysis,
+            try our{' '}
+            <Link href="/analyze" className="text-indigo-600 hover:text-indigo-800 font-medium">
+              Smart Analyzer
+            </Link>{' '}
+            instead.
+            {isFromAnalyzer
+              ? 'Ready to check the URLs discovered by the analyzer for broken links.'
+              : 'Optimized for both small and large websites. Can handle 1000+ pages efficiently.'}
+          </p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -400,7 +411,7 @@ export default function LargeCrawlForm({
         </div>
       </form>
 
-      <div className="mt-8 p-4 bg-gray-50 rounded-md">
+      {/* <div className="mt-8 p-4 bg-gray-50 rounded-md">
         <h3 className="text-sm font-medium text-gray-900 mb-2">Expected Performance</h3>
         <div className="text-xs text-gray-600 space-y-1">
           {formData.useAnalyzedData && analyzedData ? (
@@ -427,15 +438,17 @@ export default function LargeCrawlForm({
             </>
           )}
         </div>
-      </div>
+      </div> */}
 
       {!isFromAnalyzer && (
-        <div className="mt-6 text-center">
+        <div className="mt-6 mb-5 text-center">
           <a href="/analyze" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
             ← Want to analyze URL structure first?
           </a>
         </div>
       )}
+      {/* Security Notice */}
+      <SecurityNotice variant="compact" />
     </div>
   );
 }

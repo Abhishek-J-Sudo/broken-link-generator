@@ -5,6 +5,7 @@
 
 import * as cheerio from 'cheerio';
 import { urlUtils, textUtils } from './utils.js';
+import { securityUtils } from './security.js'; // Import security
 
 export class LinkExtractor {
   constructor(options = {}) {
@@ -50,6 +51,13 @@ export class LinkExtractor {
 
         // Skip invalid URLs
         if (!urlUtils.isValidUrl(normalizedUrl)) return;
+
+        // SECURITY: Validate URL safety before adding to results
+        const validation = securityUtils.isSafeUrl(normalizedUrl);
+        if (!validation.safe) {
+          console.log(`🚫 BLOCKED during extraction: ${normalizedUrl} - ${validation.reason}`);
+          return; // Skip unsafe URLs
+        }
 
         // Check if internal/external
         const isInternal = urlUtils.isInternalUrl(normalizedUrl, baseDomain);
@@ -105,12 +113,19 @@ export class LinkExtractor {
     const additionalLinks = [];
     const baseDomain = urlUtils.getDomain(baseUrl);
 
-    // Links from img src attributes
+    // Images
     $('img[src]').each((index, element) => {
       const src = $(element).attr('src');
       const absoluteUrl = urlUtils.resolveUrl(src, baseUrl);
 
       if (absoluteUrl && urlUtils.isValidUrl(absoluteUrl)) {
+        // SECURITY: Validate before adding
+        const validation = securityUtils.isSafeUrl(absoluteUrl);
+        if (!validation.safe) {
+          console.log(`🚫 BLOCKED image during extraction: ${absoluteUrl} - ${validation.reason}`);
+          return; // Skip unsafe URLs
+        }
+
         const isInternal = urlUtils.isInternalUrl(absoluteUrl, baseDomain);
 
         if (isInternal || this.options.includeExternal) {
@@ -131,12 +146,19 @@ export class LinkExtractor {
       }
     });
 
-    // Links from iframe src attributes
+    // Iframes - WITH SECURITY VALIDATION
     $('iframe[src]').each((index, element) => {
       const src = $(element).attr('src');
       const absoluteUrl = urlUtils.resolveUrl(src, baseUrl);
 
       if (absoluteUrl && urlUtils.isValidUrl(absoluteUrl)) {
+        // SECURITY: Validate before adding
+        const validation = securityUtils.isSafeUrl(absoluteUrl);
+        if (!validation.safe) {
+          console.log(`🚫 BLOCKED iframe during extraction: ${absoluteUrl} - ${validation.reason}`);
+          return; // Skip unsafe URLs
+        }
+
         const isInternal = urlUtils.isInternalUrl(absoluteUrl, baseDomain);
 
         if (isInternal || this.options.includeExternal) {
@@ -156,12 +178,21 @@ export class LinkExtractor {
       }
     });
 
-    // Links from link tags (stylesheets, etc.)
+    // Link tags (stylesheets, etc.) - WITH SECURITY VALIDATION
     $('link[href]').each((index, element) => {
       const href = $(element).attr('href');
       const absoluteUrl = urlUtils.resolveUrl(href, baseUrl);
 
       if (absoluteUrl && urlUtils.isValidUrl(absoluteUrl)) {
+        // SECURITY: Validate before adding
+        const validation = securityUtils.isSafeUrl(absoluteUrl);
+        if (!validation.safe) {
+          console.log(
+            `🚫 BLOCKED link resource during extraction: ${absoluteUrl} - ${validation.reason}`
+          );
+          return; // Skip unsafe URLs
+        }
+
         const isInternal = urlUtils.isInternalUrl(absoluteUrl, baseDomain);
 
         if (isInternal || this.options.includeExternal) {

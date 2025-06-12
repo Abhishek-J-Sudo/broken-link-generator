@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { LinkExtractor } from '@/lib/linkExtractor';
 import { HttpChecker } from '@/lib/httpChecker';
 import { urlUtils, validateUtils, batchUtils } from '@/lib/utils';
+import { securityUtils } from '@/lib/security';
 import { db } from '@/lib/supabase';
 
 export async function POST(request) {
@@ -34,6 +35,47 @@ export async function POST(request) {
     // Normalize URL
     const normalizedUrl = urlUtils.normalizeUrl(url);
     console.log(`📝 Normalized URL: ${normalizedUrl}`);
+
+    // NEW: Security validation
+    const validation = securityUtils.isSafeUrl(normalizedUrl);
+    if (!validation.safe) {
+      console.log(`🚫 BLOCKED crawl attempt: ${normalizedUrl} - ${validation.reason}`);
+      return NextResponse.json(
+        {
+          error: 'URL blocked for security reasons',
+          reason: validation.reason,
+          code: 'SECURITY_BLOCKED',
+        },
+        { status: 403 }
+      );
+    }
+
+    // NEW: Check robots.txt if enabled (optional but recommended)
+    if (settings.respectRobots !== false) {
+      try {
+        const robotsCheck = await securityUtils.checkRobotsTxt(normalizedUrl);
+        if (!robotsCheck.allowed) {
+          return NextResponse.json(
+            {
+              error: 'Crawling not allowed by robots.txt',
+              reason: robotsCheck.reason,
+              code: 'ROBOTS_BLOCKED',
+            },
+            { status: 403 }
+          );
+        }
+
+        // Apply crawl delay from robots.txt
+        if (robotsCheck.crawlDelay) {
+          settings.delayBetweenRequests = Math.max(
+            settings.delayBetweenRequests || 100,
+            robotsCheck.crawlDelay
+          );
+        }
+      } catch (robotsError) {
+        console.log('Could not check robots.txt, proceeding with crawl');
+      }
+    }
 
     // Create database job
     const jobSettings = {

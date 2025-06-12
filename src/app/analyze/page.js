@@ -7,6 +7,7 @@ import LargeCrawlForm from '@/app/components/LargeCrawlForm';
 import ResultsTable from '@/app/components/ResultsTable';
 import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
+import SecurityNotice from '@/app/components/SecurityNotice';
 
 export default function UnifiedAnalyzePage() {
   const [currentStep, setCurrentStep] = useState('analyze'); // 'analyze', 'crawl', 'results'
@@ -160,6 +161,9 @@ export default function UnifiedAnalyzePage() {
             />
           </div>
         )}
+
+        {/* Security Notice */}
+        <SecurityNotice variant="compact" />
       </div>
 
       <Footer />

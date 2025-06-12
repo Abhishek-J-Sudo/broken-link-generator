@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import ResultsTable from '@/app/components/ResultsTable';
 import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
+import SecurityNotice from '@/app/components/SecurityNotice';
 
 export default function ResultsPage() {
   const params = useParams();
@@ -811,6 +812,9 @@ export default function ResultsPage() {
           </div>
         )}
       </div>
+      {/* Security notice */}
+      <SecurityNotice variant="compact" />
+      {/* Footer */}
       <Footer />
     </div>
   );

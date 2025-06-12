@@ -49,6 +49,8 @@ export default function ResultsTable({
     connection_error: 'bg-pink-100 text-pink-800',
     invalid_url: 'bg-indigo-100 text-indigo-800',
     other: 'bg-gray-100 text-gray-800',
+    security_blocked: 'bg-purple-100 text-purple-800',
+    robots_blocked: 'bg-orange-100 text-orange-800',
   };
 
   const errorTypeLabels = {
@@ -61,6 +63,8 @@ export default function ResultsTable({
     connection_error: 'Connection Failed',
     invalid_url: 'Invalid URL',
     other: 'Other Error',
+    security_blocked: 'Security Blocked',
+    robots_blocked: 'Robots.txt Blocked',
   };
 
   // ENHANCED: Better logic for determining what type of "no results" message to show

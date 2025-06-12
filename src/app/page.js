@@ -6,6 +6,7 @@ import Link from 'next/link';
 import LargeCrawlForm from '@/app/components/LargeCrawlForm';
 import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
+import SecurityNotice from '@/app/components/SecurityNotice';
 
 export default function HomePage() {
   const [recentJobs, setRecentJobs] = useState([]);
@@ -75,21 +76,6 @@ export default function HomePage() {
           {/* Main Form */}
           <div className="lg:col-span-3">
             <div className="bg-white rounded-lg shadow-lg p-6 mb-0">
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">🔗 Broken Link Checker</h2>
-                <p className="text-gray-600">
-                  Enter a URL to start checking for broken links. For large sites or advanced
-                  analysis, try our{' '}
-                  <Link
-                    href="/analyze"
-                    className="text-indigo-600 hover:text-indigo-800 font-medium"
-                  >
-                    Smart Analyzer
-                  </Link>{' '}
-                  instead.
-                </p>
-              </div>
-
               <LargeCrawlForm onJobStarted={handleJobStarted} />
             </div>
           </div>
@@ -249,7 +235,8 @@ export default function HomePage() {
           </div>
         </div>
       </div>
-
+      {/* Security notice */}
+      <SecurityNotice variant="compact" />
       {/* Footer */}
       <Footer />
     </div>
