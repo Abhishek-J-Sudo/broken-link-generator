@@ -9,6 +9,7 @@ import { urlUtils, validateUtils, batchUtils } from '@/lib/utils';
 import { securityUtils } from '@/lib/security';
 import { db } from '@/lib/supabase';
 import { validateCrawlRequest, validateAdvancedRateLimit } from '@/lib/validation';
+import { logBlockedUrl, logInvalidInput, logRobotsBlocked } from '@/lib/securityLogger';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -42,6 +43,9 @@ export async function POST(request) {
     // Validate request with Zod
     const requestValidation = validateCrawlRequest(body);
     if (!requestValidation.success) {
+      // 🔒 NEW: Log invalid input
+      await logInvalidInput(request, requestValidation.errors, body);
+
       return NextResponse.json(
         { error: 'Invalid request data', details: requestValidation.errors },
         { status: 400, headers: securityHeaders }
@@ -63,6 +67,10 @@ export async function POST(request) {
     const validation = securityUtils.isSafeUrl(normalizedUrl);
     if (!validation.safe) {
       console.log(`🚫 BLOCKED crawl attempt: ${normalizedUrl} - ${validation.reason}`);
+
+      // 🔒 NEW: Log blocked URL
+      await logBlockedUrl(request, normalizedUrl, validation.reason);
+
       return NextResponse.json(
         {
           error: 'URL blocked for security reasons',
@@ -78,6 +86,9 @@ export async function POST(request) {
       try {
         const robotsCheck = await securityUtils.checkRobotsTxt(normalizedUrl);
         if (!robotsCheck.allowed) {
+          // 🔒 NEW: Log robots.txt violation
+          await logRobotsBlocked(request, normalizedUrl, robotsCheck.reason);
+
           return NextResponse.json(
             {
               error: 'Crawling not allowed by robots.txt',

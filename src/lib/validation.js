@@ -1,6 +1,7 @@
 // src/lib/validation.js - Enhanced input validation with advanced rate limiting
 import { z } from 'zod';
 import { securityUtils } from './security.js';
+import { logRateLimitViolation } from './securityLogger.js';
 
 // URL validation schema
 const urlSchema = z
@@ -179,7 +180,7 @@ class EnhancedRateLimitStore {
   }
 
   // Record a violation and potentially block the IP
-  recordViolation(ip, endpoint) {
+  async recordViolation(ip, endpoint, request = null) {
     if (!this.violations.has(ip)) {
       this.violations.set(ip, {});
     }
@@ -205,6 +206,19 @@ class EnhancedRateLimitStore {
         violation.count
       }, blocked until ${new Date(violation.blockedUntil).toISOString()}`
     );
+
+    // 🔒 NEW: Log security event
+    try {
+      await logRateLimitViolation(request, endpoint, {
+        violationCount: violation.count,
+        penaltyMultiplier,
+        blockedUntil: new Date(violation.blockedUntil).toISOString(),
+        limit: limit.maxRequests,
+        windowMinutes: Math.round(limit.windowMs / 60000),
+      });
+    } catch (logError) {
+      console.error('Failed to log rate limit violation:', logError);
+    }
   }
 
   // Add a request timestamp
