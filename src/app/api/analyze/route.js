@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { urlUtils, batchUtils } from '@/lib/utils';
+import { securityUtils } from '@/lib/security';
 
 export async function POST(request) {
   try {
@@ -16,6 +17,38 @@ export async function POST(request) {
 
     if (!urlUtils.isValidUrl(url)) {
       return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
+    }
+
+    //Security validation for Smart Analyzer
+    const validation = securityUtils.isSafeUrl(url);
+    if (!validation.safe) {
+      console.log(`🚫 BLOCKED analysis attempt: ${url} - ${validation.reason}`);
+      return NextResponse.json(
+        {
+          error: 'URL blocked for security reasons',
+          reason: validation.reason,
+          code: 'SECURITY_BLOCKED',
+        },
+        { status: 403 }
+      );
+    }
+
+    //Check robots.txt for analyzer
+    try {
+      const robotsCheck = await securityUtils.checkRobotsTxt(url);
+      if (!robotsCheck.allowed) {
+        console.log(`🚫 BLOCKED analysis by robots.txt: ${url}`);
+        return NextResponse.json(
+          {
+            error: 'Analysis not allowed by robots.txt',
+            reason: robotsCheck.reason,
+            code: 'ROBOTS_BLOCKED',
+          },
+          { status: 403 }
+        );
+      }
+    } catch (robotsError) {
+      console.log('Could not check robots.txt for analysis, proceeding');
     }
 
     const analysis = await analyzeUrlsSmart(url, maxDepth, maxPages);
@@ -642,6 +675,13 @@ function generateRecommendations(categories, patterns) {
 
 async function fetchPageWithTimeout(url, timeout = 15000) {
   try {
+    //Security validation before fetching
+    const validation = securityUtils.isSafeUrl(url);
+    if (!validation.safe) {
+      console.log(`🚫 BLOCKED fetch in analyzer: ${url} - ${validation.reason}`);
+      return null; // Return null instead of throwing to maintain existing flow
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
