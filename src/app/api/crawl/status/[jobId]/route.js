@@ -6,11 +6,32 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/supabase';
+import { validateAdvancedRateLimit } from '@/lib/validation';
 
 export async function GET(request, { params }) {
   try {
     // FIX: Await params for Next.js 15 compatibility
     const { jobId } = await params;
+
+    // Add rate limiting for status checks
+    const clientIP = request.headers.get('x-forwarded-for') || 'unknown';
+    const rateLimit = validateAdvancedRateLimit(clientIP, 'status');
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Rate limit exceeded for status checks',
+          retryAfter: rateLimit.retryAfter,
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': rateLimit.retryAfter.toString(),
+            ...(rateLimit.headers || {}),
+          },
+        }
+      );
+    }
 
     // Validate jobId
     if (!jobId) {

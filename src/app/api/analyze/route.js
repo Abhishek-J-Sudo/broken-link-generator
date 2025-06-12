@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { urlUtils, batchUtils } from '@/lib/utils';
 import { securityUtils } from '@/lib/security';
-import { validateAnalysisRequest, validateRateLimit } from '@/lib/validation';
+import { validateAnalysisRequest, validateAdvancedRateLimit } from '@/lib/validation';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -18,7 +18,7 @@ export async function POST(request) {
   try {
     // Rate limiting for analysis (more restrictive)
     const clientIP = request.headers.get('x-forwarded-for') || 'unknown';
-    const rateLimit = validateRateLimit(clientIP, 15 * 60 * 1000, 3); // 3 analysis per 15 min
+    const rateLimit = validateAdvancedRateLimit(clientIP, 'analyze');
 
     if (!rateLimit.allowed) {
       return NextResponse.json(

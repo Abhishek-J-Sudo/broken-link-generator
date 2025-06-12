@@ -8,7 +8,7 @@ import { HttpChecker } from '@/lib/httpChecker';
 import { urlUtils, validateUtils, batchUtils } from '@/lib/utils';
 import { securityUtils } from '@/lib/security';
 import { db } from '@/lib/supabase';
-import { validateCrawlRequest, validateRateLimit } from '@/lib/validation';
+import { validateCrawlRequest, validateAdvancedRateLimit } from '@/lib/validation';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -27,7 +27,7 @@ export async function POST(request) {
     console.log(`📊 ENHANCED START: Has analyzed data: ${!!body.preAnalyzedUrls}`);
 
     const clientIP = request.headers.get('x-forwarded-for') || 'unknown';
-    const rateLimit = validateRateLimit(clientIP, 15 * 60 * 1000, 5);
+    const rateLimit = validateAdvancedRateLimit(clientIP, 'crawl');
 
     if (!rateLimit.allowed) {
       return NextResponse.json(
@@ -134,6 +134,10 @@ export async function POST(request) {
         console.error(`❌ Smart crawl background processing failed for job ${jobId}:`, error);
       });
 
+      const responseHeaders = {
+        ...securityHeaders,
+        ...(rateLimit.headers || {}),
+      };
       // Return immediately for smart crawl
       return NextResponse.json(
         {
@@ -148,7 +152,7 @@ export async function POST(request) {
           resultsUrl: `/api/results/${jobId}`,
           crawlType: 'smart',
         },
-        { status: 201, headers: securityHeaders }
+        { status: 201, headers: responseHeaders }
       );
     }
 
