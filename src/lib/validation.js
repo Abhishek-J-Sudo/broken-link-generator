@@ -98,8 +98,8 @@ const BASE_RATE_LIMITS = {
   },
   // Status checking - base limit (will be scaled dynamically)
   status: {
-    maxRequests: 500,
-    windowMs: 15 * 60 * 1000,
+    maxRequests: 5000,
+    windowMs: 60 * 60 * 1000,
     blockDurationMs: 5 * 60 * 1000,
   },
   // Results viewing - generous limits
