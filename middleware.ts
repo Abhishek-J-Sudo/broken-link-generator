@@ -1,5 +1,5 @@
 // middleware.ts - Complete Basic Auth version
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 
 // Basic Auth credentials from environment variables
 const BASIC_AUTH_USER = process.env.BASIC_AUTH_USER;
@@ -13,7 +13,7 @@ console.log('🔐 BASIC AUTH CONFIG:', {
   hasPassword: !!BASIC_AUTH_PASSWORD,
 });
 
-export function middleware(request) {
+export function middleware(request: NextRequest) {
   console.log('🔧 MIDDLEWARE: Running for:', request.nextUrl.pathname);
 
   // 🔐 STEP 1: Basic Auth Check (if enabled)
@@ -29,7 +29,7 @@ export function middleware(request) {
 }
 
 // 🔐 Basic Auth Check Function
-function checkBasicAuth(request) {
+function checkBasicAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
 
   if (!authHeader || !authHeader.startsWith('Basic ')) {
