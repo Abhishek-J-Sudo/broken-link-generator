@@ -48,6 +48,7 @@ export default function ResultsTable({
     timeout: 'bg-blue-100 text-blue-800',
     dns_error: 'bg-gray-100 text-gray-800',
     connection_error: 'bg-pink-100 text-pink-800',
+    ssl_error: 'bg-amber-100 text-amber-800',
     invalid_url: 'bg-indigo-100 text-indigo-800',
     other: 'bg-gray-100 text-gray-800',
     security_blocked: 'bg-purple-100 text-purple-800',
@@ -62,6 +63,7 @@ export default function ResultsTable({
     timeout: 'Timeout',
     dns_error: 'DNS Error',
     connection_error: 'Connection Failed',
+    ssl_error: 'SSL Certificate Error',
     invalid_url: 'Invalid URL',
     other: 'Other Error',
     security_blocked: 'Security Blocked',
@@ -289,9 +291,10 @@ export default function ResultsTable({
                 <option value="404">404 - Not Found</option>
                 <option value="500">500 - Server Error</option>
                 <option value="403">403 - Forbidden</option>
+                <option value="connection_error">Connection Error</option>
+                <option value="ssl_error">SSL Certificate Error</option>
                 <option value="timeout">Timeout</option>
                 <option value="dns_error">DNS Error</option>
-                <option value="connection_error">Connection Error</option>
                 <option value="other">Other</option>
               </select>
             )}
