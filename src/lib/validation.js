@@ -1,4 +1,4 @@
-// src/lib/validation.js - Enhanced input validation with advanced rate limiting
+// src/lib/validation.js - CORRECTED: Enhanced input validation with advanced rate limiting
 import { z } from 'zod';
 import { securityUtils } from './security.js';
 import { logRateLimitViolation } from './securityLogger.js';
@@ -80,44 +80,80 @@ export const resultsQuerySchema = z.object({
 // ========================================
 // 🚀 ENHANCED RATE LIMITING SYSTEM
 // ========================================
+const isDevelopment = process.env.NODE_ENV === 'development';
 
-// Rate limiting configuration for different endpoint types
-const RATE_LIMITS = {
+// 🔧 FIXED: Base rate limiting configuration (used by dynamic system)
+const BASE_RATE_LIMITS = {
   // Analysis endpoint - most CPU intensive
   analyze: {
-    maxRequests: 3,
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    blockDurationMs: 30 * 60 * 1000, // 30 minutes ban for violations
+    maxRequests: 10,
+    windowMs: 15 * 60 * 1000,
+    blockDurationMs: isDevelopment ? 1 * 60 * 1000 : 5 * 60 * 1000,
   },
-
   // Crawl start endpoint - resource intensive
   crawl: {
-    maxRequests: 10,
-    windowMs: 60 * 60 * 1000, // 1 hour
-    blockDurationMs: 2 * 60 * 60 * 1000, // 2 hours ban for violations
+    maxRequests: 20,
+    windowMs: 60 * 60 * 1000,
+    blockDurationMs: 2 * 60 * 60 * 1000,
   },
-
-  // Status checking - lighter limits
+  // Status checking - base limit (will be scaled dynamically)
   status: {
-    maxRequests: 100,
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    blockDurationMs: 15 * 60 * 1000, // 15 minutes ban for violations
+    maxRequests: 500,
+    windowMs: 15 * 60 * 1000,
+    blockDurationMs: 5 * 60 * 1000,
   },
-
   // Results viewing - generous limits
   results: {
-    maxRequests: 200,
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    blockDurationMs: 15 * 60 * 1000, // 15 minutes ban for violations
+    maxRequests: 500,
+    windowMs: 15 * 60 * 1000,
+    blockDurationMs: 10 * 60 * 1000,
   },
-
-  // Health checks - unlimited
+  // Health checks - very generous
   health: {
-    maxRequests: 1000,
-    windowMs: 5 * 60 * 1000, // 5 minutes
-    blockDurationMs: 5 * 60 * 1000, // 5 minutes ban
+    maxRequests: 2000,
+    windowMs: 5 * 60 * 1000,
+    blockDurationMs: 2 * 60 * 1000,
+  },
+  // General endpoint rate limit (fallback)
+  general: {
+    maxRequests: 200,
+    windowMs: 15 * 60 * 1000,
+    blockDurationMs: 10 * 60 * 1000,
   },
 };
+
+// Legacy RATE_LIMITS for backwards compatibility
+const RATE_LIMITS = BASE_RATE_LIMITS;
+
+// 🚀 DYNAMIC RATE LIMITS: Scale based on job requirements
+function getDynamicRateLimit(endpoint, jobContext = null) {
+  const baseLimit = BASE_RATE_LIMITS[endpoint] || BASE_RATE_LIMITS.general;
+
+  // For status checks, scale based on estimated job size
+  if (endpoint === 'status' && jobContext) {
+    const { jobId, estimatedLinks, crawlLevel } = jobContext;
+
+    let multiplier = 1;
+
+    // Scale rate limits based on crawl level
+    if (crawlLevel >= 5 || estimatedLinks > 1000) {
+      multiplier = 6; // 6x more status checks allowed for Level 5
+    } else if (crawlLevel >= 4 || estimatedLinks > 500) {
+      multiplier = 4; // 4x more status checks allowed for Level 4
+    } else if (crawlLevel >= 3 || estimatedLinks > 200) {
+      multiplier = 2; // 2x more status checks allowed for Level 3
+    }
+
+    return {
+      ...baseLimit,
+      maxRequests: baseLimit.maxRequests * multiplier,
+      // Reduce ban time for large jobs
+      blockDurationMs: Math.max(baseLimit.blockDurationMs / multiplier, 60000), // Min 1 minute
+    };
+  }
+
+  return baseLimit;
+}
 
 // Enhanced in-memory store for rate limiting
 class EnhancedRateLimitStore {
@@ -275,7 +311,7 @@ class EnhancedRateLimitStore {
 // Global rate limit store
 const rateLimitStore = new EnhancedRateLimitStore();
 
-// Enhanced rate limiting function
+// Enhanced rate limiting function (standard)
 export function validateAdvancedRateLimit(ip, endpoint = 'general') {
   // Normalize endpoint name
   const normalizedEndpoint = endpoint.toLowerCase();
@@ -284,7 +320,7 @@ export function validateAdvancedRateLimit(ip, endpoint = 'general') {
   const limit = RATE_LIMITS[normalizedEndpoint];
   if (!limit) {
     // If no specific limit, use general crawl limits
-    return validateAdvancedRateLimit(ip, 'crawl');
+    return validateAdvancedRateLimit(ip, 'general');
   }
 
   const now = Date.now();
@@ -333,6 +369,65 @@ export function validateAdvancedRateLimit(ip, endpoint = 'general') {
       'X-RateLimit-Remaining': (limit.maxRequests - requestCount - 1).toString(),
       'X-RateLimit-Reset': Math.ceil((now + limit.windowMs) / 1000).toString(),
       'X-RateLimit-Window': Math.ceil(limit.windowMs / 1000).toString(),
+    },
+  };
+}
+
+// 🚀 NEW: Smart status rate limiting with dynamic scaling
+export function validateStatusRateLimit(ip, jobContext = null) {
+  const endpoint = 'status';
+
+  // Get dynamic rate limit based on job context
+  const limit = getDynamicRateLimit(endpoint, jobContext);
+
+  const normalizedEndpoint = endpoint.toLowerCase();
+  const now = Date.now();
+
+  // Check if IP is currently blocked
+  if (rateLimitStore.isBlocked(ip, normalizedEndpoint)) {
+    const remainingMs = rateLimitStore.getBlockTimeRemaining(ip, normalizedEndpoint);
+    return {
+      allowed: false,
+      retryAfter: Math.ceil(remainingMs / 1000),
+      reason: 'IP temporarily blocked due to rate limit violations',
+      blockedUntil: new Date(now + remainingMs).toISOString(),
+    };
+  }
+
+  // Get current request count
+  const requestCount = rateLimitStore.getRequestCount(ip, normalizedEndpoint);
+
+  // Check if limit exceeded
+  if (requestCount >= limit.maxRequests) {
+    // Record violation and block IP
+    rateLimitStore.recordViolation(ip, normalizedEndpoint);
+    const blockDuration = rateLimitStore.getBlockTimeRemaining(ip, normalizedEndpoint);
+
+    return {
+      allowed: false,
+      retryAfter: Math.ceil(blockDuration / 1000),
+      reason: `Rate limit exceeded: ${requestCount}/${limit.maxRequests} requests in ${Math.round(
+        limit.windowMs / 60000
+      )} minutes (Level ${jobContext?.crawlLevel || '?'} job)`,
+      blockedUntil: new Date(now + blockDuration).toISOString(),
+    };
+  }
+
+  // Add this request to the history
+  rateLimitStore.addRequest(ip, normalizedEndpoint);
+
+  // Return success with headers
+  return {
+    allowed: true,
+    remaining: limit.maxRequests - requestCount - 1,
+    resetTime: now + limit.windowMs,
+    dynamicLimit: limit.maxRequests, // Include the dynamic limit used
+    headers: {
+      'X-RateLimit-Limit': limit.maxRequests.toString(),
+      'X-RateLimit-Remaining': (limit.maxRequests - requestCount - 1).toString(),
+      'X-RateLimit-Reset': Math.ceil((now + limit.windowMs) / 1000).toString(),
+      'X-RateLimit-Window': Math.ceil(limit.windowMs / 1000).toString(),
+      'X-RateLimit-Level': `dynamic-${jobContext?.crawlLevel || 'unknown'}`,
     },
   };
 }
