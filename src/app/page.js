@@ -7,6 +7,7 @@ import LargeCrawlForm from '@/app/components/LargeCrawlForm';
 import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
 import SecurityNotice from '@/app/components/SecurityNotice';
+import LegalTerms from './components/LegalTerms';
 
 export default function HomePage() {
   const [recentJobs, setRecentJobs] = useState([]);
@@ -235,8 +236,8 @@ export default function HomePage() {
           </div>
         </div>
       </div>
-      {/* Security notice */}
-      <SecurityNotice variant="compact" />
+      {/* Legal terms */}
+      <LegalTerms variant="banner" />
       {/* Footer */}
       <Footer />
     </div>

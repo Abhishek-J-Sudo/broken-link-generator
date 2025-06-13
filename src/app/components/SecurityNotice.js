@@ -69,7 +69,7 @@ export default function SecurityNotice({ variant = 'compact' }) {
                 <strong>For Website Owners:</strong> This tool only checks link availability and
                 doesn't store content. To block our scanner, add to robots.txt:
                 <code className="bg-white text-gray-500 px-1 rounded font-mono">
-                  User-agent: Broken Link Checker Bot
+                  User-agent: Broken Link Checker Bot && Disallow: /
                 </code>
               </div>
             </div>
@@ -110,7 +110,7 @@ export default function SecurityNotice({ variant = 'compact' }) {
         <strong>For Website Owners:</strong> This tool only checks link availability and doesn't
         store content. <br /> To block our scanner, add to robots.txt:{' '}
         <code className="bg-white text-gray-500 px-1 rounded font-mono">
-          User-agent: Broken Link Checker Bot
+          User-agent: Broken Link Checker Bot && Disallow: /
         </code>
       </div>
     </div>
