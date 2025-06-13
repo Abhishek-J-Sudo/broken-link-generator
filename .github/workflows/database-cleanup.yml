@@ -1,0 +1,71 @@
+# FILE: .github/workflows/database-cleanup.yml
+# Create this folder structure and file in your project
+
+name: 🧹 Database Cleanup
+
+on:
+  schedule:
+    # Run every day at 2:00 AM UTC (adjust time as needed)
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+    inputs:
+      force_run:
+        description: 'Force cleanup even if no old data'
+        required: false
+        default: 'false'
+
+jobs:
+  cleanup-database:
+    name: Clean Old Crawl Data
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🧹 Trigger Database Cleanup
+        id: cleanup
+        run: |
+          echo "🚀 Starting database cleanup..."
+          echo "📅 Current time: $(date)"
+          echo "🔗 Endpoint: ${{ secrets.CLEANUP_ENDPOINT_URL }}"
+          
+          # Make the cleanup request
+          response=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.CLEANUP_SECRET_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -H "User-Agent: GitHub-Actions-Cleanup/1.0" \
+            "${{ secrets.CLEANUP_ENDPOINT_URL }}")
+          
+          # Parse response
+          http_code=$(echo $response | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+          body=$(echo $response | sed -e 's/HTTPSTATUS\:.*//g')
+          
+          echo "📊 HTTP Status: $http_code"
+          echo "📝 Response Body:"
+          echo "$body"
+          
+          # Check if successful
+          if [ $http_code -eq 200 ]; then
+            echo "✅ Database cleanup completed successfully!"
+            echo "cleanup_success=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Database cleanup failed with HTTP status: $http_code"
+            echo "cleanup_success=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: 📊 Cleanup Summary
+        if: success()
+        run: |
+          echo "🎉 Database cleanup job completed!"
+          echo "⏰ Next scheduled run: Tomorrow at 2:00 AM UTC"
+          echo "🔧 To run manually: Go to Actions tab → Database Cleanup → Run workflow"
+
+      - name: 🚨 Failure Notification
+        if: failure()
+        run: |
+          echo "💥 Database cleanup failed!"
+          echo "🔍 Check the logs above for error details"
+          echo "🛠️ You may need to:"
+          echo "   - Verify your Vercel app is running"
+          echo "   - Check environment variables in Vercel"
+          echo "   - Ensure secrets are properly set in GitHub"
