@@ -1,7 +1,7 @@
 // src/app/components/UrlAnalyzer.js - COMPLETE VERSION with ALL original features
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function UrlAnalyzer({
@@ -24,6 +24,71 @@ export default function UrlAnalyzer({
   const [crawlStatus, setCrawlStatus] = useState('idle'); // idle, starting, running, completed, failed
   const [crawlLog, setCrawlLog] = useState([]);
 
+  const scrollRef = useRef(null);
+  const analysisScrollRef = useRef(null);
+
+  // Auto-scroll to bottom when new crawl log entries are added
+  useEffect(() => {
+    if (scrollRef.current && crawlLog.length > 0) {
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }, 100);
+    }
+  }, [crawlLog]);
+
+  // Auto-scroll useEffect for analysis log
+  useEffect(() => {
+    if (analysisScrollRef.current && analysisLog.length > 0) {
+      setTimeout(() => {
+        analysisScrollRef.current.scrollTop = analysisScrollRef.current.scrollHeight;
+      }, 100);
+    }
+  }, [analysisLog]);
+
+  // Restore analysis from session storage on component mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const shouldRestore = urlParams.get('restore') === 'true';
+
+    if (shouldRestore) {
+      // Only restore if the URL parameter says we should
+      try {
+        const savedAnalysis = sessionStorage.getItem('lastAnalysis');
+        if (savedAnalysis) {
+          const parsed = JSON.parse(savedAnalysis);
+
+          // Check if data is recent (within last 2 hours)
+          const savedTime = new Date(parsed.savedAt);
+          const now = new Date();
+          const hoursDiff = (now - savedTime) / (1000 * 60 * 60);
+
+          if (hoursDiff < 2) {
+            console.log('🔄 Restoring analysis from session storage');
+            setAnalysis(parsed);
+            setUrl(parsed.originalUrl || '');
+
+            // Show a subtle indicator that data was restored
+            addLogEntry('📋 Previous analysis restored from browser session', 'info');
+          } else {
+            // Clean up old data
+            sessionStorage.removeItem('lastAnalysis');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to restore analysis:', error);
+        sessionStorage.removeItem('lastAnalysis');
+      }
+    } else {
+      // Fresh start - clear any existing analysis data
+      console.log('🆕 Starting fresh analysis (clearing previous data)');
+      sessionStorage.removeItem('lastAnalysis');
+      setAnalysis(null);
+      setUrl('');
+      setAnalysisLog([]);
+    }
+  }, []);
+
   const addCrawlLogEntry = (message, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
     setCrawlLog((prev) => [...prev, { message, type, timestamp }]);
@@ -37,6 +102,9 @@ export default function UrlAnalyzer({
   const handleAnalyze = async (e) => {
     e.preventDefault();
     if (!url) return;
+
+    // Clear previous analysis data
+    sessionStorage.removeItem('lastAnalysis');
 
     setIsAnalyzing(true);
     setError('');
@@ -87,9 +155,24 @@ export default function UrlAnalyzer({
       setAnalysis(result);
       const enrichedResult = {
         ...result,
-        originalUrl: url, // Add the original URL
+        originalUrl: url, // original URL
       };
       setAnalysis(enrichedResult);
+      //Save analysis to session storage
+      try {
+        sessionStorage.setItem(
+          'lastAnalysis',
+          JSON.stringify({
+            ...enrichedResult,
+            savedAt: new Date().toISOString(),
+            originalUrl: url,
+          })
+        );
+        console.log('💾 Analysis saved to session storage');
+      } catch (error) {
+        console.error('Failed to save analysis:', error);
+      }
+
       if (onAnalysisComplete) {
         onAnalysisComplete(enrichedResult);
       }
@@ -411,7 +494,10 @@ export default function UrlAnalyzer({
 
         {/* Analysis Progress Log */}
         {(analysisLog.length > 0 || isAnalyzing) && (
-          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-md">
+          <div
+            ref={analysisScrollRef}
+            className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-md"
+          >
             <h3 className="text-sm font-medium text-gray-900 mb-3">Analysis Progress</h3>
             <div className="space-y-2 max-h-40 overflow-y-auto">
               {analysisLog.map((log, index) => (
@@ -693,36 +779,6 @@ export default function UrlAnalyzer({
               </div>
             </div>
           )}
-          {/* Top URL Patterns */}
-          {getSafePatterns().length > 0 && (
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                🔗 Most Common URL Patterns
-              </h2>
-              <div className="space-y-3">
-                {getSafePatterns()
-                  .slice(0, 8)
-                  .map((pattern, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                    >
-                      <div className="flex-1">
-                        <code className="text-sm font-mono text-gray-800">{pattern.pattern}</code>
-                        <div className="text-xs text-gray-500 mt-1">
-                          Examples: {(pattern.examples || []).slice(0, 2).join(', ')}
-                          {(pattern.examples || []).length > 2 &&
-                            ` ... +${pattern.examples.length - 2} more`}
-                        </div>
-                      </div>
-                      <span className="ml-4 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                        {pattern.count}
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
           {/* URL Category Details */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
@@ -764,6 +820,36 @@ export default function UrlAnalyzer({
               <p className="text-gray-500 italic">No URLs found in this category.</p>
             )}
           </div>
+          {/* Top URL Patterns */}
+          {getSafePatterns().length > 0 && (
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                🔗 Most Common URL Patterns
+              </h2>
+              <div className="space-y-3">
+                {getSafePatterns()
+                  .slice(0, 8)
+                  .map((pattern, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <code className="text-sm font-mono text-gray-800">{pattern.pattern}</code>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Examples: {(pattern.examples || []).slice(0, 2).join(', ')}
+                          {(pattern.examples || []).length > 2 &&
+                            ` ... +${pattern.examples.length - 2} more`}
+                        </div>
+                      </div>
+                      <span className="ml-4 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                        {pattern.count}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="bg-white rounded-lg shadow-lg p-6">
@@ -874,7 +960,7 @@ export default function UrlAnalyzer({
                 )}
 
                 {/* Live Log */}
-                <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
+                <div ref={scrollRef} className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
                   <h4 className="text-sm font-medium text-gray-900 mb-3">Activity Log</h4>
                   <div className="space-y-2">
                     {crawlLog.map((log, index) => (
@@ -917,12 +1003,6 @@ export default function UrlAnalyzer({
                 }`}
               >
                 🔄 Crawl All {analysis.summary.totalUrls} URLs
-              </button>
-              <button
-                disabled={true}
-                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium opacity-50 cursor-not-allowed"
-              >
-                📊 Export Analysis Report (Coming Soon)
               </button>
             </div>
 
