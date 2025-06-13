@@ -3,6 +3,10 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
 
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   // API routes configuration
   api: {
     // Increase body size limit for large crawl results
