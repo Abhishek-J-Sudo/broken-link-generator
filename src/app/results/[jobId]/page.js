@@ -493,10 +493,10 @@ export default function ResultsPage() {
               <h1 className="text-2xl font-bold text-gray-900">Link Check Results</h1>
               <p className="text-gray-600 break-all">{job?.url}</p>
               <div
-                onClick={() => router.push('/')}
-                className="block w-full text-gray-500 p-2 cursor-pointer py-2 rounded-md hover:bg-indigo-200"
+                onClick={() => router.push('/analyze?restore=true')}
+                className="block w-full text-gray-500 p-2 cursor-pointer py-2 hover:text-indigo-500"
               >
-                ⬅ Back to Home
+                ⬅ Back to Analysis
               </div>
             </div>
 

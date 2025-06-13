@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 export default function ResultsTable({
   jobId,
@@ -14,6 +14,7 @@ export default function ResultsTable({
   // ENHANCED: Support both old (brokenLinks) and new (links) data structures
   const displayData = links || brokenLinks || [];
   const isNewFormat = !!links; // New format has 'links' prop, old format has 'brokenLinks'
+  const [sortDirection, setSortDirection] = useState(null); // null, 'asc', 'desc'
 
   const [currentFilter, setCurrentFilter] = useState(
     isNewFormat
@@ -66,6 +67,25 @@ export default function ResultsTable({
     security_blocked: 'Security Blocked',
     robots_blocked: 'Robots.txt Blocked',
   };
+
+  //sort for response time
+  const toggleSort = () => {
+    if (sortDirection === null) setSortDirection('desc'); // Slowest first
+    else if (sortDirection === 'desc') setSortDirection('asc'); // Fastest first
+    else setSortDirection(null); // Back to original order
+  };
+
+  // Sort the display data by response time
+  const sortedData = useMemo(() => {
+    if (!sortDirection || !displayData) return displayData;
+
+    return [...displayData].sort((a, b) => {
+      const aTime = a.response_time || 0;
+      const bTime = b.response_time || 0;
+
+      return sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
+    });
+  }, [displayData, sortDirection]);
 
   // ENHANCED: Better logic for determining what type of "no results" message to show
   const getNoResultsMessage = () => {
@@ -324,7 +344,15 @@ export default function ResultsTable({
                   )}
                   {isNewFormat && selectedView !== 'pages' && (
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Response Time
+                      <button
+                        onClick={toggleSort}
+                        className="flex items-center hover:text-gray-700 focus:outline-none"
+                      >
+                        Response Time
+                        {sortDirection === 'asc' && <span className="ml-1">▲</span>}
+                        {sortDirection === 'desc' && <span className="ml-1">▼</span>}
+                        {sortDirection === null && <span className="ml-1 text-gray-300">↕</span>}
+                      </button>
                     </th>
                   )}
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -333,7 +361,7 @@ export default function ResultsTable({
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {displayData.map((item, index) => (
+                {sortedData.map((item, index) => (
                   <tr key={item.id || index} className="hover:bg-gray-50">
                     {/* NEW: Pages view columns */}
                     {selectedView === 'pages' ? (
