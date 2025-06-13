@@ -191,6 +191,16 @@ export const errorUtils = {
     if (error) {
       const errorMessage = error.message?.toLowerCase() || '';
 
+      // 🔧 NEW: Handle SSL/Certificate errors specifically
+      if (
+        errorMessage.includes('unable to verify the first certificate') ||
+        errorMessage.includes('self signed certificate') ||
+        errorMessage.includes('certificate has expired') ||
+        errorMessage.includes('hostname/ip does not match certificate')
+      ) {
+        return 'ssl_error';
+      }
+
       if (errorMessage.includes('timeout')) return 'timeout';
       if (errorMessage.includes('dns') || errorMessage.includes('notfound')) return 'dns_error';
       if (errorMessage.includes('connect') || errorMessage.includes('refused'))
@@ -215,6 +225,7 @@ export const errorUtils = {
       dns_error: 'Domain not found',
       connection_error: 'Connection failed',
       invalid_url: 'Invalid URL format',
+      ssl_error: 'SSL Certificate Error',
       other: 'Unknown error',
     };
 
