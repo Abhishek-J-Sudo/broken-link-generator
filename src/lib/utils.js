@@ -178,11 +178,14 @@ export const errorUtils = {
    * Classifies HTTP errors into meaningful categories
    */
   classifyError(statusCode, error) {
-    if (statusCode) {
-      if (statusCode === 404) return '404';
-      if (statusCode === 403) return '403';
-      if (statusCode === 401) return '401';
-      if (statusCode >= 500) return '500';
+    const code = parseInt(statusCode);
+
+    if (code && !isNaN(code)) {
+      if (code === 404) return '404';
+      if (code === 403) return '403';
+      if (code === 401) return '401';
+      if (code >= 500) return '500';
+      if (code >= 400) return code.toString(); // Any 4xx error
     }
 
     if (error) {

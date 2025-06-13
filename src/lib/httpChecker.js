@@ -86,19 +86,24 @@ export class HttpChecker {
         const responseTime = Date.now() - startTime;
 
         if (attempt === this.options.retryAttempts) {
-          const errorType = errorUtils.classifyError(null, error);
-
+          console.log('🔍 HTTPCHECKER DEBUG: About to call classifyError with:', {
+            statusCode: error.response?.status,
+            errorMessage: error.message,
+            errorType: typeof error.response?.status,
+          });
+          const errorType = errorUtils.classifyError(error.response?.status, error);
+          console.log('🔍 HTTPCHECKER DEBUG: classifyError returned:', errorType);
           return {
             url,
             sourceUrl,
-            http_status_code: null,
+            http_status_code: error.response?.status || null,
             response_time: responseTime,
             checked_at: new Date().toISOString(),
             is_working: false,
             error_message: error.message,
 
             // Legacy compatibility
-            statusCode: null,
+            statusCode: error.response?.status || null,
             responseTime,
             isWorking: false,
             errorType,
@@ -145,14 +150,14 @@ export class HttpChecker {
           const failedResult = {
             url,
             sourceUrl,
-            http_status_code: null,
+            http_status_code: error.response?.status || null,
             response_time: null,
             checked_at: new Date().toISOString(),
             is_working: false,
             error_message: error.message,
-            statusCode: null,
+            statusCode: error.response?.status || null,
             isWorking: false,
-            errorType: 'other',
+            errorType: errorUtils.classifyError(error.response?.status, error),
             errorMessage: error.message,
             timestamp: new Date().toISOString(),
           };
@@ -264,19 +269,19 @@ export class HttpChecker {
         };
       } catch (getError) {
         const responseTime = Date.now() - startTime;
-        const errorType = errorUtils.classifyError(null, getError);
+        const errorType = errorUtils.classifyError(getError.response?.status, getError);
 
         return {
           url,
           // NEW: Database fields
-          http_status_code: null,
+          http_status_code: getError.response?.status || null,
           response_time: responseTime,
           checked_at: new Date().toISOString(),
           is_working: false,
           error_message: getError.message,
 
           // Legacy fields
-          statusCode: null,
+          statusCode: getError.response?.status || null,
           isWorking: false,
           errorType,
           errorMessage: getError.message,

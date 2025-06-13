@@ -5,7 +5,7 @@
 import { NextResponse } from 'next/server';
 import { LinkExtractor } from '@/lib/linkExtractor';
 import { HttpChecker } from '@/lib/httpChecker';
-import { urlUtils, validateUtils, batchUtils } from '@/lib/utils';
+import { urlUtils, validateUtils, batchUtils, errorUtils } from '@/lib/utils';
 import { securityUtils } from '@/lib/security';
 import { db } from '@/lib/supabase';
 import { validateCrawlRequest, validateAdvancedRateLimit } from '@/lib/validation';
@@ -342,14 +342,18 @@ async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, sett
           }
 
           if (!result.is_working) {
+            let errorType = result.errorType;
+            if (!errorType) {
+              errorType = errorUtils.classifyError(result.http_status_code, result);
+            }
             const brokenLink = {
               url: result.url,
               sourceUrl: result.sourceUrl,
               statusCode: result.http_status_code,
-              errorType: result.errorType || 'other',
+              errorType: errorType,
               linkText: result.linkText || 'Pre-analyzed link',
             };
-
+            console.log('🔍 DATABASE DEBUG: About to save broken link:', brokenLink);
             try {
               await db.addBrokenLink(jobId, brokenLink);
               brokenLinksFound++;
