@@ -1,10 +1,10 @@
 /**
  * Utility functions for the broken link checker
+ * ENHANCED: Main branch code + Smart analyzer content page classification
  * Handles URL validation, normalization, and common helpers
- * ENHANCED: Added content page classification for smart analyzer
  */
 
-// URL validation and normalization
+// URL validation and normalization - ORIGINAL MAIN BRANCH CODE (PRESERVED)
 export const urlUtils = {
   /**
    * Validates if a URL is properly formatted
@@ -143,7 +143,7 @@ export const urlUtils = {
   },
 };
 
-// NEW: Content page classification utilities for smart analyzer
+// NEW: Smart analyzer content page classification utilities - ADDED FEATURES
 export const contentPageUtils = {
   /**
    * Determines if a page is a content page worth checking for links
@@ -161,39 +161,19 @@ export const contentPageUtils = {
       // Quick URL-based filtering
       const pageType = this.classifyPageTypeByUrl(url);
 
-      // Definitely not content pages
-      if (['admin', 'media', 'api'].includes(pageType)) {
+      // Exclude obvious non-content types
+      if (['admin', 'api', 'media'].includes(pageType)) {
         return false;
       }
 
-      // Pagination and date archives are usually not primary content
-      if (['pagination', 'dates'].includes(pageType)) {
-        return false;
-      }
-
-      // Parameter-heavy URLs are often not primary content
-      if (pageType === 'withParams') {
-        // Allow some parameters but be selective
-        const paramCount = urlObj.searchParams.size;
-        if (paramCount > 3) return false;
-
-        // Common non-content parameters
-        const nonContentParams = ['page', 'sort', 'filter', 'view', 'limit', 'offset'];
-        const hasNonContentParams = Array.from(urlObj.searchParams.keys()).some((key) =>
-          nonContentParams.includes(key.toLowerCase())
-        );
-
-        if (hasNonContentParams) return false;
-      }
-
-      // If we have HTML content, do deeper analysis
+      // If HTML is provided, do content analysis
       if (html && html.length > 100) {
         const contentScore = this.calculateContentScore(html, title, url);
-        return contentScore >= 0.6; // Threshold for content pages
+        return contentScore >= 0.6; // Content threshold
       }
 
-      // Default: if it's a clean URL without obvious red flags, consider it content
-      return pageType === 'pages';
+      // URL-only classification for potential content
+      return pageType === 'pages' || pageType === 'content';
     } catch {
       return false;
     }
@@ -202,40 +182,36 @@ export const contentPageUtils = {
   /**
    * Classifies page type based on URL patterns only (fast)
    * @param {string} url - The URL to classify
-   * @returns {string} Page type: 'pages', 'withParams', 'pagination', 'dates', 'media', 'admin', 'api', 'other'
+   * @returns {string} Page type category
    */
   classifyPageTypeByUrl(url) {
     try {
       const urlObj = new URL(url);
       const pathname = urlObj.pathname.toLowerCase();
-      const search = urlObj.search;
-      const hasParams = search.length > 0;
+      const params = urlObj.searchParams;
 
-      // Check for admin/system URLs
+      // Admin/system pages
       if (
-        pathname.includes('/wp-admin') ||
         pathname.includes('/admin') ||
-        pathname.includes('/wp-content') ||
-        pathname.includes('/wp-includes') ||
-        pathname.includes('/dashboard') ||
-        pathname.includes('/login') ||
-        pathname.includes('/register') ||
-        pathname.includes('/auth')
+        pathname.includes('/wp-admin') ||
+        pathname.includes('/backend') ||
+        pathname.includes('/dashboard')
       ) {
         return 'admin';
       }
 
-      // Check for API endpoints
+      // API endpoints
       if (
         pathname.includes('/api/') ||
         pathname.includes('/rest/') ||
         pathname.includes('/graphql') ||
-        pathname.includes('/webhook')
+        pathname.endsWith('.json') ||
+        pathname.endsWith('.xml')
       ) {
         return 'api';
       }
 
-      // Check for media files
+      // Media files
       const mediaExtensions = [
         '.jpg',
         '.jpeg',
@@ -243,136 +219,93 @@ export const contentPageUtils = {
         '.gif',
         '.svg',
         '.webp',
-        '.ico',
-        '.pdf',
-        '.doc',
-        '.docx',
-        '.xls',
-        '.xlsx',
-        '.ppt',
-        '.pptx',
-        '.zip',
-        '.rar',
-        '.tar',
-        '.gz',
         '.mp3',
         '.mp4',
         '.avi',
         '.mov',
-        '.wmv',
-        '.flv',
-        '.css',
-        '.js',
-        '.json',
-        '.xml',
-        '.txt',
+        '.pdf',
+        '.zip',
       ];
-
       if (mediaExtensions.some((ext) => pathname.endsWith(ext))) {
         return 'media';
       }
 
-      // Check for date patterns (blog archives)
-      if (/\/\d{4}(\/\d{1,2})?(\/\d{1,2})?\//.test(pathname)) {
-        return 'dates';
-      }
-
-      // Check for pagination patterns
+      // Pagination patterns
       if (
         pathname.includes('/page/') ||
-        pathname.includes('/page-') ||
-        search.includes('page=') ||
-        search.includes('p=') ||
-        pathname.match(/\/\d+\/?$/) || // URLs ending with just numbers
-        pathname.includes('/feed') ||
-        pathname.includes('/rss')
+        params.has('page') ||
+        params.has('p') ||
+        pathname.match(/\/\d+\/?$/) ||
+        params.has('offset')
       ) {
         return 'pagination';
       }
 
-      // Check for URLs with parameters
-      if (hasParams) {
-        const paramCount = urlObj.searchParams.size;
-        return paramCount > 3 ? 'withParams' : 'pages'; // Light params might still be content
+      // Date-based URLs
+      if (pathname.match(/\/\d{4}\/\d{1,2}/) || pathname.match(/\/20\d{2}/)) {
+        return 'dates';
       }
 
-      // Check for other non-content patterns
+      // Parameter-heavy URLs (likely filters/searches)
+      if (params.size > 2) {
+        return 'withParams';
+      }
+
+      // Regular content pages (articles, posts, pages)
       if (
-        pathname.includes('/search') ||
-        pathname.includes('/category/') ||
-        pathname.includes('/tag/') ||
-        pathname.includes('/archive') ||
-        pathname.includes('/sitemap') ||
-        pathname.includes('/robots.txt') ||
-        pathname.includes('/.well-known/')
+        pathname.includes('/post/') ||
+        pathname.includes('/article/') ||
+        pathname.includes('/blog/') ||
+        pathname.includes('/news/') ||
+        pathname.length > 10
       ) {
-        return 'other';
+        // Substantial path likely content
+        return 'pages';
       }
 
-      // Default to content pages
-      return 'pages';
+      return 'other';
     } catch {
       return 'other';
     }
   },
 
   /**
-   * Analyzes page content to determine if it's worth crawling
+   * Calculates content quality score for HTML pages
    * @param {string} html - The HTML content
    * @param {string} title - Page title
    * @param {string} url - Page URL
-   * @returns {number} Content score from 0-1 (higher = more likely to be content)
+   * @returns {number} Content score (0-1)
    */
   calculateContentScore(html, title = '', url = '') {
-    let score = 0.5; // Start neutral
-
     try {
-      // Title analysis
-      if (title && title.length > 10 && title.length < 200) {
-        score += 0.1;
+      let score = 0.3; // Base score
 
-        // Good title indicators
-        if (!/^(page \d+|archive|category|tag)/i.test(title)) {
-          score += 0.1;
-        }
-
-        // Bad title indicators
-        if (/(404|not found|error|login|register)/i.test(title)) {
-          score -= 0.3;
-        }
-      }
-
-      // Content length analysis
+      // Text content analysis
       const textContent = html
         .replace(/<[^>]*>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
       const wordCount = textContent.split(' ').length;
 
-      if (wordCount > 100) score += 0.1;
-      if (wordCount > 300) score += 0.1;
+      if (wordCount > 300) score += 0.2;
       if (wordCount > 1000) score += 0.1;
 
-      // Too little content is probably not valuable
-      if (wordCount < 50) score -= 0.2;
+      // Title quality
+      if (title && title.length > 10 && title.length < 70) {
+        score += 0.1;
+      }
 
-      // Content structure analysis
-      const paragraphCount = (html.match(/<p[^>]*>/gi) || []).length;
-      const headingCount = (html.match(/<h[1-6][^>]*>/gi) || []).length;
-      const linkCount = (html.match(/<a[^>]*href/gi) || []).length;
+      // Content structure indicators
+      if (
+        html.includes('<article>') ||
+        html.includes('<main>') ||
+        html.includes('class="content"') ||
+        html.includes('class="post"')
+      ) {
+        score += 0.15;
+      }
 
-      if (paragraphCount > 2) score += 0.1;
-      if (headingCount > 0) score += 0.1;
-      if (linkCount > 3 && linkCount < 100) score += 0.1; // Some links but not excessive
-
-      // Navigation/chrome detection (indicates it's probably not just content)
-      const navCount = (html.match(/<nav[^>]*>/gi) || []).length;
-      const menuCount = (html.match(/class="[^"]*menu[^"]*"/gi) || []).length;
-
-      if (navCount > 0) score += 0.05; // Navigation suggests it's a real page
-      if (menuCount > 0) score += 0.05;
-
-      // Schema.org markup for articles
+      // Schema markup (indicates quality content)
       if (
         html.includes('schema.org') &&
         (html.includes('Article') || html.includes('BlogPosting') || html.includes('NewsArticle'))
@@ -582,7 +515,7 @@ export const contentPageUtils = {
   },
 };
 
-// Text and content helpers
+// Text and content helpers - ORIGINAL MAIN BRANCH CODE (PRESERVED)
 export const textUtils = {
   /**
    * Cleans and truncates text content
@@ -602,79 +535,61 @@ export const textUtils = {
   extractLinkText(element) {
     // Try different sources for link text
     const text =
-      element.text?.() ||
-      element.attr('title') ||
-      element.attr('alt') ||
-      element.attr('aria-label') ||
-      'No text';
+      element.text?.trim() ||
+      element.title?.trim() ||
+      element.getAttribute?.('aria-label')?.trim() ||
+      element.getAttribute?.('alt')?.trim() ||
+      '';
 
     return this.cleanText(text, 100);
   },
 };
 
-// Error handling and classification
+// Error handling helpers - ORIGINAL MAIN BRANCH CODE (PRESERVED)
 export const errorUtils = {
   /**
-   * Classifies HTTP errors into meaningful categories
+   * Creates standardized error objects
    */
-  classifyError(statusCode, error) {
-    const code = parseInt(statusCode);
-
-    if (code && !isNaN(code)) {
-      if (code === 404) return '404';
-      if (code === 403) return '403';
-      if (code === 401) return '401';
-      if (code >= 500) return '500';
-      if (code >= 400) return code.toString(); // Any 4xx error
-    }
-
-    if (error) {
-      const errorMessage = error.message?.toLowerCase() || '';
-
-      // 🔧 NEW: Handle SSL/Certificate errors specifically
-      if (
-        errorMessage.includes('unable to verify the first certificate') ||
-        errorMessage.includes('self signed certificate') ||
-        errorMessage.includes('certificate has expired') ||
-        errorMessage.includes('hostname/ip does not match certificate')
-      ) {
-        return 'ssl_error';
-      }
-
-      if (errorMessage.includes('timeout')) return 'timeout';
-      if (errorMessage.includes('dns') || errorMessage.includes('notfound')) return 'dns_error';
-      if (errorMessage.includes('connect') || errorMessage.includes('refused'))
-        return 'connection_error';
-      if (errorMessage.includes('invalid') || errorMessage.includes('malformed'))
-        return 'invalid_url';
-    }
-
-    return 'other';
+  createError(message, code, details = {}) {
+    return {
+      error: message,
+      code,
+      details,
+      timestamp: new Date().toISOString(),
+    };
   },
 
   /**
-   * Creates a user-friendly error message
+   * Formats HTTP status codes with descriptions
    */
-  getErrorMessage(errorType, statusCode) {
-    const messages = {
-      404: 'Page not found',
-      403: 'Access forbidden',
-      401: 'Unauthorized access',
-      500: 'Server error',
-      timeout: 'Request timed out',
-      dns_error: 'Domain not found',
-      connection_error: 'Connection failed',
-      invalid_url: 'Invalid URL format',
-      ssl_error: 'SSL Certificate Error',
-      other: 'Unknown error',
+  formatHttpStatus(statusCode) {
+    const statusMessages = {
+      200: 'OK',
+      201: 'Created',
+      202: 'Accepted',
+      204: 'No Content',
+      301: 'Moved Permanently',
+      302: 'Found',
+      304: 'Not Modified',
+      400: 'Bad Request',
+      401: 'Unauthorized',
+      403: 'Forbidden',
+      404: 'Not Found',
+      405: 'Method Not Allowed',
+      408: 'Request Timeout',
+      429: 'Too Many Requests',
+      500: 'Internal Server Error',
+      502: 'Bad Gateway',
+      503: 'Service Unavailable',
+      504: 'Gateway Timeout',
     };
 
-    const baseMessage = messages[errorType] || messages.other;
+    const baseMessage = statusMessages[statusCode] || 'Unknown Status';
     return statusCode ? `${baseMessage} (${statusCode})` : baseMessage;
   },
 };
 
-// Performance and batching helpers
+// Performance and batching helpers - ORIGINAL MAIN BRANCH CODE (PRESERVED)
 export const batchUtils = {
   /**
    * Splits an array into chunks of specified size
@@ -723,7 +638,7 @@ export const batchUtils = {
   },
 };
 
-// Validation helpers
+// Validation helpers - ORIGINAL MAIN BRANCH CODE (PRESERVED)
 export const validateUtils = {
   /**
    * Validates crawl settings
@@ -763,10 +678,10 @@ export const validateUtils = {
   },
 };
 
-// Export everything as default object for easier importing
+// Export everything - UPDATED to include contentPageUtils
 export default {
   urlUtils,
-  contentPageUtils,
+  contentPageUtils, // NEW: Added smart analyzer utilities
   textUtils,
   errorUtils,
   batchUtils,

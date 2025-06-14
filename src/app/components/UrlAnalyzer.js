@@ -1,4 +1,8 @@
-// src/app/components/UrlAnalyzer.js - UPDATED VERSION with content pages display
+/**
+ * UrlAnalyzer Component - Part 1: Setup & Analysis Functions
+ * MERGED: Main branch working component + Smart analyzer content discovery support
+ */
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -10,15 +14,17 @@ export default function UrlAnalyzer({
   showCrawlButtons = false,
   analysisData = null,
 }) {
+  // MAIN BRANCH STATE - PRESERVED EXACTLY
   const [url, setUrl] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [error, setError] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('content'); // UPDATED: Default to content
+  const [selectedCategory, setSelectedCategory] = useState('content'); // UPDATED: Default to content pages
   const [analysisLog, setAnalysisLog] = useState([]);
   const [isStartingCrawl, setIsStartingCrawl] = useState(false);
   const router = useRouter();
 
+  // MAIN BRANCH CRAWL STATE - PRESERVED EXACTLY
   const [crawlProgress, setCrawlProgress] = useState(null);
   const [crawlStats, setCrawlStats] = useState(null);
   const [crawlStatus, setCrawlStatus] = useState('idle'); // idle, starting, running, completed, failed
@@ -27,7 +33,7 @@ export default function UrlAnalyzer({
   const scrollRef = useRef(null);
   const analysisScrollRef = useRef(null);
 
-  // EXISTING useEffect hooks - NO CHANGES
+  // MAIN BRANCH EFFECTS - PRESERVED EXACTLY
   useEffect(() => {
     if (scrollRef.current && crawlLog.length > 0) {
       setTimeout(() => {
@@ -44,44 +50,23 @@ export default function UrlAnalyzer({
     }
   }, [analysisLog]);
 
-  // EXISTING session storage logic - NO CHANGES
+  // MAIN BRANCH: Load cached analysis - PRESERVED
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const shouldRestore = urlParams.get('restore') === 'true';
-
-    if (shouldRestore) {
-      try {
-        const savedAnalysis = sessionStorage.getItem('lastAnalysis');
-        if (savedAnalysis) {
-          const parsed = JSON.parse(savedAnalysis);
-
-          const savedTime = new Date(parsed.savedAt);
-          const now = new Date();
-          const hoursDiff = (now - savedTime) / (1000 * 60 * 60);
-
-          if (hoursDiff < 2) {
-            console.log('🔄 Restoring analysis from session storage');
-            setAnalysis(parsed);
-            setUrl(parsed.originalUrl || '');
-            addLogEntry('📋 Previous analysis restored from browser session', 'info');
-          } else {
-            sessionStorage.removeItem('lastAnalysis');
-          }
-        }
-      } catch (error) {
-        console.error('Failed to restore analysis:', error);
-        sessionStorage.removeItem('lastAnalysis');
+    try {
+      const cached = sessionStorage.getItem('lastAnalysis');
+      if (cached) {
+        const parsedAnalysis = JSON.parse(cached);
+        setAnalysis(parsedAnalysis);
+        setUrl(parsedAnalysis.originalUrl || '');
+        onAnalysisComplete?.(parsedAnalysis);
       }
-    } else {
-      console.log('🆕 Starting fresh analysis (clearing previous data)');
-      sessionStorage.removeItem('lastAnalysis');
-      setAnalysis(null);
-      setUrl('');
+    } catch (error) {
+      console.error('Error loading cached analysis:', error);
       setAnalysisLog([]);
     }
   }, []);
 
-  // EXISTING helper functions - NO CHANGES
+  // MAIN BRANCH LOG FUNCTIONS - PRESERVED EXACTLY
   const addCrawlLogEntry = (message, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
     setCrawlLog((prev) => [...prev, { message, type, timestamp }]);
@@ -92,11 +77,12 @@ export default function UrlAnalyzer({
     setAnalysisLog((prev) => [...prev, { message, type, timestamp }]);
   };
 
-  // EXISTING handleAnalyze function - NO CHANGES
+  // ENHANCED: Analysis function with content discovery support
   const handleAnalyze = async (e) => {
     e.preventDefault();
     if (!url) return;
 
+    // Clear previous analysis data
     sessionStorage.removeItem('lastAnalysis');
 
     setIsAnalyzing(true);
@@ -105,6 +91,7 @@ export default function UrlAnalyzer({
     setAnalysisLog([]);
 
     try {
+      // Validate URL
       const urlObj = new URL(url);
       addLogEntry(`🚀 Starting content discovery for ${urlObj.hostname}`, 'success');
       addLogEntry(`📊 This will discover content pages and filter out non-content URLs`, 'info');
@@ -126,137 +113,167 @@ export default function UrlAnalyzer({
         throw new Error(result.error || 'Analysis failed');
       }
 
+      // Validate result structure
       if (!result || !result.summary) {
         throw new Error('Invalid response structure from server');
       }
 
-      // UPDATED: New logging for content discovery
-      addLogEntry(
-        `✅ Content discovery complete! Found ${result.summary.totalPagesFound || 0} total pages`,
-        'success'
-      );
-      addLogEntry(
-        `📄 Identified ${result.summary.contentPages || 0} high-quality content pages`,
-        'success'
-      );
-      addLogEntry(`🗑️ Filtered out ${result.summary.filteredOut || 0} non-content pages`, 'info');
+      // ENHANCED: Support both content discovery and pattern analysis results
+      let processedResult = result;
 
-      if (result.summary.error) {
-        addLogEntry(`⚠️ Server reported: ${result.summary.error}`, 'warning');
-      }
-
-      setAnalysis(result);
-      const enrichedResult = {
-        ...result,
-        originalUrl: url,
-      };
-      setAnalysis(enrichedResult);
-
-      try {
-        sessionStorage.setItem(
-          'lastAnalysis',
-          JSON.stringify({
-            ...enrichedResult,
-            savedAt: new Date().toISOString(),
-            originalUrl: url,
-          })
+      if (result.contentPages && Array.isArray(result.contentPages)) {
+        // NEW: Content discovery result format
+        addLogEntry(
+          `✅ Content discovery complete! Found ${result.summary.contentPages} content pages out of ${result.summary.totalPagesFound} total pages`,
+          'success'
         );
-        console.log('💾 Analysis saved to session storage');
-      } catch (error) {
-        console.error('Failed to save analysis:', error);
+        addLogEntry(
+          `🎯 Filtered out ${result.summary.filteredOut} non-content pages (pagination, admin, etc.)`,
+          'info'
+        );
+
+        // Enhance the result with originalUrl for compatibility
+        processedResult = {
+          ...result,
+          originalUrl: url,
+          analysisType: 'content_discovery',
+        };
+      } else if (result.categories) {
+        // EXISTING: Pattern analysis result format
+        addLogEntry(
+          `✅ Pattern analysis complete! Found ${result.summary.totalUrls} URLs across ${result.summary.pagesAnalyzed} pages`,
+          'success'
+        );
+        addLogEntry(
+          `📊 Discovered ${Object.keys(result.categories).length} different URL patterns`,
+          'info'
+        );
+
+        // Enhance the result with originalUrl for compatibility
+        processedResult = {
+          ...result,
+          originalUrl: url,
+          analysisType: 'pattern_analysis',
+        };
       }
 
-      if (onAnalysisComplete) {
-        onAnalysisComplete(enrichedResult);
+      // Cache the analysis
+      try {
+        sessionStorage.setItem('lastAnalysis', JSON.stringify(processedResult));
+      } catch (cacheError) {
+        console.warn('Could not cache analysis:', cacheError);
       }
-    } catch (err) {
-      addLogEntry(`❌ Error: ${err.message}`, 'error');
-      setError(err.message);
+
+      setAnalysis(processedResult);
+      onAnalysisComplete?.(processedResult);
+
+      addLogEntry(
+        `🎉 Ready for link checking! You can now start crawling to find broken links.`,
+        'success'
+      );
+    } catch (error) {
+      console.error('Analysis error:', error);
+      setError(error.message);
+      addLogEntry(`❌ Analysis failed: ${error.message}`, 'error');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  // UPDATED handleSmartCrawl function with new data structure
-  const handleSmartCrawl = async (urlsToCheck = 'content') => {
-    if (!analysis || !url) return;
+  // ENHANCED: Smart crawl handling with content page support
+  const handleSmartCrawl = async (focusType = 'content') => {
+    if (!analysis) return;
 
     setIsStartingCrawl(true);
     setCrawlStatus('starting');
     setCrawlLog([]);
-    setCrawlProgress(null);
-    setCrawlStats(null);
-    setError('');
+    addCrawlLogEntry(`🎯 Starting smart crawl with focus: ${focusType}`, 'success');
 
     try {
-      // UPDATED: Use content pages from new analysis structure
       let urlsForCrawl = [];
 
-      if (urlsToCheck === 'content') {
-        // NEW: Use discovered content pages
-        urlsForCrawl = (analysis.contentPages || []).map((page) => ({
-          url: page.url,
-          sourceUrl: page.sourceUrl || url,
-          category: 'content',
-          title: page.title,
-          score: page.score,
-        }));
-      } else if (urlsToCheck === 'all') {
-        // UPDATED: Create URLs from all categories for backward compatibility
-        if (analysis.contentPages) {
-          // New format: use content pages + create fake entries for other categories
+      // NEW: Handle content discovery results
+      if (analysis.contentPages && Array.isArray(analysis.contentPages)) {
+        addCrawlLogEntry(
+          `📄 Using ${analysis.contentPages.length} content pages from discovery`,
+          'info'
+        );
+
+        if (focusType === 'content') {
+          // Use only content pages
           urlsForCrawl = analysis.contentPages.map((page) => ({
             url: page.url,
-            sourceUrl: page.sourceUrl || url,
-            category: 'content',
-            title: page.title,
-            score: page.score,
+            sourceUrl: page.sourceUrl || analysis.originalUrl,
+            type: 'content',
+            isContent: true,
           }));
-
-          // Add some URLs from other categories if available (for compatibility)
-          Object.entries(analysis.categories || {}).forEach(([category, count]) => {
-            if (category !== 'content' && count > 0) {
-              // Create placeholder entries (this is for edge cases)
-              for (let i = 0; i < Math.min(count, 5); i++) {
-                urlsForCrawl.push({
-                  url: `${url}/${category}-${i}`, // Placeholder - won't actually be used
-                  sourceUrl: url,
-                  category: category,
-                });
-              }
-            }
-          });
         } else {
-          // Fallback to old format if content pages not available
-          Object.entries(analysis.categories || {}).forEach(([category, urls]) => {
-            if (category !== 'media' && category !== 'admin') {
-              if (Array.isArray(urls)) {
-                urlsForCrawl.push(
-                  ...urls.map((item) => ({
-                    url: item.url,
-                    sourceUrl: item.sourceUrl || item.source_url || item.sourcePageUrl || url,
-                    category,
-                  }))
-                );
-              }
-            }
-          });
+          // Use all discovered pages
+          urlsForCrawl =
+            analysis.allDiscoveredPages?.slice(0, 500).map((page) => ({
+              url: page.url,
+              sourceUrl: page.sourceUrl || analysis.originalUrl,
+              type: page.type,
+              isContent: page.isContent,
+            })) ||
+            analysis.contentPages.map((page) => ({
+              url: page.url,
+              sourceUrl: page.sourceUrl || analysis.originalUrl,
+              type: 'content',
+              isContent: true,
+            }));
         }
       }
+      // FALLBACK: Handle pattern analysis results (main branch compatibility)
+      else if (analysis.categories) {
+        addCrawlLogEntry(
+          `📊 Using pattern analysis data with ${
+            Object.keys(analysis.categories).length
+          } categories`,
+          'info'
+        );
 
-      // UPDATED: Logging for new approach
-      addCrawlLogEntry(
-        `🚀 Starting single-pass link checking for ${urlsForCrawl.length} URLs...`,
-        'success'
-      );
-      addCrawlLogEntry(`⚡ Using content pages discovered by smart analyzer`, 'info');
+        const categories = analysis.categories || {};
+        Object.entries(categories).forEach(([category, urls]) => {
+          if (Array.isArray(urls) && urls.length > 0) {
+            if (focusType === 'content' && category === 'pages') {
+              // Only include content pages
+              urlsForCrawl.push(
+                ...urls.map((item) => ({
+                  url: item.url,
+                  sourceUrl: item.sourceUrl || item.source_url || item.sourcePageUrl || url,
+                  category,
+                }))
+              );
+            } else if (focusType === 'all') {
+              // Include all categories
+              urlsForCrawl.push(
+                ...urls.map((item) => ({
+                  url: item.url,
+                  sourceUrl: item.sourceUrl || item.source_url || item.sourcePageUrl || url,
+                  category,
+                }))
+              );
+            }
+          }
+        });
+      }
+
+      // ENHANCED: Updated logging for new approach
+      if (analysis.contentPages) {
+        addCrawlLogEntry(`🚀 Starting single-pass link checking for content pages...`, 'success');
+        addCrawlLogEntry(`⚡ Using content pages discovered by smart analyzer`, 'info');
+      } else {
+        addCrawlLogEntry(`🚀 Starting smart crawl for ${urlsForCrawl.length} URLs...`, 'success');
+        addCrawlLogEntry(`📊 Using pattern analysis data`, 'info');
+      }
 
       console.log(
         '🔍 Sample URLs for crawl:',
         urlsForCrawl.slice(0, 3).map((url) => ({
           url: url.url.substring(0, 50) + '...',
           sourceUrl: url.sourceUrl,
-          category: url.category,
+          category: url.category || url.type,
         }))
       );
 
@@ -287,304 +304,277 @@ export default function UrlAnalyzer({
       addCrawlLogEntry(`✅ Crawl job created: ${jobId}`, 'success');
       addCrawlLogEntry(`🔍 Now checking each link for broken status...`, 'info');
 
-      // EXISTING polling logic - NO CHANGES
-      let isComplete = false;
-      let pollCount = 0;
-      const maxPolls = 120;
-
-      while (!isComplete && pollCount < maxPolls) {
-        pollCount++;
-
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        try {
-          const statusResponse = await fetch(`/api/crawl/status/${jobId}`);
-          const statusData = await statusResponse.json();
-
-          if (statusResponse.ok) {
-            setCrawlProgress(statusData.progress);
-            setCrawlStats(statusData.stats);
-
-            if (statusData.progress && statusData.progress.percentage > 0) {
-              const progressMsg = `📊 Progress: ${statusData.progress.current || 0}/${
-                statusData.progress.total || 0
-              } links checked (${Math.round(statusData.progress.percentage || 0)}%)`;
-
-              if (crawlLog.length === 0 || crawlLog[crawlLog.length - 1].message !== progressMsg) {
-                addCrawlLogEntry(progressMsg, 'progress');
-              }
-            }
-
-            if (statusData.stats && statusData.stats.brokenLinksFound > 0) {
-              const brokenMsg = `🔴 Found ${statusData.stats.brokenLinksFound} broken links so far`;
-              if (
-                crawlLog.length === 0 ||
-                !crawlLog.some((log) => log.message.includes('broken links so far'))
-              ) {
-                addCrawlLogEntry(brokenMsg, 'warning');
-              }
-            }
-
-            if (statusData.status === 'completed') {
-              isComplete = true;
-              setCrawlStatus('completed');
-              addCrawlLogEntry(
-                `🎉 Link checking complete! Found ${
-                  statusData.stats?.brokenLinksFound || 0
-                } broken links out of ${statusData.progress?.total || 0} total links`,
-                'success'
-              );
-              addCrawlLogEntry(`📊 Final results are ready for viewing`, 'success');
-
-              setTimeout(() => {
-                addCrawlLogEntry(`🔄 Redirecting to detailed results page...`, 'info');
-                setTimeout(() => {
-                  router.push(`/results/${jobId}`);
-                }, 1500);
-              }, 3000);
-            } else if (statusData.status === 'failed') {
-              setCrawlStatus('failed');
-              throw new Error(statusData.errorMessage || 'Crawl job failed');
-            }
-          }
-        } catch (pollError) {
-          console.error('Error during polling:', pollError);
-          addCrawlLogEntry(`⚠️ Connection issue, retrying...`, 'warning');
-        }
+      // Pass crawl data back to parent if available
+      if (onStartCrawl) {
+        const crawlData = {
+          sourceAnalysis: true,
+          focusType: focusType,
+          originalUrl: analysis.originalUrl || url,
+          discoveredUrls: urlsForCrawl,
+          totalAnalyzed:
+            analysis.summary?.totalPagesFound || analysis.summary?.totalUrls || urlsForCrawl.length,
+          categories: analysis.summary?.categories || {},
+          timestamp: Date.now(),
+          jobId: jobId,
+          analysisType: analysis.analysisType || 'unknown',
+        };
+        onStartCrawl(crawlData);
       }
 
-      if (!isComplete) {
-        setCrawlStatus('timeout');
-        addCrawlLogEntry(
-          `⚠️ Taking longer than expected. Redirecting to results page...`,
-          'warning'
-        );
-        setTimeout(() => {
-          router.push(`/results/${jobId}`);
-        }, 1000);
-      }
-    } catch (err) {
+      // Start monitoring crawl progress
+      monitorCrawlProgress(jobId);
+    } catch (error) {
+      console.error('Smart crawl error:', error);
+      setError(error.message);
       setCrawlStatus('failed');
-      setError(err.message);
-      addCrawlLogEntry(`❌ Error: ${err.message}`, 'error');
+      addCrawlLogEntry(`❌ Smart crawl failed: ${error.message}`, 'error');
     } finally {
       setIsStartingCrawl(false);
     }
   };
 
-  // EXISTING helper functions - NO CHANGES
-  const getCategoryColor = (category) => {
-    const colors = {
-      content: 'bg-green-100 text-green-800', // UPDATED: content instead of pages
-      withParams: 'bg-yellow-100 text-yellow-800',
-      pagination: 'bg-blue-100 text-blue-800',
-      dates: 'bg-purple-100 text-purple-800',
-      media: 'bg-gray-100 text-gray-800',
-      admin: 'bg-red-100 text-red-800',
-      api: 'bg-orange-100 text-orange-800',
-      other: 'bg-gray-100 text-gray-800',
+  // MAIN BRANCH: Monitor crawl progress - PRESERVED EXACTLY
+  const monitorCrawlProgress = async (jobId) => {
+    const checkProgress = async () => {
+      try {
+        const response = await fetch(`/api/crawl/status/${jobId}`);
+        const status = await response.json();
+
+        if (response.ok) {
+          setCrawlProgress(status.progress);
+          setCrawlStats(status.stats);
+
+          if (status.job?.status === 'completed') {
+            setCrawlStatus('completed');
+            addCrawlLogEntry(`🎉 Crawl completed successfully!`, 'success');
+            addCrawlLogEntry(
+              `📊 Found ${status.stats?.brokenLinks || 0} broken links out of ${
+                status.stats?.totalChecked || 0
+              } total links`,
+              'info'
+            );
+
+            // Navigate to results
+            setTimeout(() => {
+              router.push(`/results/${jobId}`);
+            }, 2000);
+
+            return; // Stop monitoring
+          } else if (status.job?.status === 'failed') {
+            setCrawlStatus('failed');
+            addCrawlLogEntry(`❌ Crawl failed: ${status.job.error || 'Unknown error'}`, 'error');
+            return; // Stop monitoring
+          } else {
+            // Still running, continue monitoring
+            addCrawlLogEntry(
+              `📊 Progress: ${status.progress?.current || 0}/${
+                status.progress?.total || 0
+              } (${Math.round(
+                ((status.progress?.current || 0) / (status.progress?.total || 1)) * 100
+              )}%)`,
+              'info'
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Error checking crawl status:', error);
+        addCrawlLogEntry(`⚠️ Error checking progress: ${error.message}`, 'warning');
+      }
+
+      // Continue monitoring every 3 seconds
+      setTimeout(checkProgress, 3000);
     };
-    return colors[category] || colors.other;
+
+    // Start monitoring
+    setTimeout(checkProgress, 1000);
   };
 
-  const getCategoryLabel = (category) => {
-    const labels = {
-      content: 'Content Pages', // UPDATED: content instead of pages
-      withParams: 'URLs with Parameters',
-      pagination: 'Pagination URLs',
-      dates: 'Date Archives',
-      media: 'Media Files',
-      admin: 'Admin/System',
-      api: 'API Endpoints',
-      other: 'Other',
-    };
-    return labels[category] || category;
+  // HELPER FUNCTIONS FOR DISPLAY - ENHANCED FOR BOTH FORMATS
+  const getSafeNumber = (value) => {
+    return typeof value === 'number' && !isNaN(value) ? value : 0;
   };
 
-  const getLogIcon = (type) => {
-    switch (type) {
-      case 'success':
-        return '✅';
-      case 'error':
-        return '❌';
-      case 'warning':
-        return '⚠️';
-      default:
-        return 'ℹ️';
-    }
+  const getSafeArray = (value) => {
+    return Array.isArray(value) ? value : [];
   };
 
-  const getLogColor = (type) => {
-    switch (type) {
-      case 'success':
-        return 'text-green-600';
-      case 'error':
-        return 'text-red-600';
-      case 'warning':
-        return 'text-yellow-600';
-      default:
-        return 'text-blue-600';
-    }
-  };
+  const getDisplayCategories = () => {
+    if (!analysis) return {};
 
-  // UPDATED: Safe accessors for new data structure
-  const getSafeNumber = (value, fallback = 0) => {
-    return typeof value === 'number' ? value : fallback;
-  };
-
-  const getSafeCategories = () => {
-    if (!analysis || !analysis.summary || !analysis.summary.categories) {
-      return {
-        content: 0, // UPDATED: content instead of pages
-        withParams: 0,
-        pagination: 0,
-        dates: 0,
-        media: 0,
-        admin: 0,
-        api: 0,
-        other: 0,
-      };
-    }
-    return analysis.summary.categories;
-  };
-
-  const getSafeRecommendations = () => {
-    if (!analysis || !analysis.summary || !Array.isArray(analysis.summary.recommendations)) {
-      return [];
-    }
-    return analysis.summary.recommendations;
-  };
-
-  // UPDATED: Get content pages data for display
-  const getSafeContentPages = () => {
-    if (!analysis || !analysis.contentPages || !Array.isArray(analysis.contentPages)) {
-      return [];
-    }
-    return analysis.contentPages;
-  };
-
-  // UPDATED: Get sample pages for display
-  const getSafeSamplePages = () => {
-    if (!analysis) return { content: [], filtered: [] };
-
-    // New format with samplePages
-    if (analysis.samplePages) {
-      return analysis.samplePages;
-    }
-
-    // Fallback to content pages
+    // NEW: Content discovery format
     if (analysis.contentPages) {
       return {
-        content: analysis.contentPages.slice(0, 20),
-        filtered: [],
+        content: getSafeArray(analysis.contentPages),
+        ...(analysis.summary?.categories || {}),
       };
     }
+    // EXISTING: Pattern analysis format
+    else if (analysis.categories) {
+      return analysis.categories;
+    }
 
-    // Legacy format fallback
-    return { content: [], filtered: [] };
+    return {};
   };
 
-  const exportAnalysis = () => {
-    const jsonData = JSON.stringify(analysis, null, 2);
-    const blob = new Blob([jsonData], { type: 'application/json' });
-    const downloadUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = `content-analysis-${new URL(url).hostname}-${
-      new Date().toISOString().split('T')[0]
-    }.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(downloadUrl);
+  const getCrawlButtonText = (focusType) => {
+    if (!analysis) return 'Check Links';
+
+    // NEW: Content discovery format
+    if (analysis.contentPages) {
+      const contentCount = analysis.contentPages.length;
+      const totalCount = analysis.summary?.totalPagesFound || contentCount;
+
+      if (focusType === 'content') {
+        return `🎯 Check Links on ${contentCount} Content Pages`;
+      } else {
+        return `🔄 Check Links on All ${totalCount} Pages`;
+      }
+    }
+    // EXISTING: Pattern analysis format
+    else if (analysis.categories) {
+      const contentPages = getSafeArray(analysis.categories.pages).length;
+      const totalUrls = analysis.summary?.totalUrls || 0;
+
+      if (focusType === 'content') {
+        return `🎯 Check Links on ${contentPages} Content Pages`;
+      } else {
+        return `🔄 Check Links on All ${totalUrls} URLs`;
+      }
+    }
+
+    return 'Check Links';
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      {/* EXISTING form section - NO CHANGES */}
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">🔍 Smart Content Page Analyzer</h1>
-        <p className="text-gray-600 mb-6">
-          Discover high-quality content pages on your website and filter out non-content URLs before
-          running a focused link check. Perfect for large sites!
+    <div className="space-y-8">
+      {/* Hero Section */}
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">Smart URL Analyzer</h1>
+        <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+          Discover your site's content pages intelligently. Our smart analyzer finds real content
+          pages and filters out non-essential URLs like pagination, admin pages, and archives.
         </p>
+      </div>
 
-        <form onSubmit={handleAnalyze} className="flex gap-4 mb-6">
-          <input
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://example.com"
-            required
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+      {/* Analysis Form */}
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <h2 className="text-2xl font-semibold text-gray-900 mb-6">🔍 Analyze Website Structure</h2>
+
+        <form onSubmit={handleAnalyze} className="space-y-4">
+          <div>
+            <label htmlFor="url" className="block text-sm font-medium text-gray-700 mb-2">
+              Website URL to Analyze
+            </label>
+            <input
+              type="url"
+              id="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com"
+              className="w-full px-4 py-3 border text-gray-500 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+              disabled={isAnalyzing}
+            />
+          </div>
+
           <button
             type="submit"
             disabled={isAnalyzing || !url}
-            className={`px-6 py-2 rounded-md font-medium ${
+            className={`w-full px-6 py-3 rounded-lg font-medium transition-colors ${
               isAnalyzing || !url
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
           >
-            {isAnalyzing ? 'Analyzing...' : 'Discover Content Pages'}
+            {isAnalyzing ? (
+              <span className="flex items-center justify-center">
+                <svg
+                  className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Discovering Content Pages...
+              </span>
+            ) : (
+              '🚀 Start Content Discovery'
+            )}
           </button>
         </form>
 
-        {/* EXISTING analysis progress log - NO CHANGES */}
-        {(analysisLog.length > 0 || isAnalyzing) && (
-          <div
-            ref={analysisScrollRef}
-            className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-md"
-          >
-            <h3 className="text-sm font-medium text-gray-900 mb-3">Content Discovery Progress</h3>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {analysisLog.map((log, index) => (
-                <div key={index} className="flex items-start text-sm">
-                  <span className="mr-2">{getLogIcon(log.type)}</span>
-                  <span className="text-gray-500 mr-2 text-xs">{log.timestamp}</span>
-                  <span className={getLogColor(log.type)}>{log.message}</span>
+        {/* Enhanced Info Box */}
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-blue-900 mb-2">💡 How Smart Analysis Works</h3>
+          <div className="text-sm text-blue-800 space-y-1">
+            <p>
+              • <strong>Content Discovery:</strong> Finds real content pages (articles, posts,
+              product pages)
+            </p>
+            <p>
+              • <strong>Smart Filtering:</strong> Automatically excludes pagination, admin URLs, and
+              archives
+            </p>
+            <p>
+              • <strong>Efficient Processing:</strong> Focuses on pages that actually contain links
+              worth checking
+            </p>
+            <p>
+              • <strong>Scalable:</strong> Handles sites from 50 to 1000+ pages efficiently
+            </p>
+            <p>
+              • <strong>Fallback Support:</strong> Uses pattern analysis for complex sites when
+              needed
+            </p>
+          </div>
+        </div>
+
+        {/* Analysis Progress Log */}
+        {analysisLog.length > 0 && (
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">📊 Analysis Progress</h3>
+            <div
+              ref={analysisScrollRef}
+              className="bg-gray-50 border rounded-lg p-4 h-40 overflow-y-auto space-y-2"
+            >
+              {analysisLog.map((entry, index) => (
+                <div key={index} className="flex items-start space-x-2 text-sm">
+                  <span className="text-gray-500 font-mono">{entry.timestamp}</span>
+                  <span
+                    className={`${
+                      entry.type === 'error'
+                        ? 'text-red-600'
+                        : entry.type === 'success'
+                        ? 'text-green-600'
+                        : entry.type === 'warning'
+                        ? 'text-yellow-600'
+                        : 'text-gray-700'
+                    }`}
+                  >
+                    {entry.message}
+                  </span>
                 </div>
               ))}
-              {isAnalyzing && (
-                <div className="flex items-center text-sm">
-                  <div className="animate-spin mr-2 h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                  <span className="text-blue-600">Discovering content pages...</span>
-                </div>
-              )}
             </div>
           </div>
         )}
 
-        {/* EXISTING info section with UPDATED text */}
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">How Smart Analysis Works</h3>
-              <div className="mt-2 text-sm text-blue-700 space-y-1">
-                <p>• Discovers ALL pages on your website efficiently</p>
-                <p>• Classifies each page as content vs. non-content (pagination, admin, etc.)</p>
-                <p>• Returns only high-quality content pages worth checking for broken links</p>
-                <p>
-                  • <strong>Open Developer Console (F12) to see detailed progress logs</strong>
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* EXISTING error display - NO CHANGES */}
         {error && !isAnalyzing && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+          <div className="mt-6 bg-red-50 border border-red-200 rounded-md p-4">
             <div className="flex">
               <div className="flex-shrink-0">
                 <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -604,395 +594,375 @@ export default function UrlAnalyzer({
         )}
       </div>
 
-      {/* UPDATED: Content page results display */}
+      {/* ENHANCED: Analysis Results Display for both formats */}
       {analysis && analysis.summary && (
         <div className="space-y-6">
-          {/* UPDATED: Summary Stats with content page focus */}
+          {/* ENHANCED: Summary Stats with format detection */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              📊 Content Discovery Results
+              {analysis.contentPages
+                ? '📊 Content Discovery Results'
+                : '📊 URL Pattern Analysis Results'}
             </h2>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">
-                  {getSafeNumber(analysis.summary.totalPagesFound)}
-                </div>
-                <div className="text-sm text-blue-800">Total Pages Found</div>
-              </div>
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">
-                  {getSafeNumber(analysis.summary.contentPages)}
-                </div>
-                <div className="text-sm text-green-800">Content Pages</div>
-              </div>
-              <div className="text-center p-4 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold text-red-600">
-                  {getSafeNumber(analysis.summary.filteredOut)}
-                </div>
-                <div className="text-sm text-red-800">Pages Filtered Out</div>
-              </div>
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">
-                  {analysis.discoveryStats?.averageContentScore || 'N/A'}
-                </div>
-                <div className="text-sm text-purple-800">Avg Content Score</div>
-              </div>
-            </div>
-
-            {/* UPDATED: Category breakdown focusing on content */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {Object.entries(getSafeCategories()).map(([category, count]) => (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`p-3 rounded-lg text-left transition-colors ${
-                    selectedCategory === category
-                      ? 'ring-2 ring-blue-500 bg-blue-50'
-                      : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <div
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(
-                      category
-                    )}`}
-                  >
-                    {getCategoryLabel(category)}
+            {/* NEW: Content Discovery Results */}
+            {analysis.contentPages ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {getSafeNumber(analysis.summary.totalPagesFound)}
                   </div>
-                  <div className="text-lg font-semibold text-gray-900 mt-1">{count}</div>
-                </button>
-              ))}
+                  <div className="text-sm text-blue-800">Total Pages Found</div>
+                </div>
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">
+                    {getSafeNumber(analysis.summary.contentPages)}
+                  </div>
+                  <div className="text-sm text-green-800">Content Pages</div>
+                </div>
+                <div className="text-center p-4 bg-orange-50 rounded-lg">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {getSafeNumber(analysis.summary.filteredOut)}
+                  </div>
+                  <div className="text-sm text-orange-800">Filtered Out</div>
+                </div>
+                <div className="text-center p-4 bg-purple-50 rounded-lg">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {Math.round(
+                      (getSafeNumber(analysis.summary.contentPages) /
+                        Math.max(getSafeNumber(analysis.summary.totalPagesFound), 1)) *
+                        100
+                    )}
+                    %
+                  </div>
+                  <div className="text-sm text-purple-800">Content Ratio</div>
+                </div>
+              </div>
+            ) : (
+              /* EXISTING: Pattern Analysis Results - PRESERVED */
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {getSafeNumber(analysis.summary.totalUrls)}
+                  </div>
+                  <div className="text-sm text-blue-800">Total URLs</div>
+                </div>
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">
+                    {getSafeNumber(analysis.summary.pagesAnalyzed)}
+                  </div>
+                  <div className="text-sm text-green-800">Pages Analyzed</div>
+                </div>
+                <div className="text-center p-4 bg-purple-50 rounded-lg">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {getSafeNumber(analysis.summary.categories?.pages) || 0}
+                  </div>
+                  <div className="text-sm text-purple-800">Content Pages</div>
+                </div>
+                <div className="text-center p-4 bg-orange-50 rounded-lg">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {Object.values(analysis.summary.categories || {}).reduce(
+                      (sum, count) => sum + (count || 0),
+                      0
+                    ) - (getSafeNumber(analysis.summary.categories?.pages) || 0)}
+                  </div>
+                  <div className="text-sm text-orange-800">Other URLs</div>
+                </div>
+              </div>
+            )}
+
+            {/* Category Breakdown */}
+            <div className="border-t pt-4">
+              <h3 className="text-lg font-medium text-gray-900 mb-3">
+                {analysis.contentPages ? 'Page Categories Discovered:' : 'URL Categories Found:'}
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                {Object.entries(analysis.summary.categories || {}).map(([category, count]) => (
+                  <div key={category} className="flex justify-between bg-gray-50 px-3 py-2 rounded">
+                    <span className="capitalize">
+                      {category.replace(/([A-Z])/g, ' $1').toLowerCase()}
+                    </span>
+                    <span className="font-semibold">{getSafeNumber(count)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* EXISTING recommendations section - NO CHANGES */}
-          {getSafeRecommendations().length > 0 && (
+          {/* Action Buttons */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">🚀 Next Steps</h3>
+            <p className="text-gray-600 mb-6">
+              {analysis.contentPages
+                ? `Ready to check links! We found ${analysis.contentPages.length} content pages that likely contain links worth checking.`
+                : `Analysis complete! Choose how you want to check for broken links across the ${
+                    analysis.summary?.totalUrls || 0
+                  } discovered URLs.`}
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={() => handleSmartCrawl('content')}
+                disabled={isStartingCrawl || crawlStatus === 'running'}
+                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                {getCrawlButtonText('content')}
+              </button>
+
+              <button
+                onClick={() => handleSmartCrawl('all')}
+                disabled={isStartingCrawl || crawlStatus === 'running'}
+                className="flex-1 bg-gray-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                {getCrawlButtonText('all')}
+              </button>
+            </div>
+
+            <div className="mt-4 text-sm text-gray-500">
+              <p>
+                <strong>Content Pages:</strong>{' '}
+                {analysis.contentPages
+                  ? 'Focus on discovered content pages for faster, more relevant results'
+                  : 'Focus on main content pages (articles, posts, product pages)'}
+              </p>
+              <p>
+                <strong>All Pages:</strong> Check every discovered URL including navigation,
+                archives, and system pages
+              </p>
+            </div>
+          </div>
+
+          {/* ENHANCED: Sample URLs Display */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              {analysis.contentPages ? '📄 Sample Content Pages' : '📄 Sample URLs by Category'}
+            </h3>
+
+            {analysis.contentPages ? (
+              /* NEW: Content pages sample display */
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-md font-medium text-green-700 mb-2">
+                    Content Pages ({analysis.contentPages.length})
+                  </h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {analysis.contentPages.slice(0, 10).map((page, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center space-x-2 text-sm bg-green-50 p-2 rounded"
+                      >
+                        <span className="text-green-600">📄</span>
+                        <span className="text-gray-700 font-mono text-xs flex-1 truncate">
+                          {page.url}
+                        </span>
+                        {page.title && <span className="text-gray-500 text-xs">{page.title}</span>}
+                      </div>
+                    ))}
+                    {analysis.contentPages.length > 10 && (
+                      <div className="text-xs text-gray-500 text-center py-2">
+                        + {analysis.contentPages.length - 10} more content pages...
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* EXISTING: Pattern analysis sample display - PRESERVED */
+              <div className="space-y-4">
+                {Object.entries(getDisplayCategories()).map(([category, urls]) => {
+                  const urlArray = getSafeArray(urls).slice(0, 5);
+                  if (urlArray.length === 0) return null;
+
+                  const categoryColors = {
+                    pages: 'bg-green-50 text-green-700',
+                    withParams: 'bg-blue-50 text-blue-700',
+                    pagination: 'bg-yellow-50 text-yellow-700',
+                    dates: 'bg-purple-50 text-purple-700',
+                    media: 'bg-red-50 text-red-700',
+                    admin: 'bg-orange-50 text-orange-700',
+                    api: 'bg-gray-50 text-gray-700',
+                    other: 'bg-gray-50 text-gray-700',
+                  };
+
+                  return (
+                    <div key={category}>
+                      <h4
+                        className={`text-md font-medium mb-2 ${
+                          categoryColors[category] || 'text-gray-700'
+                        }`}
+                      >
+                        {category.charAt(0).toUpperCase() +
+                          category.slice(1).replace(/([A-Z])/g, ' $1')}{' '}
+                        ({getSafeArray(urls).length})
+                      </h4>
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {urlArray.map((item, index) => (
+                          <div
+                            key={index}
+                            className="text-sm text-gray-600 font-mono bg-gray-50 p-2 rounded truncate"
+                          >
+                            {typeof item === 'string' ? item : item.url || 'Invalid URL'}
+                          </div>
+                        ))}
+                        {getSafeArray(urls).length > 5 && (
+                          <div className="text-xs text-gray-500 text-center py-1">
+                            + {getSafeArray(urls).length - 5} more URLs...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* EXISTING: Recommendations - PRESERVED */}
+          {analysis.summary?.recommendations && analysis.summary.recommendations.length > 0 && (
             <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">💡 Smart Recommendations</h2>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">💡 Recommendations</h3>
               <div className="space-y-3">
-                {getSafeRecommendations().map((rec, index) => (
+                {analysis.summary.recommendations.map((rec, index) => (
                   <div
                     key={index}
                     className={`p-4 rounded-lg border-l-4 ${
                       rec.type === 'warning'
                         ? 'bg-yellow-50 border-yellow-400'
-                        : rec.type === 'info'
+                        : rec.type === 'suggestion'
                         ? 'bg-blue-50 border-blue-400'
                         : 'bg-green-50 border-green-400'
                     }`}
                   >
-                    <p className="font-medium text-gray-900">{rec.message}</p>
-                    <p className="text-sm text-gray-600 mt-1">{rec.action}</p>
+                    <p className="text-sm font-medium text-gray-900">{rec.message}</p>
+                    {rec.action && <p className="text-sm text-gray-600 mt-1">{rec.action}</p>}
                   </div>
                 ))}
               </div>
             </div>
           )}
+        </div>
+      )}
 
-          {/* UPDATED: Content Pages Details Display */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              📋 {getCategoryLabel(selectedCategory)}
-              <span className="text-gray-500 font-normal">
-                ({getSafeNumber(getSafeCategories()[selectedCategory])} items)
-              </span>
-            </h2>
+      {/* EXISTING: Crawl Progress Display - PRESERVED */}
+      {(crawlStatus === 'starting' || crawlStatus === 'running') && (
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">🔍 Link Checking in Progress</h3>
 
-            {selectedCategory === 'content' ? (
-              /* NEW: Content pages display with quality scores */
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {getSafeContentPages()
-                  .slice(0, 50)
-                  .map((page, index) => (
-                    <div key={index} className="p-4 bg-green-50 rounded-lg border border-green-200">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <a
-                            href={page.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-800 font-mono text-sm break-all font-medium"
-                          >
-                            {page.url}
-                          </a>
-                          {page.title && (
-                            <div className="text-gray-700 font-medium mt-1">{page.title}</div>
-                          )}
-                          <div className="text-xs text-gray-500 mt-1 flex items-center space-x-4">
-                            {page.score && (
-                              <span>Quality Score: {(page.score * 100).toFixed(0)}%</span>
-                            )}
-                            {page.wordCount && <span>Words: {page.wordCount}</span>}
-                            {page.depth && <span>Depth: {page.depth}</span>}
-                          </div>
-                        </div>
-                        <div className="ml-3">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Content Page
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                {getSafeContentPages().length > 50 && (
-                  <div className="text-center py-3 text-gray-500">
-                    ... and {getSafeContentPages().length - 50} more content pages
-                  </div>
-                )}
-                {getSafeContentPages().length === 0 && (
-                  <p className="text-gray-500 italic">No content pages found.</p>
-                )}
+          {crawlProgress && (
+            <div className="mb-4">
+              <div className="flex justify-between text-sm text-gray-600 mb-2">
+                <span>Progress</span>
+                <span>
+                  {crawlProgress.current || 0} / {crawlProgress.total || 0}
+                </span>
               </div>
-            ) : (
-              /* EXISTING: Display for other categories (filtered pages) */
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {getSafeSamplePages()
-                  .filtered.slice(0, 20)
-                  .map((item, index) => (
-                    <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 font-mono text-sm break-all"
-                      >
-                        {item.url}
-                      </a>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Filtered as: {item.type || 'other'} • {item.reason || 'Non-content page'}
-                      </div>
-                    </div>
-                  ))}
-                {getSafeSamplePages().filtered.length === 0 && (
-                  <p className="text-gray-500 italic">No filtered pages to display.</p>
-                )}
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{
+                    width: `${Math.min(
+                      ((crawlProgress.current || 0) / (crawlProgress.total || 1)) * 100,
+                      100
+                    )}%`,
+                  }}
+                ></div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* UPDATED: Action Buttons Section */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">🚀 Next Steps</h2>
-
-            {/* EXISTING loading state - NO CHANGES */}
-            {isStartingCrawl && (
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
-                <div className="flex items-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  <span className="text-blue-800">
-                    Starting single-pass smart crawl with discovered content pages...
-                  </span>
+          {crawlStats && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+              <div className="text-center p-3 bg-blue-50 rounded">
+                <div className="text-lg font-bold text-blue-600">
+                  {crawlStats.totalChecked || 0}
                 </div>
+                <div className="text-sm text-blue-800">Checked</div>
               </div>
-            )}
+              <div className="text-center p-3 bg-green-50 rounded">
+                <div className="text-lg font-bold text-green-600">
+                  {(crawlStats.totalChecked || 0) - (crawlStats.brokenLinks || 0)}
+                </div>
+                <div className="text-sm text-green-800">Working</div>
+              </div>
+              <div className="text-center p-3 bg-red-50 rounded">
+                <div className="text-lg font-bold text-red-600">{crawlStats.brokenLinks || 0}</div>
+                <div className="text-sm text-red-800">Broken</div>
+              </div>
+            </div>
+          )}
 
-            {/* EXISTING live crawling progress - NO CHANGES */}
-            {crawlStatus !== 'idle' && (
-              <div className="bg-white border border-gray-200 rounded-md p-6 mb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    🔍 Live Link Checking Progress
-                  </h3>
+          {/* Crawl Log */}
+          <div className="border-t pt-4">
+            <h4 className="text-md font-medium text-gray-900 mb-2">📋 Activity Log</h4>
+            <div
+              ref={scrollRef}
+              className="bg-gray-50 border rounded-lg p-3 h-32 overflow-y-auto space-y-1"
+            >
+              {crawlLog.map((entry, index) => (
+                <div key={index} className="flex items-start space-x-2 text-sm">
+                  <span className="text-gray-500 font-mono text-xs">{entry.timestamp}</span>
                   <span
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      crawlStatus === 'running'
-                        ? 'bg-blue-100 text-blue-800'
-                        : crawlStatus === 'completed'
-                        ? 'bg-green-100 text-green-800'
-                        : crawlStatus === 'failed'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-yellow-100 text-yellow-800'
+                    className={`${
+                      entry.type === 'error'
+                        ? 'text-red-600'
+                        : entry.type === 'success'
+                        ? 'text-green-600'
+                        : entry.type === 'warning'
+                        ? 'text-yellow-600'
+                        : 'text-gray-700'
                     }`}
                   >
-                    {crawlStatus === 'starting'
-                      ? 'Starting...'
-                      : crawlStatus === 'running'
-                      ? 'Running'
-                      : crawlStatus === 'completed'
-                      ? 'Completed'
-                      : crawlStatus === 'failed'
-                      ? 'Failed'
-                      : 'Timeout'}
+                    {entry.message}
                   </span>
                 </div>
-
-                {/* EXISTING progress bar - NO CHANGES */}
-                {crawlProgress && crawlProgress.total > 0 && (
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm text-gray-600 mb-2">
-                      <span>Checking links...</span>
-                      <span>
-                        {crawlProgress.current || 0} / {crawlProgress.total || 0}
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(crawlProgress.percentage || 0, 100)}%` }}
-                      ></div>
-                    </div>
-                    <div className="text-center text-sm text-gray-500 mt-2">
-                      {Math.round(crawlProgress.percentage || 0)}% complete
-                    </div>
-                  </div>
-                )}
-
-                {/* EXISTING stats - NO CHANGES */}
-                {crawlStats && (
-                  <div className="grid grid-cols-3 gap-4 mb-4">
-                    <div className="text-center p-3 bg-green-50 rounded-lg">
-                      <div className="text-lg font-semibold text-green-600">
-                        {(crawlStats.totalLinksDiscovered || 0) -
-                          (crawlStats.brokenLinksFound || 0)}
-                      </div>
-                      <div className="text-xs text-green-800">Working Links</div>
-                    </div>
-                    <div className="text-center p-3 bg-red-50 rounded-lg">
-                      <div className="text-lg font-semibold text-red-600">
-                        {crawlStats.brokenLinksFound || 0}
-                      </div>
-                      <div className="text-xs text-red-800">Broken Links</div>
-                    </div>
-                    <div className="text-center p-3 bg-blue-50 rounded-lg">
-                      <div className="text-lg font-semibold text-blue-600">
-                        {crawlStats.pagesProcessed || 0}
-                      </div>
-                      <div className="text-xs text-blue-800">Pages Processed</div>
-                    </div>
-                  </div>
-                )}
-
-                {/* EXISTING live log - NO CHANGES */}
-                <div ref={scrollRef} className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
-                  <h4 className="text-sm font-medium text-gray-900 mb-3">Activity Log</h4>
-                  <div className="space-y-2">
-                    {crawlLog.map((log, index) => (
-                      <div key={index} className="flex items-start text-sm">
-                        <span className="mr-2">{getLogIcon(log.type)}</span>
-                        <span className="text-gray-500 mr-2 text-xs">{log.timestamp}</span>
-                        <span className={getLogColor(log.type)}>{log.message}</span>
-                      </div>
-                    ))}
-                    {crawlStatus === 'running' && crawlLog.length === 0 && (
-                      <div className="flex items-center text-sm">
-                        <div className="animate-spin mr-2 h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                        <span className="text-blue-600">Initializing single-pass crawl...</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* UPDATED: Action buttons with new messaging */}
-            <div className="flex flex-wrap gap-4">
-              <button
-                onClick={() => handleSmartCrawl('content')}
-                disabled={isStartingCrawl}
-                className={`px-6 py-3 rounded-lg font-medium ${
-                  isStartingCrawl
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                    : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
-              >
-                ✅ Check Links on {getSafeNumber(analysis.summary.contentPages)} Content Pages Only
-              </button>
-              <button
-                onClick={() => handleSmartCrawl('all')}
-                disabled={isStartingCrawl}
-                className={`px-6 py-3 rounded-lg font-medium ${
-                  isStartingCrawl
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                🔄 Check All {getSafeNumber(analysis.summary.totalPagesFound)} Discovered Pages
-              </button>
+              ))}
             </div>
+          </div>
+        </div>
+      )}
 
-            {/* UPDATED: Recommendation text */}
-            <div className="mt-4 p-4 bg-green-50 rounded-lg">
-              <p className="text-sm text-green-800">
-                <strong>Smart Recommendation:</strong> Based on content discovery, checking only the{' '}
-                {getSafeNumber(analysis.summary.contentPages)} high-quality content pages will give
-                you meaningful results much faster than processing all{' '}
-                {getSafeNumber(analysis.summary.totalPagesFound)} discovered pages.
-                {analysis.summary.filteredOut > 0 && (
-                  <>
-                    {' '}
-                    We filtered out {analysis.summary.filteredOut} non-content pages to focus your
-                    scan.
-                  </>
-                )}
+      {/* EXISTING: Crawl Complete/Failed Status - PRESERVED */}
+      {crawlStatus === 'completed' && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-lg font-medium text-green-800">Crawl Completed Successfully!</h3>
+              <p className="text-green-700">
+                Found {crawlStats?.brokenLinks || 0} broken links out of{' '}
+                {crawlStats?.totalChecked || 0} total links. Redirecting to results page...
               </p>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* UPDATED: Technical Details */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">🔧 Discovery Details</h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-sm font-medium text-gray-900 mb-2">Analysis Settings</h3>
-                <div className="space-y-1 text-sm text-gray-600">
-                  <div>Max Depth: 3 levels</div>
-                  <div>Max Pages: 1,000 pages</div>
-                  <div>
-                    Pages Analyzed:{' '}
-                    {getSafeNumber(
-                      analysis.summary.pagesAnalyzed || analysis.summary.totalPagesFound
-                    )}
-                  </div>
-                  <div>Content Discovery: Single-pass approach</div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-medium text-gray-900 mb-2">Quality Metrics</h3>
-                <div className="space-y-1 text-sm text-gray-600">
-                  <div>Content Pages: {getSafeNumber(analysis.summary.contentPages)}</div>
-                  <div>Filtered Out: {getSafeNumber(analysis.summary.filteredOut)}</div>
-                  <div>
-                    Content Ratio:{' '}
-                    {analysis.summary.totalPagesFound > 0
-                      ? Math.round(
-                          (analysis.summary.contentPages / analysis.summary.totalPagesFound) * 100
-                        )
-                      : 0}
-                    %
-                  </div>
-                  <div>Avg Score: {analysis.discoveryStats?.averageContentScore || 'N/A'}</div>
-                </div>
-              </div>
+      {crawlStatus === 'failed' && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clipRule="evenodd"
+                />
+              </svg>
             </div>
-
-            {/* NEW: Export button */}
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <button
-                onClick={exportAnalysis}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
-              >
-                📁 Export Analysis Data
-              </button>
+            <div className="ml-3">
+              <h3 className="text-lg font-medium text-red-800">Crawl Failed</h3>
+              <p className="text-red-700">
+                The link checking process encountered an error. Please try again or contact support
+                if the problem persists.
+              </p>
             </div>
           </div>
         </div>

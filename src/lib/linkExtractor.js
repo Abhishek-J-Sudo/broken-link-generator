@@ -1,47 +1,89 @@
 /**
- * Link extraction from HTML content
- * Uses Cheerio for server-side HTML parsing
- * OPTIMIZED: Enhanced for single-pass content page processing
+ * Enhanced Link Extractor - Optimized for Smart Analyzer Content Pages
+ * MERGED: Main branch working extractor + Smart analyzer optimizations
  */
 
 import * as cheerio from 'cheerio';
-import { urlUtils, textUtils, contentPageUtils } from './utils.js';
+import { urlUtils, textUtils } from './utils.js';
 import { securityUtils } from './security.js';
 
 export class LinkExtractor {
   constructor(options = {}) {
     this.options = {
       includeExternal: false,
-      maxLinksPerPage: 2000, // UPDATED: Higher limit for content pages
-      followNofollow: false,
-      // NEW: Content page specific options
-      extractAllFromContent: true, // Extract ALL links from content pages
-      classifyExtractedLinks: true, // Classify links during extraction
-      prioritizeContentLinks: true, // Prioritize links likely to be content
+      maxLinksPerPage: 1000, // ENHANCED: Configurable limit
+      includeImages: false,
+      includeScripts: false,
+      includeStyles: false,
+      classifyLinks: true, // NEW: Enable link classification
+      prioritizeContentLinks: true, // NEW: Prioritize content over navigation
+      extractMetadata: true, // NEW: Extract additional metadata
+      respectNoFollow: true,
       ...options,
     };
   }
 
   /**
-   * ENHANCED: Extracts all links from HTML content with content page optimizations
+   * ENHANCED: Main extraction method with content page optimization
+   * Extracts ALL links from HTML with content page specific optimizations
    */
-  extractLinks(html, baseUrl, currentDepth = 0) {
+  async extractLinksFromHtml(html, baseUrl, options = {}) {
     try {
-      const $ = cheerio.load(html);
-      const links = [];
+      if (!html || typeof html !== 'string') {
+        throw new Error('Invalid HTML content provided');
+      }
+
+      if (!urlUtils.isValidUrl(baseUrl)) {
+        throw new Error('Invalid base URL provided');
+      }
+
+      // Merge options with defaults
+      const extractionOptions = { ...this.options, ...options };
       const baseDomain = urlUtils.getDomain(baseUrl);
+      const currentDepth = options.currentDepth || 1;
 
-      // NEW: Enhanced link extraction for content pages
-      const linkData = this._extractEnhancedLinks($, baseUrl, baseDomain, currentDepth);
+      // Load HTML with cheerio
+      const $ = cheerio.load(html, {
+        normalizeWhitespace: true,
+        xmlMode: false,
+        decodeEntities: true,
+      });
 
-      // EXISTING: Extract additional links (images, iframes, etc.)
-      const additionalLinks = this._extractAdditionalLinks($, baseUrl, currentDepth);
+      console.log(
+        `🔗 EXTRACTOR: Processing ${$('a[href]').length} anchor tags from ${baseUrl.substring(
+          0,
+          50
+        )}...`
+      );
 
-      // NEW: Combine and optimize for content pages
-      const allLinks = [...linkData.primaryLinks, ...additionalLinks];
+      // ENHANCED: Extract links with classification and prioritization
+      const extractionResult = this._extractEnhancedLinks(
+        $,
+        baseUrl,
+        baseDomain,
+        currentDepth,
+        extractionOptions
+      );
+
+      // NEW: Additional extraction for comprehensive coverage
+      const additionalLinks = this._extractAdditionalLinks(
+        $,
+        baseUrl,
+        currentDepth,
+        extractionOptions
+      );
+
+      // ENHANCED: Combine and optimize for content pages
+      const allLinks = [...extractionResult.primaryLinks, ...additionalLinks];
 
       // NEW: Content page specific filtering and prioritization
-      const optimizedLinks = this._optimizeForContentPages(allLinks, baseUrl);
+      const optimizedLinks = this._optimizeForContentPages(allLinks, baseUrl, extractionOptions);
+
+      console.log(
+        `✅ EXTRACTOR: Extracted ${optimizedLinks.length} links (${
+          optimizedLinks.filter((l) => l.isInternal).length
+        } internal, ${optimizedLinks.filter((l) => l.linkType === 'content').length} content)`
+      );
 
       return {
         links: optimizedLinks,
@@ -58,7 +100,7 @@ export class LinkExtractor {
         },
       };
     } catch (error) {
-      console.error('Error extracting links:', error);
+      console.error('❌ EXTRACTOR: Error extracting links:', error);
       return {
         links: [],
         pageInfo: { title: 'Error parsing page', description: '' },
@@ -79,14 +121,15 @@ export class LinkExtractor {
   /**
    * NEW: Enhanced link extraction with content page focus
    */
-  _extractEnhancedLinks($, baseUrl, baseDomain, currentDepth) {
+  _extractEnhancedLinks($, baseUrl, baseDomain, currentDepth, options) {
     const primaryLinks = [];
     const processedUrls = new Set();
+    let linksProcessed = 0;
 
     // ENHANCED: Find all anchor tags with improved content detection
     $('a[href]').each((index, element) => {
-      if (primaryLinks.length >= this.options.maxLinksPerPage) {
-        return false; // Break out of loop
+      if (linksProcessed >= options.maxLinksPerPage) {
+        return false; // Break out of loop when limit reached
       }
 
       const $link = $(element);
@@ -94,354 +137,412 @@ export class LinkExtractor {
 
       if (!href || href.trim() === '') return;
 
-      // Skip nofollow links if option is set
-      if (!this.options.followNofollow && $link.attr('rel')?.includes('nofollow')) {
-        return;
+      try {
+        // Skip common non-content links
+        if (this._shouldSkipLink(href, $link)) return;
+
+        // Resolve to absolute URL
+        const absoluteUrl = urlUtils.resolveUrl(href, baseUrl);
+        if (!absoluteUrl || !urlUtils.isValidUrl(absoluteUrl)) return;
+
+        const normalizedUrl = urlUtils.normalizeUrl(absoluteUrl);
+
+        // Avoid duplicates
+        if (processedUrls.has(normalizedUrl)) return;
+        processedUrls.add(normalizedUrl);
+
+        // Check if internal
+        const isInternal = urlUtils.isInternalUrl(normalizedUrl, baseUrl);
+
+        // Skip external links if not included
+        if (!isInternal && !options.includeExternal) return;
+
+        // NEW: Extract comprehensive link information
+        const linkInfo = {
+          url: normalizedUrl,
+          sourceUrl: baseUrl,
+          linkText: textUtils.extractLinkText($link),
+          isInternal,
+          depth: currentDepth + 1,
+          shouldCrawl: isInternal && urlUtils.shouldCrawlUrl(normalizedUrl),
+
+          // NEW: Enhanced metadata
+          attributes: this._extractLinkAttributes($link),
+          context: this._extractLinkContext($, $link),
+          linkType: this._classifyLink($link, normalizedUrl, $),
+          priority: this._calculateLinkPriority($link, normalizedUrl, $),
+
+          // Additional metadata for content analysis
+          inContentArea: this._isInContentArea($, $link),
+          hasContentKeywords: this._hasContentKeywords($link.text()),
+          linkPosition: index,
+        };
+
+        primaryLinks.push(linkInfo);
+        linksProcessed++;
+      } catch (error) {
+        console.warn(`⚠️ EXTRACTOR: Error processing link ${href}:`, error.message);
       }
-
-      // Resolve relative URLs
-      const absoluteUrl = urlUtils.resolveUrl(href, baseUrl);
-      if (!absoluteUrl) return;
-
-      // Normalize the URL
-      const normalizedUrl = urlUtils.normalizeUrl(absoluteUrl);
-
-      // Skip invalid URLs
-      if (!urlUtils.isValidUrl(normalizedUrl)) return;
-
-      // Avoid duplicates
-      if (processedUrls.has(normalizedUrl)) return;
-      processedUrls.add(normalizedUrl);
-
-      // SECURITY: Validate URL safety before adding to results
-      const validation = securityUtils.isSafeUrl(normalizedUrl);
-      if (!validation.safe) {
-        console.log(`🚫 BLOCKED during extraction: ${normalizedUrl} - ${validation.reason}`);
-        return;
-      }
-
-      // Check if internal/external
-      const isInternal = urlUtils.isInternalUrl(normalizedUrl, baseDomain);
-
-      // Skip external links if not included
-      if (!isInternal && !this.options.includeExternal) return;
-
-      // NEW: Enhanced link analysis for content pages
-      const linkAnalysis = this._analyzeLinkContext($link, normalizedUrl, baseUrl);
-
-      // Extract comprehensive link information
-      const linkInfo = {
-        url: normalizedUrl,
-        sourceUrl: baseUrl,
-        linkText: textUtils.extractLinkText($link),
-        isInternal,
-        depth: currentDepth + 1,
-        shouldCrawl: isInternal && urlUtils.shouldCrawlUrl(normalizedUrl),
-
-        // NEW: Enhanced link metadata
-        linkType: linkAnalysis.type, // 'content', 'navigation', 'resource', 'other'
-        priority: linkAnalysis.priority, // 1-10 priority score
-        context: linkAnalysis.context, // Where on page link was found
-        attributes: this._extractLinkAttributes($link),
-
-        // NEW: Content classification
-        ...(this.options.classifyExtractedLinks && {
-          targetPageType: contentPageUtils.classifyPageTypeByUrl(normalizedUrl),
-          isLikelyContent: contentPageUtils.isContentPage(normalizedUrl),
-        }),
-      };
-
-      primaryLinks.push(linkInfo);
     });
 
     return { primaryLinks };
   }
 
   /**
-   * NEW: Analyzes link context to determine type and priority
+   * NEW: Extract additional links from other HTML elements
    */
-  _analyzeLinkContext($link, url, baseUrl) {
-    let type = 'other';
-    let priority = 5; // Default priority
-    let context = 'body';
-
-    try {
-      // Analyze parent elements to understand context
-      const parents = $link
-        .parents()
-        .map((i, el) => el.tagName.toLowerCase())
-        .get();
-      const linkText = textUtils.extractLinkText($link).toLowerCase();
-      const classes = ($link.attr('class') || '').toLowerCase();
-
-      // Determine context based on parent elements
-      if (parents.includes('nav') || classes.includes('nav')) {
-        context = 'navigation';
-        type = 'navigation';
-        priority = 6; // Navigation links are important for discovery
-      } else if (parents.includes('header') || classes.includes('header')) {
-        context = 'header';
-        type = 'navigation';
-        priority = 7;
-      } else if (parents.includes('footer') || classes.includes('footer')) {
-        context = 'footer';
-        type = 'navigation';
-        priority = 4; // Footer links are less important
-      } else if (parents.includes('aside') || classes.includes('sidebar')) {
-        context = 'sidebar';
-        type = 'navigation';
-        priority = 5;
-      } else if (
-        parents.includes('main') ||
-        parents.includes('article') ||
-        classes.includes('content')
-      ) {
-        context = 'main_content';
-        type = 'content';
-        priority = 8; // Content area links are high priority
-      } else {
-        context = 'body';
-        type = 'content';
-        priority = 7;
-      }
-
-      // Adjust priority based on link characteristics
-      if (this.options.classifyExtractedLinks) {
-        const targetType = contentPageUtils.classifyPageTypeByUrl(url);
-
-        // Boost priority for likely content pages
-        if (targetType === 'pages' || contentPageUtils.isContentPage(url)) {
-          priority += 2;
-        }
-
-        // Reduce priority for admin, API, media
-        if (['admin', 'api', 'media'].includes(targetType)) {
-          priority -= 3;
-          type = 'resource';
-        }
-
-        // Reduce priority for pagination
-        if (targetType === 'pagination') {
-          priority -= 2;
-          type = 'navigation';
-        }
-      }
-
-      // Boost priority for descriptive link text
-      if (linkText && linkText.length > 10 && linkText.length < 100) {
-        priority += 1;
-      }
-
-      // Reduce priority for generic link text
-      const genericTexts = ['click here', 'read more', 'more', 'link', 'here'];
-      if (genericTexts.some((generic) => linkText.includes(generic))) {
-        priority -= 1;
-      }
-
-      // Clamp priority between 1-10
-      priority = Math.max(1, Math.min(10, priority));
-    } catch (error) {
-      console.error('Error analyzing link context:', error);
-    }
-
-    return { type, priority, context };
-  }
-
-  /**
-   * NEW: Optimizes link collection for content page processing
-   */
-  _optimizeForContentPages(allLinks, baseUrl) {
-    if (!this.options.extractAllFromContent && !this.options.prioritizeContentLinks) {
-      return allLinks; // Return unchanged if optimizations disabled
-    }
-
-    let optimizedLinks = [...allLinks];
-
-    // Sort by priority if prioritization is enabled
-    if (this.options.prioritizeContentLinks) {
-      optimizedLinks.sort((a, b) => {
-        // Primary sort: priority (higher first)
-        if (a.priority !== b.priority) {
-          return b.priority - a.priority;
-        }
-
-        // Secondary sort: content links first
-        if (a.linkType !== b.linkType) {
-          const typeOrder = { content: 3, navigation: 2, resource: 1, other: 0 };
-          return (typeOrder[b.linkType] || 0) - (typeOrder[a.linkType] || 0);
-        }
-
-        // Tertiary sort: internal links first
-        if (a.isInternal !== b.isInternal) {
-          return b.isInternal ? 1 : -1;
-        }
-
-        return 0;
-      });
-    }
-
-    // Apply content page specific filtering
-    if (this.options.extractAllFromContent) {
-      // For content pages, we want to be more inclusive of links
-      // Remove aggressive filtering that might exclude valuable links
-      optimizedLinks = optimizedLinks.filter((link) => {
-        // Keep all internal links
-        if (link.isInternal) return true;
-
-        // Keep external links if option enabled
-        if (!link.isInternal && this.options.includeExternal) return true;
-
-        return false;
-      });
-    }
-
-    // Limit total links if needed
-    if (optimizedLinks.length > this.options.maxLinksPerPage) {
-      console.log(
-        `🔧 Limiting ${optimizedLinks.length} links to ${this.options.maxLinksPerPage} for content page`
-      );
-      optimizedLinks = optimizedLinks.slice(0, this.options.maxLinksPerPage);
-    }
-
-    return optimizedLinks;
-  }
-
-  /**
-   * EXISTING: Extracts additional links from other HTML elements
-   * ENHANCED: Better security validation and content page optimization
-   */
-  _extractAdditionalLinks($, baseUrl, currentDepth) {
+  _extractAdditionalLinks($, baseUrl, currentDepth, options) {
     const additionalLinks = [];
-    const baseDomain = urlUtils.getDomain(baseUrl);
 
-    // Images - with enhanced filtering for content pages
-    $('img[src]').each((index, element) => {
-      const src = $(element).attr('src');
-      const absoluteUrl = urlUtils.resolveUrl(src, baseUrl);
+    // Only extract additional links if specifically requested
+    if (!options.includeImages && !options.includeScripts && !options.includeStyles) {
+      return additionalLinks;
+    }
 
-      if (absoluteUrl && urlUtils.isValidUrl(absoluteUrl)) {
-        // SECURITY: Validate before adding
-        const validation = securityUtils.isSafeUrl(absoluteUrl);
-        if (!validation.safe) {
-          console.log(`🚫 BLOCKED image during extraction: ${absoluteUrl} - ${validation.reason}`);
-          return;
-        }
+    // Images (if requested)
+    if (options.includeImages) {
+      $('img[src]').each((index, element) => {
+        const src = $(element).attr('src');
+        const absoluteUrl = urlUtils.resolveUrl(src, baseUrl);
 
-        const isInternal = urlUtils.isInternalUrl(absoluteUrl, baseDomain);
+        if (absoluteUrl && urlUtils.isValidUrl(absoluteUrl)) {
+          // Security validation
+          const validation = securityUtils.isSafeUrl(absoluteUrl);
+          if (!validation.safe) return;
 
-        if (isInternal || this.options.includeExternal) {
           additionalLinks.push({
-            url: urlUtils.normalizeUrl(absoluteUrl),
+            url: absoluteUrl,
             sourceUrl: baseUrl,
             linkText: $(element).attr('alt') || 'Image',
-            isInternal,
-            depth: currentDepth + 1,
-            shouldCrawl: false, // Don't crawl images
-            type: 'image',
-            linkType: 'resource', // NEW: Classify as resource
-            priority: 3, // NEW: Lower priority for images
-            context: 'image', // NEW: Context information
-            attributes: {
-              alt: $(element).attr('alt'),
-              title: $(element).attr('title'),
-            },
-          });
-        }
-      }
-    });
-
-    // Iframes - WITH ENHANCED SECURITY VALIDATION
-    $('iframe[src]').each((index, element) => {
-      const src = $(element).attr('src');
-      const absoluteUrl = urlUtils.resolveUrl(src, baseUrl);
-
-      if (absoluteUrl && urlUtils.isValidUrl(absoluteUrl)) {
-        // SECURITY: Validate before adding
-        const validation = securityUtils.isSafeUrl(absoluteUrl);
-        if (!validation.safe) {
-          console.log(`🚫 BLOCKED iframe during extraction: ${absoluteUrl} - ${validation.reason}`);
-          return;
-        }
-
-        const isInternal = urlUtils.isInternalUrl(absoluteUrl, baseDomain);
-
-        if (isInternal || this.options.includeExternal) {
-          additionalLinks.push({
-            url: urlUtils.normalizeUrl(absoluteUrl),
-            sourceUrl: baseUrl,
-            linkText: 'Embedded frame',
-            isInternal,
+            isInternal: urlUtils.isInternalUrl(absoluteUrl, baseUrl),
             depth: currentDepth + 1,
             shouldCrawl: false,
-            type: 'iframe',
-            linkType: 'resource', // NEW: Classify as resource
-            priority: 4, // NEW: Medium priority for iframes
-            context: 'iframe', // NEW: Context information
-            attributes: {
-              title: $(element).attr('title'),
-            },
+            linkType: 'resource',
+            resourceType: 'image',
+            priority: 2,
           });
         }
-      }
-    });
+      });
+    }
 
-    // Link tags (stylesheets, etc.) - WITH ENHANCED SECURITY VALIDATION
-    $('link[href]').each((index, element) => {
-      const href = $(element).attr('href');
-      const absoluteUrl = urlUtils.resolveUrl(href, baseUrl);
-
-      if (absoluteUrl && urlUtils.isValidUrl(absoluteUrl)) {
-        // SECURITY: Validate before adding
-        const validation = securityUtils.isSafeUrl(absoluteUrl);
-        if (!validation.safe) {
-          console.log(
-            `🚫 BLOCKED link resource during extraction: ${absoluteUrl} - ${validation.reason}`
-          );
-          return;
-        }
-
-        const isInternal = urlUtils.isInternalUrl(absoluteUrl, baseDomain);
-
-        if (isInternal || this.options.includeExternal) {
-          additionalLinks.push({
-            url: urlUtils.normalizeUrl(absoluteUrl),
-            sourceUrl: baseUrl,
-            linkText: `${$(element).attr('rel')} resource`,
-            isInternal,
-            depth: currentDepth + 1,
-            shouldCrawl: false,
-            type: 'resource',
-            linkType: 'resource', // NEW: Classify as resource
-            priority: 2, // NEW: Low priority for resources
-            context: 'head', // NEW: Context information
-            attributes: {
-              rel: $(element).attr('rel'),
-              type: $(element).attr('type'),
-            },
-          });
-        }
-      }
-    });
-
-    return additionalLinks;
+    return additionalLinks.slice(0, 50); // Limit additional links
   }
 
   /**
-   * EXISTING: Extracts metadata about the page - ENHANCED
+   * NEW: Optimize extracted links for content page processing
+   */
+  _optimizeForContentPages(allLinks, baseUrl, options) {
+    if (!options.prioritizeContentLinks) {
+      return allLinks.slice(0, options.maxLinksPerPage);
+    }
+
+    // Sort by priority (higher priority first) and type
+    const sortedLinks = allLinks.sort((a, b) => {
+      // First priority: link type (content > navigation > resource > other)
+      const typeOrder = { content: 4, navigation: 3, resource: 2, other: 1 };
+      const typeA = typeOrder[a.linkType] || 1;
+      const typeB = typeOrder[b.linkType] || 1;
+
+      if (typeA !== typeB) return typeB - typeA;
+
+      // Second priority: calculated priority score
+      return (b.priority || 5) - (a.priority || 5);
+    });
+
+    // Take the top links up to the limit
+    let filteredLinks = sortedLinks.slice(0, options.maxLinksPerPage);
+
+    // NEW: Ensure we keep high-priority content links
+    if (options.classifyLinks) {
+      const contentLinks = filteredLinks.filter(
+        (link) => link.linkType === 'content' && link.priority >= 7
+      );
+      const otherLinks = filteredLinks
+        .filter((link) => !['content'].includes(link.linkType) || link.priority < 7)
+        .slice(0, options.maxLinksPerPage - contentLinks.length);
+
+      filteredLinks = [...contentLinks, ...otherLinks];
+    }
+
+    return filteredLinks;
+  }
+
+  /**
+   * NEW: Classify link type for content page processing
+   */
+  _classifyLink($link, url, $) {
+    const linkText = $link.text().trim().toLowerCase();
+    const linkClass = ($link.attr('class') || '').toLowerCase();
+    const linkParent = $link.parent();
+    const parentClass = (linkParent.attr('class') || '').toLowerCase();
+
+    // Content links (high priority for content pages)
+    if (this._isContentLink(linkText, linkClass, parentClass, url)) {
+      return 'content';
+    }
+
+    // Navigation links
+    if (this._isNavigationLink(linkText, linkClass, parentClass, $link, $)) {
+      return 'navigation';
+    }
+
+    // Resource links (downloads, media, etc.)
+    if (this._isResourceLink(url, linkText)) {
+      return 'resource';
+    }
+
+    return 'other';
+  }
+
+  /**
+   * NEW: Calculate link priority for content page processing
+   */
+  _calculateLinkPriority($link, url, $) {
+    let priority = 5; // Base priority
+
+    const linkText = $link.text().trim();
+    const linkClass = ($link.attr('class') || '').toLowerCase();
+
+    // Higher priority for content area links
+    if (this._isInContentArea($, $link)) priority += 2;
+
+    // Higher priority for descriptive link text
+    if (linkText.length > 10 && linkText.length < 100) priority += 1;
+
+    // Higher priority for content keywords
+    if (this._hasContentKeywords(linkText)) priority += 2;
+
+    // Lower priority for common navigation
+    if (this._isCommonNavigation(linkText)) priority -= 2;
+
+    // Lower priority for footer/header links
+    if (this._isInNavigationArea($, $link)) priority -= 1;
+
+    // Higher priority for article/post links
+    if (linkClass.includes('post') || linkClass.includes('article')) priority += 2;
+
+    return Math.max(1, Math.min(10, priority)); // Clamp between 1-10
+  }
+
+  /**
+   * NEW: Determine if link is in main content area
+   */
+  _isInContentArea($, $link) {
+    const contentSelectors = [
+      'main',
+      'article',
+      '.content',
+      '.post-content',
+      '.entry-content',
+      '.article-content',
+      '#content',
+    ];
+
+    return contentSelectors.some((selector) => $link.closest(selector).length > 0);
+  }
+
+  /**
+   * NEW: Check if link text contains content keywords
+   */
+  _hasContentKeywords(text) {
+    const contentKeywords = [
+      'read more',
+      'continue reading',
+      'full article',
+      'learn more',
+      'view details',
+      'see more',
+      'explore',
+      'discover',
+      'guide',
+      'tutorial',
+      'how to',
+      'tips',
+      'review',
+      'analysis',
+    ];
+
+    const lowerText = text.toLowerCase();
+    return contentKeywords.some((keyword) => lowerText.includes(keyword));
+  }
+
+  /**
+   * NEW: Check if this is a content link
+   */
+  _isContentLink(linkText, linkClass, parentClass, url) {
+    // URL patterns that indicate content
+    const contentPatterns = [
+      /\/blog\//,
+      /\/article\//,
+      /\/post\//,
+      /\/news\//,
+      /\/guide\//,
+      /\/tutorial\//,
+      /\/review\//,
+    ];
+
+    if (contentPatterns.some((pattern) => pattern.test(url))) {
+      return true;
+    }
+
+    // Class patterns
+    const contentClasses = ['post-link', 'article-link', 'content-link', 'entry-link'];
+    if (contentClasses.some((cls) => linkClass.includes(cls) || parentClass.includes(cls))) {
+      return true;
+    }
+
+    // Link text patterns (substantial text usually indicates content)
+    if (linkText.length > 15 && !this._isCommonNavigation(linkText)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * NEW: Check if this is a navigation link
+   */
+  _isNavigationLink(linkText, linkClass, parentClass, $link, $) {
+    // Check if in navigation area
+    if (this._isInNavigationArea($, $link)) return true;
+
+    // Common navigation classes
+    const navClasses = ['nav', 'menu', 'navigation', 'navbar', 'breadcrumb'];
+    if (navClasses.some((cls) => linkClass.includes(cls) || parentClass.includes(cls))) {
+      return true;
+    }
+
+    // Common navigation text
+    if (this._isCommonNavigation(linkText)) return true;
+
+    return false;
+  }
+
+  /**
+   * NEW: Check if this is a resource link
+   */
+  _isResourceLink(url, linkText) {
+    // File extensions
+    const resourceExtensions = ['.pdf', '.doc', '.zip', '.jpg', '.png', '.mp4'];
+    if (resourceExtensions.some((ext) => url.toLowerCase().includes(ext))) {
+      return true;
+    }
+
+    // Download keywords
+    const downloadKeywords = ['download', 'pdf', 'file', 'document'];
+    const lowerText = linkText.toLowerCase();
+    if (downloadKeywords.some((keyword) => lowerText.includes(keyword))) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * NEW: Check if link is in navigation area
+   */
+  _isInNavigationArea($, $link) {
+    const navSelectors = [
+      'nav',
+      'header',
+      'footer',
+      '.navigation',
+      '.navbar',
+      '.menu',
+      '.breadcrumb',
+      '.sidebar',
+    ];
+
+    return navSelectors.some((selector) => $link.closest(selector).length > 0);
+  }
+
+  /**
+   * NEW: Check if text is common navigation
+   */
+  _isCommonNavigation(text) {
+    const navTerms = [
+      'home',
+      'about',
+      'contact',
+      'services',
+      'products',
+      'blog',
+      'news',
+      'events',
+      'careers',
+      'privacy',
+      'terms',
+      'help',
+      'support',
+      'login',
+      'register',
+      'search',
+      'menu',
+      'next',
+      'previous',
+      'back',
+      'more',
+      'all',
+      'categories',
+      'tags',
+    ];
+
+    const lowerText = text.toLowerCase().trim();
+    return navTerms.includes(lowerText) || lowerText.length < 4;
+  }
+
+  /**
+   * NEW: Should skip this link entirely
+   */
+  _shouldSkipLink(href, $link) {
+    // Skip javascript, mailto, tel, etc.
+    if (
+      href.startsWith('javascript:') ||
+      href.startsWith('mailto:') ||
+      href.startsWith('tel:') ||
+      href.startsWith('#')
+    ) {
+      return true;
+    }
+
+    // Skip if nofollow and we respect it
+    if (this.options.respectNoFollow && ($link.attr('rel') || '').includes('nofollow')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * NEW: Extract link context information
+   */
+  _extractLinkContext($, $link) {
+    const parent = $link.parent();
+    const surrounding = $link.closest('p, div, li, td').text().trim();
+
+    return {
+      parentTag: parent.prop('tagName')?.toLowerCase(),
+      parentClass: parent.attr('class'),
+      surroundingText: surrounding.substring(0, 200),
+      inList: $link.closest('ul, ol').length > 0,
+      inTable: $link.closest('table').length > 0,
+    };
+  }
+
+  /**
+   * ENHANCED: Extract page information with content analysis
    */
   _extractPageInfo($, baseUrl) {
-    const title = $('title').text().trim() || $('h1').first().text().trim() || 'Untitled Page';
-
+    const title = $('title').first().text() || '';
     const description =
       $('meta[name="description"]').attr('content') ||
       $('meta[property="og:description"]').attr('content') ||
-      $('p').first().text().trim().substring(0, 200) ||
       '';
 
     const canonicalUrl = $('link[rel="canonical"]').attr('href');
     const resolvedCanonical = canonicalUrl ? urlUtils.resolveUrl(canonicalUrl, baseUrl) : baseUrl;
 
-    // NEW: Enhanced page analysis
+    // NEW: Enhanced page analysis for content quality
     const pageAnalysis = {
       wordCount: $('body').text().replace(/\s+/g, ' ').trim().split(' ').length,
       paragraphCount: $('p').length,
@@ -461,17 +562,17 @@ export class LinkExtractor {
       hasRobotsMeta: $('meta[name="robots"]').length > 0,
       robotsContent: $('meta[name="robots"]').attr('content') || '',
 
-      // NEW: Enhanced page metadata for content page analysis
+      // NEW: Enhanced page metadata for content analysis
       analysis: pageAnalysis,
       contentQuality: this._calculatePageContentQuality($, pageAnalysis),
     };
   }
 
   /**
-   * NEW: Calculates content quality score for the page
+   * NEW: Calculate content quality score for the page
    */
   _calculatePageContentQuality($, analysis) {
-    if (!this.options.classifyExtractedLinks) {
+    if (!this.options.extractMetadata) {
       return null;
     }
 
@@ -485,16 +586,15 @@ export class LinkExtractor {
     if (analysis.hasMainContent) score += 0.15;
     if (analysis.hasSchemaMarkup) score += 0.1;
 
-    // Reasonable link density
+    // Reasonable link density (not too many, not too few)
     const linkDensity = analysis.wordCount > 0 ? analysis.linkCount / analysis.wordCount : 0;
-    if (linkDensity > 0.01 && linkDensity < 0.05) score += 0.1; // Good link density
-    if (linkDensity > 0.1) score -= 0.2; // Too many links (likely spam)
+    if (linkDensity > 0.01 && linkDensity < 0.1) score += 0.1;
 
     return Math.max(0, Math.min(1, score));
   }
 
   /**
-   * EXISTING: Extracts relevant attributes from link elements - NO CHANGES
+   * MAIN BRANCH: Extract link attributes - PRESERVED
    */
   _extractLinkAttributes($link) {
     return {
@@ -508,7 +608,7 @@ export class LinkExtractor {
   }
 
   /**
-   * EXISTING: Filters links based on crawl settings and rules - ENHANCED
+   * MAIN BRANCH: Filter links for crawling - ENHANCED
    */
   filterLinksForCrawling(links, settings = {}) {
     const maxDepth = settings.maxDepth || 3;
@@ -528,29 +628,23 @@ export class LinkExtractor {
       return true;
     });
 
-    // NEW: Apply content prioritization if enabled
-    if (prioritizeContent && this.options.prioritizeContentLinks) {
-      // Sort by priority and limit to high-quality links
-      filteredLinks.sort((a, b) => (b.priority || 5) - (a.priority || 5));
-
-      // Prefer content and navigation links
-      const prioritizedLinks = filteredLinks.filter((link) =>
+    // NEW: Prioritize content links if requested
+    if (prioritizeContent) {
+      const contentLinks = filteredLinks.filter((link) =>
         ['content', 'navigation'].includes(link.linkType)
       );
-
-      // Add other links if we don't have enough
       const otherLinks = filteredLinks.filter(
         (link) => !['content', 'navigation'].includes(link.linkType)
       );
 
-      filteredLinks = [...prioritizedLinks, ...otherLinks];
+      filteredLinks = [...contentLinks, ...otherLinks];
     }
 
     return filteredLinks;
   }
 
   /**
-   * EXISTING: Groups links by domain for batch processing - NO CHANGES
+   * MAIN BRANCH: Group links by domain - PRESERVED
    */
   groupLinksByDomain(links) {
     const groups = {};
@@ -567,7 +661,7 @@ export class LinkExtractor {
   }
 
   /**
-   * NEW: Groups links by type for content page processing
+   * NEW: Group links by type for content page processing
    */
   groupLinksByType(links) {
     const groups = {
@@ -590,7 +684,7 @@ export class LinkExtractor {
   }
 
   /**
-   * NEW: Gets summary statistics for extracted links
+   * NEW: Get summary statistics for extracted links
    */
   getLinkSummary(links) {
     const summary = {
