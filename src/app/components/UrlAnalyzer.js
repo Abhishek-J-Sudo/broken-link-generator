@@ -124,7 +124,7 @@ export default function UrlAnalyzer({
         body: JSON.stringify({
           url,
           maxDepth: 3,
-          maxPages: 100,
+          maxPages: 500,
         }),
       });
 

@@ -206,7 +206,8 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
     api: [],
     other: [],
   };
-
+  const contentPages = [];
+  const allPages = [];
   let pagesProcessed = 0;
   let totalLinksFound = 0;
 
@@ -215,7 +216,21 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
 
   try {
     const extractionResult = extractLinksManually(homepageAnalysis.content, startUrl);
+    // NEW: Classify if this is a content page
+    const isContent = isContentPage(startUrl, homepageAnalysis.content, extractionResult);
+    if (isContent) {
+      contentPages.push({
+        url: startUrl,
+        title: extractPageTitle(homepageAnalysis.content),
+        linkCount: extractionResult.length,
+      });
+    }
 
+    allPages.push({
+      url: startUrl,
+      type: isContent ? 'content' : 'other',
+      title: extractPageTitle(homepageAnalysis.content),
+    });
     console.log(`🔗 PRODUCTION: Homepage extraction result: ${extractionResult.length} links`);
 
     extractionResult.forEach((link, index) => {
@@ -287,7 +302,7 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
 
   // Continue crawling other pages (limited for performance)
   let crawlCount = 0;
-  const maxAdditionalPages = Math.min(maxPages - 1, 20); // Limit additional crawling
+  const maxAdditionalPages = Math.min(maxPages - 1, 499); // Limit additional crawling
 
   while (pendingUrls.size > 0 && crawlCount < maxAdditionalPages) {
     console.log(
@@ -318,6 +333,21 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
       }
 
       const extractionResult = extractLinksManually(pageContent, currentUrl);
+
+      const isContent = isContentPage(currentUrl, pageContent, extractionResult);
+      if (isContent) {
+        contentPages.push({
+          url: currentUrl,
+          title: extractPageTitle(pageContent),
+          linkCount: extractionResult.length,
+        });
+      }
+
+      allPages.push({
+        url: currentUrl,
+        type: isContent ? 'content' : 'other',
+        title: extractPageTitle(pageContent),
+      });
 
       console.log(`🔗 PRODUCTION: Found ${extractionResult.length} links on ${currentUrl}`);
 
@@ -408,16 +438,55 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
   };
 
   return {
-    summary,
-    categories: urlCategories,
-    allPatterns: patterns,
+    summary: {
+      ...summary, // Keep all existing summary fields
+      contentPages: contentPages.length, // ADD: Count of content pages
+      filteredOut: allPages.length - contentPages.length, // ADD: Count of filtered pages
+    },
+    contentPages: contentPages, // ADD: Array of content pages
+    allPages: allPages, // ADD: Array of all pages discovered
+    categories: urlCategories, // KEEP: Existing categories for UI
+    allPatterns: patterns, // KEEP: Existing patterns for UI
     sampleUrls: {
+      // KEEP: Existing sample URLs for UI
       pages: urlCategories.pages.slice(0, 20),
       withParams: urlCategories.withParams.slice(0, 20),
       pagination: urlCategories.pagination.slice(0, 20),
       dates: urlCategories.dates.slice(0, 20),
     },
   };
+}
+
+function isContentPage(url, html, extractionResult) {
+  // Rule 1: URL-based filters (reject obvious junk)
+  if (
+    url.includes('/page/') ||
+    url.includes('/admin') ||
+    url.includes('wp-admin') ||
+    /\/\d{4}\/\d{2}\//.test(url) || // date archives like /2023/01/
+    url.includes('?page=') ||
+    url.includes('&page=')
+  ) {
+    return false;
+  }
+
+  // Rule 2: Content-based filters
+  const title = extractPageTitle(html);
+  if (!title || title.length < 10) return false;
+
+  // Rule 3: Must have reasonable content
+  if (!html || html.length < 2000) return false;
+
+  // Rule 4: Should have some links (but not too many like pagination)
+  const linkCount = extractionResult?.length || 0;
+  if (linkCount < 3 || linkCount > 200) return false;
+
+  return true;
+}
+
+function extractPageTitle(html) {
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  return titleMatch ? titleMatch[1].trim() : '';
 }
 
 function extractLinksManually(html, baseUrl) {
