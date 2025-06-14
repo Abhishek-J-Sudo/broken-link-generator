@@ -58,7 +58,7 @@ export async function POST(request) {
       return await handleValidationError(new Error('Analysis request validation failed'), request);
     }
 
-    const { url, maxDepth = 3, maxPages = 1000 } = requestValidation.data;
+    const { url, maxDepth = 3, maxPages = 300 } = requestValidation.data;
 
     console.log(
       `🔍 CONTENT DISCOVERY: Starting for ${url}, depth: ${maxDepth}, maxPages: ${maxPages}`

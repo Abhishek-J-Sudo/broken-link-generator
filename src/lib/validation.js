@@ -61,7 +61,7 @@ export const startCrawlSchema = z.object({
 export const analyzeUrlSchema = z.object({
   url: urlSchema,
   maxDepth: z.number().int().min(1).max(5).default(3),
-  maxPages: z.number().int().min(1).max(200).default(100),
+  maxPages: z.number().int().min(1).max(500).default(300),
 });
 
 // Job ID schema

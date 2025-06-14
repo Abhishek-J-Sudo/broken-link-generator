@@ -731,8 +731,8 @@ export const validateUtils = {
   validateCrawlSettings(settings) {
     const errors = [];
 
-    if (!settings.maxDepth || settings.maxDepth < 1 || settings.maxDepth > 10) {
-      errors.push('maxDepth must be between 1 and 10');
+    if (!settings.maxDepth || settings.maxDepth < 1 || settings.maxDepth > 5) {
+      errors.push('maxDepth must be between 1 and 5');
     }
 
     if (settings.timeout && (settings.timeout < 1000 || settings.timeout > 60000)) {
