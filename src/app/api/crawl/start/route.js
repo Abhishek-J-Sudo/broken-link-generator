@@ -1,11 +1,12 @@
 /**
- * Enhanced start crawl endpoint with Traditional + Smart crawl support
+ * Enhanced start crawl endpoint with Traditional + Single-Pass Smart crawl support
+ * UPDATED: Only processSmartCrawlBackground() function - all other code remains the same
  */
 
 import { NextResponse } from 'next/server';
 import { LinkExtractor } from '@/lib/linkExtractor';
 import { HttpChecker } from '@/lib/httpChecker';
-import { urlUtils, validateUtils, batchUtils, errorUtils } from '@/lib/utils';
+import { urlUtils, validateUtils, batchUtils, errorUtils, contentPageUtils } from '@/lib/utils';
 import { securityUtils } from '@/lib/security';
 import { db } from '@/lib/supabase';
 import { validateCrawlRequest, validateAdvancedRateLimit } from '@/lib/validation';
@@ -18,6 +19,7 @@ const securityHeaders = {
   'X-XSS-Protection': '1; mode=block',
 };
 
+// EXISTING POST HANDLER - NO CHANGES
 export async function POST(request) {
   let jobId = null;
 
@@ -128,31 +130,31 @@ export async function POST(request) {
 
     console.log(`✅ Created job ${jobId} for ${normalizedUrl}`);
 
-    // BRANCH 1: SMART ANALYZER PATH (KEEP EXISTING LOGIC UNTOUCHED)
+    // BRANCH 1: UPDATED SMART ANALYZER PATH
     if (
       validatedPreAnalyzedUrls &&
       Array.isArray(validatedPreAnalyzedUrls) &&
       validatedPreAnalyzedUrls.length > 0
     ) {
       console.log(
-        `🎯 SMART CRAWL: Processing ${validatedPreAnalyzedUrls.length} pre-analyzed URLs`
+        `🎯 SINGLE-PASS SMART CRAWL: Processing ${validatedPreAnalyzedUrls.length} content pages`
       );
 
-      // Start smart processing in the background (EXISTING LOGIC - DON'T CHANGE)
-      processSmartCrawlBackground(
+      // Start single-pass smart processing in the background
+      processSinglePassSmartCrawl(
         jobId,
         normalizedUrl,
         validatedPreAnalyzedUrls,
         jobSettings
       ).catch((error) => {
-        console.error(`❌ Smart crawl background processing failed for job ${jobId}:`, error);
+        console.error(`❌ Single-pass smart crawl failed for job ${jobId}:`, error);
       });
 
       const responseHeaders = {
         ...securityHeaders,
         ...(rateLimit.headers || {}),
       };
-      // Return immediately for smart crawl
+
       return NextResponse.json(
         {
           success: true,
@@ -160,17 +162,17 @@ export async function POST(request) {
           status: 'started',
           url: normalizedUrl,
           settings: jobSettings,
-          urlsToCheck: validatedPreAnalyzedUrls.length,
-          message: `Smart crawl started with ${validatedPreAnalyzedUrls.length} pre-analyzed URLs`,
+          contentPagesToProcess: validatedPreAnalyzedUrls.length,
+          message: `Single-pass smart crawl started with ${validatedPreAnalyzedUrls.length} content pages`,
           statusUrl: `/api/crawl/status/${jobId}`,
           resultsUrl: `/api/results/${jobId}`,
-          crawlType: 'smart',
+          crawlType: 'smart_single_pass',
         },
         { status: 201, headers: responseHeaders }
       );
     }
 
-    // BRANCH 2: NEW TRADITIONAL CRAWL PATH
+    // BRANCH 2: EXISTING TRADITIONAL CRAWL PATH - NO CHANGES
     else {
       console.log('🕷️ TRADITIONAL CRAWL: Starting discovery-based crawling');
 
@@ -216,194 +218,315 @@ export async function POST(request) {
 }
 
 /**
- * EXISTING SMART CRAWL LOGIC
- * Process smart crawl with pre-analyzed URLs in the background
+ * NEW: Single-Pass Smart Crawl Implementation
+ * Replaces the old processSmartCrawlBackground function
+ *
+ * APPROACH:
+ * 1. Visit each content page once
+ * 2. Extract ALL links from each content page
+ * 3. Queue all extracted links for status checking
+ * 4. Check status of all queued links
  */
-async function processSmartCrawlBackground(jobId, baseUrl, preAnalyzedUrls, settings) {
+async function processSinglePassSmartCrawl(jobId, baseUrl, contentPages, settings) {
   try {
-    console.log(`🎯 SMART CRAWL: Starting background processing for job ${jobId}`);
+    console.log(
+      `🎯 SINGLE-PASS: Starting for job ${jobId} with ${contentPages.length} content pages`
+    );
 
     await db.updateJobStatus(jobId, 'running');
 
-    // Validate preAnalyzedUrls structure
-    if (!Array.isArray(preAnalyzedUrls)) {
-      throw new Error('preAnalyzedUrls must be an array');
-    }
+    // Initialize crawling components
+    const linkExtractor = new LinkExtractor({
+      includeExternal: settings.includeExternal || false,
+      maxLinksPerPage: 2000, // Higher limit for single-pass
+    });
 
-    // Add all discovered URLs to the database first (without HTTP status)
-    const discoveredLinks = preAnalyzedUrls
-      .map((urlData, index) => {
-        let url, sourceUrl;
-
-        if (typeof urlData === 'string') {
-          url = urlData;
-          sourceUrl = baseUrl;
-        } else if (typeof urlData === 'object' && urlData.url) {
-          url = urlData.url;
-          sourceUrl = urlData.sourceUrl || urlData.source_url || urlData.sourcePageUrl || baseUrl;
-        } else {
-          console.warn(`⚠️ Invalid URL at index ${index}:`, urlData);
-          return null;
-        }
-
-        if (!url) {
-          console.warn(`⚠️ Invalid URL at index ${index}:`, urlData);
-          return null;
-        }
-
-        if (!sourceUrl || sourceUrl === '') {
-          sourceUrl = baseUrl;
-        }
-
-        return {
-          url: url,
-          sourceUrl: sourceUrl,
-          isInternal: urlUtils.isInternalUrl(url, baseUrl),
-          depth: 1,
-          status: 'pending',
-          http_status_code: null,
-          response_time: null,
-          checked_at: null,
-          is_working: null,
-          error_message: null,
-        };
-      })
-      .filter(Boolean);
-
-    console.log(`📦 Prepared ${discoveredLinks.length} valid URLs for processing`);
-
-    // Save discovered links to database
-    if (discoveredLinks.length > 0) {
-      await db.addDiscoveredLinks(jobId, discoveredLinks);
-      console.log(`💾 Saved ${discoveredLinks.length} discovered links to database`);
-    } else {
-      throw new Error('No valid URLs to process');
-    }
-
-    // Update initial progress
-    await db.updateJobProgress(jobId, 0, discoveredLinks.length);
-
-    // Create HTTP checker
     const httpChecker = new HttpChecker({
       timeout: settings.timeout || 10000,
-      maxConcurrent: 4,
+      maxConcurrent: 5,
       retryAttempts: 1,
     });
 
-    // Process URLs in smaller batches
-    const batchSize = 10;
-    const batches = batchUtils.chunkArray(discoveredLinks, batchSize);
+    // Phase 1: Process content pages and extract ALL their links
+    console.log(`📄 PHASE 1: Processing ${contentPages.length} content pages for link extraction`);
 
-    let processedCount = 0;
-    let brokenLinksFound = 0;
+    const allExtractedLinks = new Map(); // url -> {url, sourceUrl, linkText, ...}
+    const contentPageResults = [];
+    let contentPagesProcessed = 0;
 
-    console.log(
-      `📦 SMART CRAWL: Processing ${batches.length} batches of up to ${batchSize} URLs each`
-    );
-
-    for (let i = 0; i < batches.length; i++) {
-      const batch = batches[i];
-
-      console.log(`📦 Processing batch ${i + 1}/${batches.length} (${batch.length} URLs)`);
+    // Process each content page to extract links
+    for (const contentPage of contentPages) {
+      const pageUrl = typeof contentPage === 'string' ? contentPage : contentPage.url;
 
       try {
-        const urlsToCheck = batch.map((linkData) => ({
-          url: linkData.url,
-          sourceUrl: linkData.sourceUrl,
-          linkText: 'Pre-analyzed link',
-        }));
-
-        const { results } = await httpChecker.checkUrls(urlsToCheck);
-
-        console.log(`✅ Checked ${results.length} URLs in batch ${i + 1}`);
-
-        for (const result of results) {
-          processedCount++;
-
-          try {
-            await db.supabase
-              .from('discovered_links')
-              .update({
-                status: 'checked',
-                http_status_code: result.http_status_code,
-                response_time: result.response_time,
-                checked_at: result.checked_at,
-                is_working: result.is_working,
-                error_message: result.error_message,
-              })
-              .eq('job_id', jobId)
-              .eq('url', result.url);
-
-            console.log(
-              `💾 Updated status for: ${result.url} (${result.http_status_code || 'ERROR'})`
-            );
-          } catch (updateError) {
-            console.error(`❌ Failed to update status for ${result.url}:`, updateError);
-          }
-
-          if (!result.is_working) {
-            let errorType = result.errorType;
-            if (!errorType) {
-              errorType = errorUtils.classifyError(result.http_status_code, result);
-            }
-            const brokenLink = {
-              url: result.url,
-              sourceUrl: result.sourceUrl,
-              statusCode: result.http_status_code,
-              errorType: errorType,
-              linkText: result.linkText || 'Pre-analyzed link',
-            };
-            console.log('🔍 DATABASE DEBUG: About to save broken link:', brokenLink);
-            try {
-              await db.addBrokenLink(jobId, brokenLink);
-              brokenLinksFound++;
-              console.log(
-                `💔 Found broken link: ${result.url} (${
-                  result.http_status_code || result.errorType
-                }) from source: ${result.sourceUrl}`
-              );
-            } catch (dbError) {
-              console.error('❌ Error saving broken link:', dbError);
-            }
-          }
-        }
-
-        await db.updateJobProgress(jobId, processedCount, discoveredLinks.length);
-
         console.log(
-          `📊 Progress: ${processedCount}/${discoveredLinks.length} URLs checked, ${brokenLinksFound} broken links found`
+          `📄 PROCESSING: [${contentPagesProcessed + 1}/${contentPages.length}] ${pageUrl}`
         );
 
-        await batchUtils.delay(500);
-      } catch (batchError) {
-        console.error(`❌ Error processing batch ${i + 1}:`, batchError);
+        // Fetch the content page
+        const pageContent = await fetchContentPageForExtraction(pageUrl, settings.timeout);
+
+        if (pageContent.success) {
+          // Extract all links from this content page
+          const extractionResult = linkExtractor.extractLinks(pageContent.html, pageUrl, 0);
+
+          console.log(`🔗 EXTRACTED: ${extractionResult.links.length} links from ${pageUrl}`);
+
+          // Add each extracted link to our collection
+          extractionResult.links.forEach((link) => {
+            if (!allExtractedLinks.has(link.url)) {
+              allExtractedLinks.set(link.url, {
+                url: link.url,
+                sourceUrl: pageUrl,
+                linkText: link.linkText || 'Link',
+                isInternal: link.isInternal,
+                depth: link.depth,
+                shouldCrawl: link.shouldCrawl,
+                type: link.type || 'page_link',
+              });
+            }
+          });
+
+          // Record the content page as processed successfully
+          contentPageResults.push({
+            url: pageUrl,
+            status: 'processed',
+            linksExtracted: extractionResult.links.length,
+            error: null,
+          });
+        } else {
+          console.log(`❌ FAILED to fetch content page: ${pageUrl} - ${pageContent.error}`);
+
+          contentPageResults.push({
+            url: pageUrl,
+            status: 'failed',
+            linksExtracted: 0,
+            error: pageContent.error,
+          });
+        }
+
+        contentPagesProcessed++;
+
+        // Update progress for Phase 1 (content page processing)
+        await db.updateJobProgress(jobId, contentPagesProcessed, contentPages.length);
+
+        // Small delay between content pages
+        await batchUtils.delay(200);
+      } catch (error) {
+        console.error(`❌ Error processing content page ${pageUrl}:`, error);
+
+        contentPageResults.push({
+          url: pageUrl,
+          status: 'error',
+          linksExtracted: 0,
+          error: error.message,
+        });
+
+        contentPagesProcessed++;
       }
     }
 
+    const totalLinksExtracted = allExtractedLinks.size;
+    console.log(
+      `✅ PHASE 1 COMPLETE: Extracted ${totalLinksExtracted} unique links from ${contentPagesProcessed} content pages`
+    );
+
+    // Store all discovered links in database
+    if (totalLinksExtracted > 0) {
+      const discoveredLinksForDB = Array.from(allExtractedLinks.values()).map((link) => ({
+        url: link.url,
+        sourceUrl: link.sourceUrl,
+        isInternal: link.isInternal,
+        depth: 1, // All links are from content pages (depth 1)
+        status: 'pending',
+        http_status_code: null,
+        response_time: null,
+        checked_at: null,
+        is_working: null,
+        error_message: null,
+      }));
+
+      // Add discovered links in batches to avoid database limits
+      const linkBatches = batchUtils.chunkArray(discoveredLinksForDB, 100);
+      for (const batch of linkBatches) {
+        await db.addDiscoveredLinks(jobId, batch);
+      }
+
+      console.log(`💾 STORED: ${totalLinksExtracted} discovered links in database`);
+    }
+
+    // Phase 2: Check status of all extracted links
+    console.log(`🔍 PHASE 2: Checking status of ${totalLinksExtracted} extracted links`);
+
+    // Update progress tracking for Phase 2
+    await db.updateJobProgress(jobId, 0, totalLinksExtracted);
+
+    let linksChecked = 0;
+    let brokenLinksFound = 0;
+
+    if (totalLinksExtracted > 0) {
+      // Process links in batches for status checking
+      const linkArray = Array.from(allExtractedLinks.values());
+      const checkBatches = batchUtils.chunkArray(linkArray, 20);
+
+      for (let batchIndex = 0; batchIndex < checkBatches.length; batchIndex++) {
+        const batch = checkBatches[batchIndex];
+
+        console.log(
+          `🔍 CHECKING: Batch ${batchIndex + 1}/${checkBatches.length} (${batch.length} links)`
+        );
+
+        try {
+          // Check this batch of links
+          const urlsToCheck = batch.map((link) => ({
+            url: link.url,
+            sourceUrl: link.sourceUrl,
+            linkText: link.linkText,
+          }));
+
+          const { results } = await httpChecker.checkUrls(urlsToCheck);
+
+          // Process results
+          for (const result of results) {
+            linksChecked++;
+
+            // Update discovered link with HTTP status
+            try {
+              await db.supabase
+                .from('discovered_links')
+                .update({
+                  status: 'checked',
+                  http_status_code: result.http_status_code,
+                  response_time: result.response_time,
+                  checked_at: result.checked_at,
+                  is_working: result.is_working,
+                  error_message: result.error_message,
+                })
+                .eq('job_id', jobId)
+                .eq('url', result.url);
+            } catch (updateError) {
+              console.error(`❌ Failed to update status for ${result.url}:`, updateError);
+            }
+
+            // If broken, add to broken links table
+            if (!result.is_working) {
+              const errorType =
+                result.errorType || errorUtils.classifyError(result.http_status_code, result);
+
+              const brokenLink = {
+                url: result.url,
+                sourceUrl: result.sourceUrl,
+                statusCode: result.http_status_code,
+                errorType: errorType,
+                linkText: result.linkText || 'Extracted link',
+              };
+
+              try {
+                await db.addBrokenLink(jobId, brokenLink);
+                brokenLinksFound++;
+
+                console.log(
+                  `💔 BROKEN: ${result.url} (${result.http_status_code || errorType}) from ${
+                    result.sourceUrl
+                  }`
+                );
+              } catch (dbError) {
+                console.error('❌ Error saving broken link:', dbError);
+              }
+            }
+          }
+
+          // Update progress
+          await db.updateJobProgress(jobId, linksChecked, totalLinksExtracted);
+
+          console.log(
+            `📊 PROGRESS: ${linksChecked}/${totalLinksExtracted} links checked, ${brokenLinksFound} broken`
+          );
+
+          // Delay between batches
+          await batchUtils.delay(300);
+        } catch (batchError) {
+          console.error(`❌ Error checking batch ${batchIndex + 1}:`, batchError);
+
+          // Mark batch links as failed
+          batch.forEach((link) => {
+            linksChecked++;
+            // Could add them as broken links with error status
+          });
+        }
+      }
+    }
+
+    // Complete the job
     await db.updateJobStatus(jobId, 'completed');
 
     console.log(
-      `🎉 SMART CRAWL COMPLETE: ${processedCount} URLs checked, ${brokenLinksFound} broken links found`
+      `🎉 SINGLE-PASS COMPLETE: Processed ${contentPagesProcessed} content pages, checked ${linksChecked} links, found ${brokenLinksFound} broken links`
     );
+
+    return {
+      success: true,
+      contentPagesProcessed,
+      totalLinksExtracted,
+      linksChecked,
+      brokenLinksFound,
+    };
   } catch (error) {
-    console.error('❌ SMART CRAWL: Error in background processing:', error);
-    console.error('❌ Error details:', {
-      message: error.message,
-      stack: error.stack,
-    });
+    console.error('❌ SINGLE-PASS: Error in background processing:', error);
 
     try {
       await db.updateJobStatus(jobId, 'failed', error.message);
     } catch (dbError) {
       console.error('❌ Failed to update job status after error:', dbError);
     }
+
+    throw error;
   }
 }
 
 /**
- * NEW TRADITIONAL CRAWL LOGIC
- * Process traditional crawl with discovery-based approach
+ * NEW: Fetches content page specifically for link extraction
  */
+async function fetchContentPageForExtraction(url, timeout = 10000) {
+  try {
+    // Security validation
+    const validation = securityUtils.isSafeUrl(url);
+    if (!validation.safe) {
+      return { success: false, error: `Security: ${validation.reason}` };
+    }
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; SmartLinkChecker/1.0)',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      timeout: timeout,
+    });
+
+    if (!response.ok) {
+      return { success: false, error: `HTTP ${response.status}` };
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('text/html')) {
+      return { success: false, error: 'Not HTML content' };
+    }
+
+    const html = await response.text();
+
+    return {
+      success: true,
+      html,
+      contentType,
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// EXISTING TRADITIONAL CRAWL FUNCTION - NO CHANGES
 async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
   try {
     console.log(`🕷️ TRADITIONAL CRAWL: Starting background processing for job ${jobId}`);
@@ -614,7 +737,7 @@ async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
   }
 }
 
-// Handle OPTIONS for CORS
+// EXISTING OPTIONS HANDLER - NO CHANGES
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,

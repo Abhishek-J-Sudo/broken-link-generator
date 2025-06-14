@@ -21,7 +21,7 @@ export default function LargeCrawlForm({
   const [currentPhase, setCurrentPhase] = useState('');
   const router = useRouter();
 
-  // Pre-populate form if coming from analyzer
+  // EXISTING useEffect - NO CHANGES
   useEffect(() => {
     if (isFromAnalyzer && analyzedData) {
       setFormData((prev) => ({
@@ -33,13 +33,25 @@ export default function LargeCrawlForm({
     }
   }, [isFromAnalyzer, analyzedData]);
 
+  // UPDATED: Enhanced size estimation with content page support
   const estimateSize = () => {
     if (formData.useAnalyzedData && analyzedData) {
-      const urlCount = analyzedData.discoveredUrls?.length || 0;
-      if (urlCount < 50) return `Small (${urlCount} URLs from analysis)`;
-      if (urlCount < 200) return `Medium (${urlCount} URLs from analysis)`;
-      if (urlCount < 500) return `Large (${urlCount} URLs from analysis)`;
-      return `Very Large (${urlCount} URLs from analysis)`;
+      // NEW: Support both old and new data structures
+      let urlCount = 0;
+
+      // New format: contentPages array
+      if (analyzedData.contentPages && Array.isArray(analyzedData.contentPages)) {
+        urlCount = analyzedData.contentPages.length;
+      }
+      // Old format: discoveredUrls array (fallback)
+      else if (analyzedData.discoveredUrls && Array.isArray(analyzedData.discoveredUrls)) {
+        urlCount = analyzedData.discoveredUrls.length;
+      }
+
+      if (urlCount < 50) return `Small (${urlCount} content pages from analysis)`;
+      if (urlCount < 200) return `Medium (${urlCount} content pages from analysis)`;
+      if (urlCount < 500) return `Large (${urlCount} content pages from analysis)`;
+      return `Very Large (${urlCount} content pages from analysis)`;
     }
 
     const depth = parseInt(formData.maxDepth);
@@ -49,13 +61,24 @@ export default function LargeCrawlForm({
     return 'Very Large (1500+ pages)';
   };
 
+  // UPDATED: Enhanced large mode detection
   const shouldUseLargeMode = () => {
     if (formData.useAnalyzedData && analyzedData) {
-      return (analyzedData.discoveredUrls?.length || 0) > 200;
+      // NEW: Check content pages count
+      let contentPageCount = 0;
+
+      if (analyzedData.contentPages && Array.isArray(analyzedData.contentPages)) {
+        contentPageCount = analyzedData.contentPages.length;
+      } else if (analyzedData.discoveredUrls && Array.isArray(analyzedData.discoveredUrls)) {
+        contentPageCount = analyzedData.discoveredUrls.length;
+      }
+
+      return contentPageCount > 200;
     }
-    return false; // Traditional crawl never uses large mode
+    return false;
   };
 
+  // EXISTING handleSubmit function with UPDATED data preparation
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -68,7 +91,9 @@ export default function LargeCrawlForm({
       const endpoint = shouldUseLargeMode() ? '/api/crawl/large' : '/api/crawl/start';
 
       setCurrentPhase(
-        formData.useAnalyzedData ? 'Using analyzed data for smart crawling...' : 'Starting crawl...'
+        formData.useAnalyzedData
+          ? 'Using discovered content pages for smart crawling...'
+          : 'Starting crawl...'
       );
 
       const requestBody = {
@@ -81,17 +106,45 @@ export default function LargeCrawlForm({
         action: 'start',
       };
 
+      // UPDATED: Handle both new and old analyzed data formats
       if (formData.useAnalyzedData && analyzedData) {
-        requestBody.analyzedData = {
-          discoveredUrls: analyzedData.discoveredUrls,
-          focusType: analyzedData.focusType,
-          categories: analyzedData.categories,
-          sourceAnalysis: true,
-        };
+        // NEW: Support content pages format
+        if (analyzedData.contentPages && Array.isArray(analyzedData.contentPages)) {
+          requestBody.analyzedData = {
+            contentPages: analyzedData.contentPages,
+            focusType: 'content',
+            sourceAnalysis: true,
+            totalPagesFound:
+              analyzedData.summary?.totalPagesFound || analyzedData.contentPages.length,
+            filteredOut: analyzedData.summary?.filteredOut || 0,
+          };
 
-        setCurrentPhase(
-          `Processing ${analyzedData.discoveredUrls?.length || 0} pre-analyzed URLs...`
-        );
+          // Convert content pages to preAnalyzedUrls format for crawl start
+          requestBody.preAnalyzedUrls = analyzedData.contentPages.map((page) => ({
+            url: page.url,
+            sourceUrl: page.sourceUrl || formData.url,
+            category: 'content',
+            title: page.title,
+            score: page.score,
+          }));
+
+          setCurrentPhase(
+            `Processing ${analyzedData.contentPages.length} discovered content pages...`
+          );
+        }
+        // OLD: Fallback to legacy format
+        else if (analyzedData.discoveredUrls && Array.isArray(analyzedData.discoveredUrls)) {
+          requestBody.analyzedData = {
+            discoveredUrls: analyzedData.discoveredUrls,
+            focusType: analyzedData.focusType || 'content',
+            categories: analyzedData.categories,
+            sourceAnalysis: true,
+          };
+
+          requestBody.preAnalyzedUrls = analyzedData.discoveredUrls;
+
+          setCurrentPhase(`Processing ${analyzedData.discoveredUrls.length} pre-analyzed URLs...`);
+        }
       }
 
       const response = await fetch(endpoint, {
@@ -148,6 +201,7 @@ export default function LargeCrawlForm({
     }
   };
 
+  // EXISTING handleInputChange - NO CHANGES
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -159,9 +213,6 @@ export default function LargeCrawlForm({
   return (
     <div className="w-full p-6 bg-white rounded-lg shadow-lg">
       <div className="mb-6">
-        {/* <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          {isFromAnalyzer ? '🎯 Smart Broken Link Checker' : '🔗 Broken Link Checker'}
-        </h1> */}
         <div className="mb-0">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">🔗 Broken Link Checker</h2>
           <p className="text-gray-600">
@@ -172,13 +223,14 @@ export default function LargeCrawlForm({
             </Link>{' '}
             instead.
             {isFromAnalyzer
-              ? 'Ready to check the URLs discovered by the analyzer for broken links.'
+              ? 'Ready to check the content pages discovered by the analyzer for broken links.'
               : 'Optimized for both small and large websites. Can handle 1000+ pages efficiently.'}
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* EXISTING URL input - NO CHANGES */}
         <div>
           <label htmlFor="url" className="block text-sm font-medium text-gray-700 mb-2">
             Website URL *
@@ -201,6 +253,7 @@ export default function LargeCrawlForm({
           )}
         </div>
 
+        {/* UPDATED: Smart analyzer data section */}
         {isFromAnalyzer && analyzedData && (
           <div className="border-t pt-6">
             <div className="flex items-center">
@@ -214,32 +267,59 @@ export default function LargeCrawlForm({
               />
               <label htmlFor="useAnalyzedData" className="ml-2 block text-sm text-gray-700">
                 <strong>
-                  Use pre-analyzed URLs ({analyzedData.discoveredUrls?.length || 0} URLs)
+                  Use discovered content pages ({/* UPDATED: Support both data formats */}
+                  {analyzedData.contentPages?.length ||
+                    analyzedData.discoveredUrls?.length ||
+                    0}{' '}
+                  pages)
                 </strong>
               </label>
             </div>
             <p className="mt-1 text-sm text-gray-500">
-              Skip discovery phase and directly check the URLs found by the analyzer. This is much
-              faster and more focused.
+              Skip discovery phase and directly check the content pages found by the smart analyzer.
+              This is much faster and more focused on meaningful content.
             </p>
 
             {formData.useAnalyzedData && (
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
                 <h4 className="text-sm font-medium text-blue-900">What will be checked:</h4>
-                <ul className="text-sm text-blue-700 mt-1 space-y-1">
-                  {Object.entries(analyzedData.categories || {})
-                    .filter(([, count]) => count > 0)
-                    .map(([category, count]) => (
-                      <li key={category}>
-                        • {count} {category.replace(/([A-Z])/g, ' $1').toLowerCase()}
-                      </li>
-                    ))}
-                </ul>
+
+                {/* NEW: Display content pages info */}
+                {analyzedData.contentPages && Array.isArray(analyzedData.contentPages) ? (
+                  <div className="text-sm text-blue-700 mt-1 space-y-1">
+                    <div>• {analyzedData.contentPages.length} high-quality content pages</div>
+                    {analyzedData.summary?.filteredOut > 0 && (
+                      <div>• {analyzedData.summary.filteredOut} non-content pages filtered out</div>
+                    )}
+                    {analyzedData.discoveryStats?.averageContentScore && (
+                      <div>
+                        • Average content quality:{' '}
+                        {(analyzedData.discoveryStats.averageContentScore * 100).toFixed(0)}%
+                      </div>
+                    )}
+                    <div className="mt-2 text-xs text-blue-600">
+                      <strong>Smart Focus:</strong> Only checking pages identified as meaningful
+                      content, skipping pagination, admin pages, and other non-content URLs.
+                    </div>
+                  </div>
+                ) : (
+                  /* FALLBACK: Legacy format display */
+                  <ul className="text-sm text-blue-700 mt-1 space-y-1">
+                    {Object.entries(analyzedData.categories || {})
+                      .filter(([, count]) => count > 0)
+                      .map(([category, count]) => (
+                        <li key={category}>
+                          • {count} {category.replace(/([A-Z])/g, ' $1').toLowerCase()}
+                        </li>
+                      ))}
+                  </ul>
+                )}
               </div>
             )}
           </div>
         )}
 
+        {/* EXISTING traditional crawl settings - NO CHANGES */}
         {!formData.useAnalyzedData && (
           <div className="border-t pt-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Crawl Settings</h3>
@@ -287,6 +367,7 @@ export default function LargeCrawlForm({
           </div>
         )}
 
+        {/* UPDATED: Smart crawl mode info */}
         {formData.useAnalyzedData && analyzedData && (
           <div className="bg-green-50 border border-green-200 rounded-md p-4">
             <div className="flex">
@@ -300,21 +381,21 @@ export default function LargeCrawlForm({
                 </svg>
               </div>
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-green-800">Smart Crawl Mode</h3>
+                <h3 className="text-sm font-medium text-green-800">Single-Pass Smart Crawl Mode</h3>
                 <div className="mt-2 text-sm text-green-700">
-                  <p>Using pre-analyzed data for faster, focused checking:</p>
+                  <p>Using content pages discovered by smart analyzer:</p>
                   <ul className="list-disc list-inside mt-1 space-y-1">
                     <li>Skip URL discovery phase entirely</li>
                     <li>
-                      Check only the {analyzedData.discoveredUrls?.length || 0} URLs already found
+                      Process only the {/* UPDATED: Support both formats */}
+                      {analyzedData.contentPages?.length ||
+                        analyzedData.discoveredUrls?.length ||
+                        0}{' '}
+                      content pages already found
                     </li>
-                    <li>
-                      Focus on{' '}
-                      {analyzedData.focusType === 'content'
-                        ? 'content pages'
-                        : 'all discovered URLs'}
-                    </li>
+                    <li>Extract and check ALL links from each content page</li>
                     <li>Much faster than traditional crawling</li>
+                    <li>Focus on high-quality content only</li>
                   </ul>
                 </div>
               </div>
@@ -322,6 +403,7 @@ export default function LargeCrawlForm({
           </div>
         )}
 
+        {/* EXISTING error display - NO CHANGES */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-md p-4">
             <div className="flex">
@@ -342,6 +424,7 @@ export default function LargeCrawlForm({
           </div>
         )}
 
+        {/* EXISTING loading state - NO CHANGES */}
         {isLoading && currentPhase && (
           <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
             <div className="flex items-center">
@@ -370,6 +453,7 @@ export default function LargeCrawlForm({
           </div>
         )}
 
+        {/* EXISTING submit button - NO CHANGES */}
         <div>
           <button
             type="submit"
@@ -411,35 +495,7 @@ export default function LargeCrawlForm({
         </div>
       </form>
 
-      {/* <div className="mt-8 p-4 bg-gray-50 rounded-md">
-        <h3 className="text-sm font-medium text-gray-900 mb-2">Expected Performance</h3>
-        <div className="text-xs text-gray-600 space-y-1">
-          {formData.useAnalyzedData && analyzedData ? (
-            <>
-              <div>• Smart mode: {analyzedData.discoveredUrls?.length || 0} pre-analyzed URLs</div>
-              <div>
-                • Estimated time: {Math.ceil((analyzedData.discoveredUrls?.length || 0) / 10)} -{' '}
-                {Math.ceil((analyzedData.discoveredUrls?.length || 0) / 5)} minutes
-              </div>
-              <div>
-                • Focus:{' '}
-                {analyzedData.focusType === 'content'
-                  ? 'Content pages only'
-                  : 'All discovered URLs'}
-              </div>
-              <div>• No discovery phase needed - direct link checking</div>
-            </>
-          ) : (
-            <>
-              <div>• Small sites (depth 1-2): 2-10 minutes</div>
-              <div>• Medium sites (depth 3): 10-30 minutes</div>
-              <div>• Large sites (depth 4-5): 30-90 minutes</div>
-              <div>• Your 1300-page site: Approximately 45-75 minutes</div>
-            </>
-          )}
-        </div>
-      </div> */}
-
+      {/* EXISTING back link - NO CHANGES */}
       {!isFromAnalyzer && (
         <div className="mt-6 mb-5 text-center">
           <a href="/analyze" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
@@ -447,7 +503,8 @@ export default function LargeCrawlForm({
           </a>
         </div>
       )}
-      {/* Security Notice */}
+
+      {/* EXISTING security notice - NO CHANGES */}
       <SecurityNotice variant="compact" />
     </div>
   );
