@@ -30,6 +30,10 @@ export default function ResultsPage() {
   const [workingLinksData, setWorkingLinksData] = useState(null);
   const [pagesData, setPagesData] = useState(null);
 
+  //stop crawl
+  const [isStoppingCrawl, setIsStoppingCrawl] = useState(false);
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
+
   // Poll for status updates
   useEffect(() => {
     if (!jobId) return;
@@ -405,6 +409,36 @@ export default function ResultsPage() {
     }
   };
 
+  // ADD THIS NEW FUNCTION HERE:
+  const handleStopCrawl = async () => {
+    if (!jobId) return;
+
+    setIsStoppingCrawl(true);
+    setShowStopConfirm(false);
+
+    try {
+      const response = await fetch('/api/crawl/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: jobId }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setError('');
+        // Force refresh job status
+        window.location.reload();
+      } else {
+        throw new Error(result.error || 'Failed to stop crawl');
+      }
+    } catch (err) {
+      setError(`Failed to stop crawl: ${err.message}`);
+    } finally {
+      setIsStoppingCrawl(false);
+    }
+  };
+
   const getCurrentData = () => {
     return {
       broken: results,
@@ -503,6 +537,20 @@ export default function ResultsPage() {
             {/* Status Badge & Export Actions */}
             <div className="text-right">
               <div className="flex items-center space-x-3 mb-2">
+                {/* Stop Button - only show when running */}
+                {job?.status === 'running' && (
+                  <button
+                    onClick={() => setShowStopConfirm(true)}
+                    disabled={isStoppingCrawl}
+                    className={`px-3 py-1 text-sm rounded-md ${
+                      isStoppingCrawl
+                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                        : 'bg-red-600 text-white hover:bg-red-700'
+                    }`}
+                  >
+                    {isStoppingCrawl ? '⏳ Stopping...' : '🛑 Stop Crawl'}
+                  </button>
+                )}
                 {/* Export Buttons - only show when completed */}
                 {job?.status === 'completed' && getCurrentData() && (
                   <div className="flex space-x-2">
@@ -556,6 +604,34 @@ export default function ResultsPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Stop Confirmation Dialog */}
+        {showStopConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                🛑 Stop Crawl Confirmation
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to stop this crawl? You'll be able to see partial results for
+                links that have already been checked.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleStopCrawl}
+                  className="flex-1 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+                >
+                  Yes, Stop Crawl
+                </button>
+                <button
+                  onClick={() => setShowStopConfirm(false)}
+                  className="flex-1 bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Progress Section */}
         {job?.status === 'running' && (
           <div className="bg-white rounded-lg shadow-lg p-6 mb-8">

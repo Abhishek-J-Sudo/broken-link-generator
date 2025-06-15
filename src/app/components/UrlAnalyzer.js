@@ -27,6 +27,11 @@ export default function UrlAnalyzer({
   const scrollRef = useRef(null);
   const analysisScrollRef = useRef(null);
 
+  //stop crawl
+  const [isStoppingCrawl, setIsStoppingCrawl] = useState(false);
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [currentJobId, setCurrentJobId] = useState(null);
+
   // Auto-scroll to bottom when new crawl log entries are added
   useEffect(() => {
     if (scrollRef.current && crawlLog.length > 0) {
@@ -92,6 +97,42 @@ export default function UrlAnalyzer({
   const addCrawlLogEntry = (message, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
     setCrawlLog((prev) => [...prev, { message, type, timestamp }]);
+  };
+
+  const handleStopSmartCrawl = async () => {
+    if (!currentJobId) return;
+
+    setIsStoppingCrawl(true);
+    setShowStopConfirm(false);
+
+    try {
+      addCrawlLogEntry('🛑 Stopping crawl...', 'warning');
+
+      const response = await fetch('/api/crawl/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: currentJobId }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setCrawlStatus('stopped');
+        addCrawlLogEntry('✅ Crawl stopped successfully by user', 'success');
+        addCrawlLogEntry('📊 Redirecting to partial results...', 'info');
+
+        setTimeout(() => {
+          router.push(`/results/${currentJobId}`);
+        }, 2000);
+      } else {
+        throw new Error(result.error || 'Failed to stop crawl');
+      }
+    } catch (err) {
+      addCrawlLogEntry(`❌ Failed to stop: ${err.message}`, 'error');
+      setError(err.message);
+    } finally {
+      setIsStoppingCrawl(false);
+    }
   };
 
   const addLogEntry = (message, type = 'info') => {
@@ -264,6 +305,7 @@ export default function UrlAnalyzer({
       }
 
       const jobId = result.jobId;
+      setCurrentJobId(jobId);
       setCrawlStatus('running');
       addCrawlLogEntry(`✅ Crawl job created: ${jobId}`, 'success');
       addCrawlLogEntry(
@@ -907,27 +949,49 @@ export default function UrlAnalyzer({
               <div className="bg-white border border-gray-200 rounded-md p-6 mb-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-gray-900">🔍 Live Crawling Progress</h3>
-                  <span
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      crawlStatus === 'running'
-                        ? 'bg-blue-100 text-blue-800'
+                  <div className="flex items-center space-x-3">
+                    {/* Stop Button */}
+                    {crawlStatus === 'running' && (
+                      <button
+                        onClick={() => setShowStopConfirm(true)}
+                        disabled={isStoppingCrawl}
+                        className={`px-3 py-1 text-sm rounded-md ${
+                          isStoppingCrawl
+                            ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                            : 'bg-red-600 text-white hover:bg-red-700'
+                        }`}
+                      >
+                        {isStoppingCrawl ? '⏳ Stopping...' : '🛑 Stop'}
+                      </button>
+                    )}
+
+                    {/* Status Badge */}
+                    <span
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        crawlStatus === 'running'
+                          ? 'bg-blue-100 text-blue-800'
+                          : crawlStatus === 'completed'
+                          ? 'bg-green-100 text-green-800'
+                          : crawlStatus === 'failed'
+                          ? 'bg-red-100 text-red-800'
+                          : crawlStatus === 'stopped'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {crawlStatus === 'starting'
+                        ? 'Starting...'
+                        : crawlStatus === 'running'
+                        ? 'Running'
                         : crawlStatus === 'completed'
-                        ? 'bg-green-100 text-green-800'
+                        ? 'Completed'
                         : crawlStatus === 'failed'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}
-                  >
-                    {crawlStatus === 'starting'
-                      ? 'Starting...'
-                      : crawlStatus === 'running'
-                      ? 'Running'
-                      : crawlStatus === 'completed'
-                      ? 'Completed'
-                      : crawlStatus === 'failed'
-                      ? 'Failed'
-                      : 'Timeout'}
-                  </span>
+                        ? 'Failed'
+                        : crawlStatus === 'stopped'
+                        ? 'Stopped'
+                        : 'Timeout'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Progress Bar */}
@@ -1117,6 +1181,33 @@ export default function UrlAnalyzer({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Stop Confirmation Dialog */}
+      {showStopConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">🛑 Stop Smart Crawl?</h3>
+            <p className="text-gray-600 mb-6">
+              Stop the current crawl? You'll be redirected to see partial results for any links that
+              have already been processed.
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={handleStopSmartCrawl}
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+              >
+                Yes, Stop Crawl
+              </button>
+              <button
+                onClick={() => setShowStopConfirm(false)}
+                className="flex-1 bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+              >
+                Continue Crawling
+              </button>
+            </div>
           </div>
         </div>
       )}

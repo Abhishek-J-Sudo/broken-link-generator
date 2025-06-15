@@ -87,6 +87,23 @@ export const db = {
     return data;
   },
 
+  // NEW: Stop job function
+  async stopJob(jobId) {
+    const { data, error } = await supabase
+      .from('crawl_jobs')
+      .update({
+        status: 'failed',
+        error_message: 'Stopped by user',
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', jobId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
   async updateJobProgress(jobId, current, total) {
     const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
 

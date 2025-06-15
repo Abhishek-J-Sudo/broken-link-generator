@@ -560,6 +560,12 @@ async function checkLinksStatus(jobId, linksToCheck, settings) {
   console.log(`📦 Processing ${batches.length} batches of up to ${batchSize} URLs each`);
 
   for (let i = 0; i < batches.length; i++) {
+    // Check if job was stopped
+    const currentJob = await db.getJob(jobId);
+    if (currentJob.status === 'failed' && currentJob.error_message === 'Stopped by user') {
+      console.log(`🛑 STOP DETECTED: Job ${jobId} was stopped by user, exiting link checking`);
+      return; // Exit gracefully
+    }
     const batch = batches[i];
 
     console.log(`📦 Processing batch ${i + 1}/${batches.length} (${batch.length} URLs)`);
@@ -696,6 +702,13 @@ async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
 
     // Main crawling loop
     while (pendingUrls.size > 0 && totalProcessed < maxPages) {
+      // Check if job was stopped
+      const currentJob = await db.getJob(jobId);
+      if (currentJob.status === 'failed' && currentJob.error_message === 'Stopped by user') {
+        console.log(`🛑 STOP DETECTED: Traditional crawl job ${jobId} was stopped by user`);
+        return; // Exit gracefully
+      }
+
       // Get next batch of URLs to process
       const batchUrls = [];
       const batchSize = 5; // Small batches for traditional crawl
