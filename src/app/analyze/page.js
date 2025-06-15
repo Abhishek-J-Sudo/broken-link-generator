@@ -1,4 +1,4 @@
-// src/app/analyze/page.js - Unified page with analyzer + crawler
+// src/app/analyze/page.js - FIXED VERSION - Keep original UI structure with just data updates
 'use client';
 
 import { useState } from 'react';
@@ -25,17 +25,22 @@ export default function UnifiedAnalyzePage() {
     console.log('🚀 Starting crawl with focus:', focusType);
     setCurrentStep('crawl');
 
-    // The crawl data is already available in analysisData
+    // 🔥 UPDATED: Enhanced crawl data with new structure
     const crawlData = {
       sourceAnalysis: true,
       focusType: focusType,
+      // 🔥 NEW: Support both crawl modes
       discoveredUrls:
-        focusType === 'content'
-          ? analysisData.categories.pages.map((p) => p.url)
-          : Object.values(analysisData.categories)
-              .flat()
-              .map((item) => item.url),
+        focusType === 'content_pages'
+          ? analysisData.categories.pages.map((p) => ({
+              url: p.url,
+              sourceUrl: p.sourceUrl || analysisData.originalUrl,
+            }))
+          : focusType === 'discovered_links'
+          ? analysisData.discoveredLinks || []
+          : analysisData.categories.pages.map((p) => p.url), // Fallback for backward compatibility
       totalAnalyzed: analysisData.summary.totalUrls,
+      totalLinksFound: analysisData.summary.totalLinksFound || 0, // 🔥 NEW
       categories: analysisData.summary.categories,
       recommendations: analysisData.summary.recommendations,
       timestamp: Date.now(),
@@ -88,13 +93,14 @@ export default function UnifiedAnalyzePage() {
         {/* Step 2: Link Checking */}
         {currentStep === 'crawl' && analysisData && (
           <div className="space-y-6">
-            {/* Analysis Summary (Collapsed) */}
+            {/* 🔥 UPDATED: Enhanced Analysis Summary */}
             <div className="bg-white rounded-lg shadow-sm border p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-medium text-gray-900">Analysis Summary</h3>
                   <p className="text-sm text-gray-600">
                     Found {analysisData.summary.totalUrls} URLs,{' '}
+                    {analysisData.summary.totalLinksFound || 0} total links,{' '}
                     {analysisData.summary.categories.pages} content pages
                   </p>
                 </div>
@@ -107,19 +113,23 @@ export default function UnifiedAnalyzePage() {
               </div>
             </div>
 
-            {/* Smart Crawl Form */}
+            {/* 🔥 UPDATED: Smart Crawl Form with enhanced data */}
             <LargeCrawlForm
               onJobStarted={handleJobStarted}
               analyzedData={{
                 sourceAnalysis: true,
-                discoveredUrls: analysisData.categories.pages.map((p) => p.url),
+                // 🔥 NEW: Pass both content pages and discovered links
+                discoveredUrls:
+                  analysisData.discoveredLinks || analysisData.categories.pages.map((p) => p.url),
+                contentPages: analysisData.categories.pages, // For content pages mode
                 categories: analysisData.summary.categories,
-                focusType: 'content',
+                focusType: 'enhanced_modes', // 🔥 NEW: Indicate enhanced modes
                 originalUrl: analysisData.originalUrl,
+                totalLinksFound: analysisData.summary.totalLinksFound || 0, // 🔥 NEW
               }}
               isFromAnalyzer={true}
               onJobComplete={handleJobComplete}
-              embedded={true} // New prop to indicate embedded mode
+              embedded={true}
             />
           </div>
         )}
@@ -127,13 +137,17 @@ export default function UnifiedAnalyzePage() {
         {/* Step 3: Results */}
         {currentStep === 'results' && crawlResults && (
           <div className="space-y-6">
-            {/* Quick Actions */}
+            {/* 🔥 UPDATED: Enhanced completion summary */}
             <div className="bg-white rounded-lg shadow-sm border p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-medium text-gray-900">Link Check Complete</h3>
                   <p className="text-sm text-gray-600">
                     Found {crawlResults.brokenLinks?.length || 0} broken links
+                    {crawlResults.summary?.totalLinksChecked &&
+                      ` out of ${crawlResults.summary.totalLinksChecked} total links checked`}
+                    {crawlResults.summary?.successRate &&
+                      ` (${crawlResults.summary.successRate}% success rate)`}
                   </p>
                 </div>
                 <div className="flex space-x-3">

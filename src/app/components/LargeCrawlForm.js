@@ -68,7 +68,9 @@ export default function LargeCrawlForm({
       const endpoint = shouldUseLargeMode() ? '/api/crawl/large' : '/api/crawl/start';
 
       setCurrentPhase(
-        formData.useAnalyzedData ? 'Using analyzed data for smart crawling...' : 'Starting crawl...'
+        formData.useAnalyzedData
+          ? 'Starting enhanced smart crawl with analyzed data...'
+          : 'Starting crawl...'
       );
 
       const requestBody = {
@@ -90,7 +92,9 @@ export default function LargeCrawlForm({
         };
 
         setCurrentPhase(
-          `Processing ${analyzedData.discoveredUrls?.length || 0} pre-analyzed URLs...`
+          `Processing ${
+            analyzedData.discoveredUrls?.length || 0
+          } URLs using intelligent crawl modes...`
         );
       }
 
@@ -115,7 +119,7 @@ export default function LargeCrawlForm({
       }
 
       if (shouldUseLargeMode() && result.status === 'discovering') {
-        setCurrentPhase('Discovery complete! Starting link checks...');
+        setCurrentPhase('Enhanced crawl started! Processing with smart modes...');
 
         setTimeout(async () => {
           try {
@@ -172,7 +176,7 @@ export default function LargeCrawlForm({
             </Link>{' '}
             instead.
             {isFromAnalyzer
-              ? 'Ready to check the URLs discovered by the analyzer for broken links.'
+              ? 'Ready to check links using the enhanced modes: extract from content pages or check discovered links directly.'
               : 'Optimized for both small and large websites. Can handle 1000+ pages efficiently.'}
           </p>
         </div>
@@ -219,21 +223,25 @@ export default function LargeCrawlForm({
               </label>
             </div>
             <p className="mt-1 text-sm text-gray-500">
-              Skip discovery phase and directly check the URLs found by the analyzer. This is much
-              faster and more focused.
+              Use enhanced crawl modes: extract links from content pages (comprehensive) or check
+              pre-discovered links directly (faster).
             </p>
 
             {formData.useAnalyzedData && (
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                <h4 className="text-sm font-medium text-blue-900">What will be checked:</h4>
+                <h4 className="text-sm font-medium text-blue-900">
+                  Enhanced crawl options available:
+                </h4>
                 <ul className="text-sm text-blue-700 mt-1 space-y-1">
-                  {Object.entries(analyzedData.categories || {})
-                    .filter(([, count]) => count > 0)
-                    .map(([category, count]) => (
-                      <li key={category}>
-                        • {count} {category.replace(/([A-Z])/g, ' $1').toLowerCase()}
-                      </li>
-                    ))}
+                  <li>
+                    • Content Pages Mode: Extract links from {analyzedData.categories?.pages || 0}{' '}
+                    content pages
+                  </li>
+                  <li>
+                    • Discovered Links Mode: Check {analyzedData.discoveredUrls?.length || 0}{' '}
+                    pre-found links directly
+                  </li>
+                  <li>• Smart filtering automatically applied</li>
                 </ul>
               </div>
             )}
@@ -300,21 +308,20 @@ export default function LargeCrawlForm({
                 </svg>
               </div>
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-green-800">Smart Crawl Mode</h3>
+                <h3 className="text-sm font-medium text-green-800">Enhanced Smart Crawl Mode</h3>
                 <div className="mt-2 text-sm text-green-700">
-                  <p>Using pre-analyzed data for faster, focused checking:</p>
+                  <p>Two intelligent crawl modes available:</p>
                   <ul className="list-disc list-inside mt-1 space-y-1">
-                    <li>Skip URL discovery phase entirely</li>
                     <li>
-                      Check only the {analyzedData.discoveredUrls?.length || 0} URLs already found
+                      <strong>Content Pages:</strong> Visit {analyzedData.categories?.pages || 0}{' '}
+                      pages → extract + check all their links
                     </li>
                     <li>
-                      Focus on{' '}
-                      {analyzedData.focusType === 'content'
-                        ? 'content pages'
-                        : 'all discovered URLs'}
+                      <strong>Discovered Links:</strong> Check{' '}
+                      {analyzedData.discoveredUrls?.length || 0} pre-found links directly
                     </li>
-                    <li>Much faster than traditional crawling</li>
+                    <li>Smart filtering and progress tracking included</li>
+                    <li>Much more efficient than traditional crawling</li>
                   </ul>
                 </div>
               </div>
@@ -405,7 +412,7 @@ export default function LargeCrawlForm({
                 {currentPhase || 'Processing...'}
               </>
             ) : (
-              `Start ${formData.useAnalyzedData ? 'Smart ' : ''}Link Check`
+              `Start ${formData.useAnalyzedData ? 'Enhanced Smart ' : ''}Link Check`
             )}
           </button>
         </div>

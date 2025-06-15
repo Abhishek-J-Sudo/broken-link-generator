@@ -1,5 +1,5 @@
 /**
- * PRODUCTION URL ANALYZER - Fixed version with manual link extraction
+ * PRODUCTION URL ANALYZER - Updated version with increased crawl limit
  * Replace /src/app/api/analyze/route.js with this version
  */
 
@@ -94,7 +94,11 @@ export async function POST(request) {
 
     const analysis = await analyzeUrlsSmart(url, maxDepth, maxPages);
 
-    console.log(`✅ PRODUCTION: Analysis complete: ${analysis.summary.totalUrls} URLs found`);
+    console.log(
+      `✅ PRODUCTION: Analysis complete: ${analysis.summary.totalUrls} URLs found, ${
+        analysis.summary.totalLinksFound || 'N/A'
+      } total links discovered`
+    );
 
     return NextResponse.json(analysis, { headers: securityHeaders });
   } catch (error) {
@@ -285,9 +289,9 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
     `🚀 PRODUCTION: Starting additional page crawling with ${pendingUrls.size} URLs in queue`
   );
 
-  // Continue crawling other pages (limited for performance)
+  // 🔥 MAIN CHANGE: Increase additional crawling limit to ~99 pages (total 100)
   let crawlCount = 0;
-  const maxAdditionalPages = Math.min(maxPages - 1, 20); // Limit additional crawling
+  const maxAdditionalPages = Math.min(maxPages - 1, 99); // INCREASED from 20 to 80
 
   while (pendingUrls.size > 0 && crawlCount < maxAdditionalPages) {
     console.log(
@@ -391,14 +395,14 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
   }
 
   console.log(
-    `🏁 PRODUCTION: Crawl complete! ${allUrls.length} URLs, ${pagesProcessed} pages analyzed`
+    `🏁 PRODUCTION: Crawl complete! ${allUrls.length} URLs, ${pagesProcessed} pages analyzed, ${totalLinksFound} total links discovered`
   );
 
   const patterns = Array.from(urlPatterns.values()).sort((a, b) => b.count - a.count);
   const summary = {
     totalUrls: allUrls.length,
     pagesAnalyzed: pagesProcessed,
-    totalLinksFound,
+    totalLinksFound, // 🔥 NEW: Add total links discovered count
     categories: Object.fromEntries(
       Object.entries(urlCategories).map(([key, urls]) => [key, urls.length])
     ),
@@ -417,6 +421,13 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
       pagination: urlCategories.pagination.slice(0, 20),
       dates: urlCategories.dates.slice(0, 20),
     },
+    // 🔥 NEW: Include discovered links for "Check All Links" option
+    discoveredLinks: allUrls.map((url) => ({
+      url: url.url,
+      sourceUrl: url.sourceUrl,
+      category: url.category,
+      linkText: url.linkText,
+    })),
   };
 }
 
@@ -508,7 +519,7 @@ async function createJavaScriptSiteResponse(startUrl, homepageAnalysis) {
     summary: {
       totalUrls: sitemapUrls.length,
       pagesAnalyzed: 1,
-      totalLinksFound: 0,
+      totalLinksFound: 0, // 🔥 NEW: Add for consistency
       categories: {
         pages: sitemapUrls.length,
         withParams: 0,
@@ -549,6 +560,13 @@ async function createJavaScriptSiteResponse(startUrl, homepageAnalysis) {
       dates: [],
     },
     alternatives,
+    // 🔥 NEW: Include discovered links for consistency
+    discoveredLinks: sitemapUrls.map((url) => ({
+      url,
+      sourceUrl: 'sitemap.xml',
+      category: 'pages',
+      linkText: 'Sitemap link',
+    })),
   };
 }
 

@@ -1,4 +1,4 @@
-// src/app/components/UrlAnalyzer.js - COMPLETE VERSION with ALL original features
+// src/app/components/UrlAnalyzer.js - UPDATED VERSION with enhanced button text and crawl modes
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -184,8 +184,8 @@ export default function UrlAnalyzer({
     }
   };
 
-  // handleSmartCrawl function
-  const handleSmartCrawl = async (urlsToCheck = 'pages') => {
+  // 🔥 UPDATED: Enhanced handleSmartCrawl function with new crawl modes
+  const handleSmartCrawl = async (crawlMode = 'content_pages') => {
     if (!analysis || !url) return;
 
     setIsStartingCrawl(true);
@@ -196,32 +196,39 @@ export default function UrlAnalyzer({
     setError('');
 
     try {
-      // FIXED: Determine which URLs to check based on user selection with proper source URLs
+      // 🔥 NEW: Determine URLs and mode based on crawl type
       let urlsForCrawl = [];
+      let crawlDescription = '';
 
-      if (urlsToCheck === 'pages') {
+      if (crawlMode === 'content_pages') {
+        // Content Pages Mode: Pass content pages for extraction + checking
         urlsForCrawl = analysis.categories.pages.map((item) => ({
           url: item.url,
-          // FIXED: Use the actual source URL from the analysis data
           sourceUrl: item.sourceUrl || item.source_url || item.sourcePageUrl || url,
           category: 'pages',
         }));
-      } else if (urlsToCheck === 'all') {
-        Object.entries(analysis.categories).forEach(([category, urls]) => {
-          if (category !== 'media' && category !== 'admin') {
-            urlsForCrawl.push(
-              ...urls.map((item) => ({
-                url: item.url,
-                // FIXED: Use the actual source URL from the analysis data
-                sourceUrl: item.sourceUrl || item.source_url || item.sourcePageUrl || url,
-                category,
-              }))
-            );
-          }
-        });
+        crawlDescription = `${analysis.summary.categories.pages} content pages (extract + check links)`;
+
+        addCrawlLogEntry(
+          `🎯 Starting CONTENT PAGES crawl for ${urlsForCrawl.length} pages...`,
+          'success'
+        );
+        addCrawlLogEntry(
+          `📝 Mode: Visit each content page → Extract all links → Check status`,
+          'info'
+        );
+      } else if (crawlMode === 'discovered_links') {
+        // Discovered Links Mode: Check discovered links directly
+        urlsForCrawl = analysis.discoveredLinks || [];
+        crawlDescription = `${analysis.summary.totalLinksFound} discovered links directly`;
+
+        addCrawlLogEntry(
+          `🔄 Starting DISCOVERED LINKS crawl for ${urlsForCrawl.length} links...`,
+          'success'
+        );
+        addCrawlLogEntry(`📝 Mode: Check pre-discovered links directly for status`, 'info');
       }
 
-      addCrawlLogEntry(`🚀 Starting link checking for ${urlsForCrawl.length} URLs...`, 'success');
       addCrawlLogEntry(`⚡ This may take a few minutes depending on the number of links`, 'info');
 
       // DEBUGGING: Log sample source URLs to verify they're correct
@@ -233,7 +240,7 @@ export default function UrlAnalyzer({
         }))
       );
 
-      // Start crawl with pre-analyzed URLs
+      // 🔥 UPDATED: Start crawl with enhanced settings and mode
       const response = await fetch('/api/crawl/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -244,6 +251,7 @@ export default function UrlAnalyzer({
             includeExternal: false,
             timeout: 10000,
             usePreAnalyzedUrls: true,
+            crawlMode: crawlMode, // 🔥 NEW: Pass crawl mode to backend
           },
           preAnalyzedUrls: urlsForCrawl,
         }),
@@ -258,7 +266,14 @@ export default function UrlAnalyzer({
       const jobId = result.jobId;
       setCrawlStatus('running');
       addCrawlLogEntry(`✅ Crawl job created: ${jobId}`, 'success');
-      addCrawlLogEntry(`🔍 Now checking each link for broken status...`, 'info');
+      addCrawlLogEntry(
+        `🔍 Now ${
+          crawlMode === 'content_pages'
+            ? 'visiting content pages and extracting + checking links'
+            : 'checking discovered links for status'
+        }...`,
+        'info'
+      );
 
       // Rest of the polling logic remains the same...
       let isComplete = false;
@@ -681,8 +696,10 @@ export default function UrlAnalyzer({
                 <div className="text-sm text-yellow-800">Pages Analyzed</div>
               </div>
               <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">{getSafePatterns().length}</div>
-                <div className="text-sm text-purple-800">URL Patterns</div>
+                <div className="text-2xl font-bold text-purple-600">
+                  {getSafeNumber(analysis.summary.totalLinksFound)}
+                </div>
+                <div className="text-sm text-purple-800">Total Links Found</div>
               </div>
             </div>
 
@@ -851,7 +868,7 @@ export default function UrlAnalyzer({
             </div>
           )}
 
-          {/* Action Buttons */}
+          {/* 🔥 UPDATED: Enhanced Action Buttons with new crawl modes */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">🚀 Next Steps</h2>
 
@@ -981,9 +998,10 @@ export default function UrlAnalyzer({
               </div>
             )}
 
+            {/* 🔥 UPDATED: New Enhanced Action Buttons */}
             <div className="flex flex-wrap gap-4">
               <button
-                onClick={() => handleSmartCrawl('pages')}
+                onClick={() => handleSmartCrawl('content_pages')}
                 disabled={isStartingCrawl}
                 className={`px-6 py-3 rounded-lg font-medium ${
                   isStartingCrawl
@@ -991,10 +1009,11 @@ export default function UrlAnalyzer({
                     : 'bg-green-600 text-white hover:bg-green-700'
                 }`}
               >
-                ✅ Crawl {analysis.summary.categories.pages} Content Pages Only
+                🎯 Crawl {getSafeNumber(getSafeCategories().pages)} Content Pages (Extract + Check
+                Links)
               </button>
               <button
-                onClick={() => handleSmartCrawl('all')}
+                onClick={() => handleSmartCrawl('discovered_links')}
                 disabled={isStartingCrawl}
                 className={`px-6 py-3 rounded-lg font-medium ${
                   isStartingCrawl
@@ -1002,15 +1021,27 @@ export default function UrlAnalyzer({
                     : 'bg-blue-600 text-white hover:bg-blue-700'
                 }`}
               >
-                🔄 Crawl All {analysis.summary.totalUrls} URLs
+                🔄 Check {getSafeNumber(analysis.summary.totalLinksFound)} Discovered Links Directly
               </button>
             </div>
 
+            {/* 🔥 UPDATED: Enhanced Recommendation Text */}
             <div className="mt-4 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Recommendation:</strong> Based on this analysis, crawling only the{' '}
-                {analysis.summary.categories.pages} content pages will give you meaningful results
-                much faster than processing all {analysis.summary.totalUrls} URLs.
+                <strong>Recommendation:</strong>
+                {analysis.summary.totalLinksFound && analysis.summary.categories.pages ? (
+                  <>
+                    <strong> Content Pages Mode</strong> visits {analysis.summary.categories.pages}{' '}
+                    pages to extract and check ALL their links (comprehensive).
+                    <strong> Discovered Links Mode</strong> checks the{' '}
+                    {analysis.summary.totalLinksFound} already-found links directly (faster).
+                  </>
+                ) : (
+                  <>
+                    Content Pages mode extracts links from pages for comprehensive checking.
+                    Discovered Links mode checks pre-found links directly for faster results.
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -1054,6 +1085,38 @@ export default function UrlAnalyzer({
                 </div>
               </div>
             </div>
+
+            {/* 🔥 NEW: Enhanced Technical Details */}
+            {analysis.summary.totalLinksFound && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <h3 className="text-sm font-medium text-gray-900 mb-2">Link Discovery Summary</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                  <div>
+                    <span className="font-medium">Total Links Found:</span>{' '}
+                    {analysis.summary.totalLinksFound}
+                  </div>
+                  <div>
+                    <span className="font-medium">Content Pages:</span> {getSafeCategories().pages}
+                  </div>
+                  <div>
+                    <span className="font-medium">Coverage Ratio:</span>{' '}
+                    {Math.round(
+                      (analysis.summary.totalLinksFound /
+                        Math.max(analysis.summary.pagesAnalyzed, 1)) *
+                        10
+                    ) / 10}{' '}
+                    links/page
+                  </div>
+                  <div>
+                    <span className="font-medium">Analysis Efficiency:</span>{' '}
+                    {Math.round(
+                      (getSafeCategories().pages / Math.max(analysis.summary.totalUrls, 1)) * 100
+                    )}
+                    % content
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
