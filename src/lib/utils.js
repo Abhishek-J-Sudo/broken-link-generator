@@ -58,9 +58,42 @@ export const urlUtils = {
   isInternalUrl(url, baseDomain) {
     try {
       const urlObj = new URL(url);
-      const baseObj = new URL(baseDomain);
-      return urlObj.hostname === baseObj.hostname;
-    } catch {
+
+      // 🔧 FIX: Handle both full URLs and hostnames as baseDomain
+      let baseHostname;
+
+      if (baseDomain.startsWith('http://') || baseDomain.startsWith('https://')) {
+        // baseDomain is a full URL
+        const baseObj = new URL(baseDomain);
+        baseHostname = baseObj.hostname;
+      } else {
+        // baseDomain is already a hostname
+        baseHostname = baseDomain;
+      }
+
+      // 🔧 FIX: Normalize hostnames (remove www. for comparison)
+      const normalizeHostname = (hostname) => {
+        return hostname.toLowerCase().replace(/^www\./, '');
+      };
+
+      const urlHostname = normalizeHostname(urlObj.hostname);
+      const baseHostnameNormalized = normalizeHostname(baseHostname);
+
+      const isInternal = urlHostname === baseHostnameNormalized;
+
+      // 🔧 DEBUG: Add detailed logging for troubleshooting
+      console.log(`🔍 INTERNAL CHECK: 
+        URL: ${url} 
+        URL hostname: ${urlObj.hostname} (normalized: ${urlHostname})
+        Base: ${baseDomain} 
+        Base hostname: ${baseHostname} (normalized: ${baseHostnameNormalized})
+        Result: ${isInternal ? 'INTERNAL' : 'EXTERNAL'}`);
+
+      return isInternal;
+    } catch (error) {
+      console.error(
+        `❌ Error in isInternalUrl: ${error.message}, URL: ${url}, Base: ${baseDomain}`
+      );
       return false;
     }
   },

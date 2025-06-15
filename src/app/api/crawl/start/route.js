@@ -655,6 +655,9 @@ async function checkLinksStatus(jobId, linksToCheck, settings) {
  * EXISTING TRADITIONAL CRAWL LOGIC (unchanged)
  * Process traditional crawl with discovery-based approach
  */
+// FIXED: Traditional crawl logic in processTraditionalCrawlBackground function
+// Replace lines ~400-500 in /src/app/api/crawl/start/route.js
+
 async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
   try {
     console.log(`🕷️ TRADITIONAL CRAWL: Starting background processing for job ${jobId}`);
@@ -669,7 +672,7 @@ async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
 
     const httpChecker = new HttpChecker({
       timeout: settings.timeout || 10000,
-      maxConcurrent: 3, // Conservative for traditional crawl
+      maxConcurrent: 3,
       retryAttempts: 2,
     });
 
@@ -678,6 +681,9 @@ async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
     const pendingUrls = new Map(); // url -> {depth, sourceUrl}
     const maxDepth = settings.maxDepth || 3;
     const maxPages = 500; // Reasonable limit
+
+    // 🔧 FIX: Get base domain for internal link checking
+    const baseDomain = new URL(startUrl).hostname;
 
     // Add starting URL to pending queue
     pendingUrls.set(startUrl, { depth: 0, sourceUrl: null });
@@ -762,7 +768,7 @@ async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
             }
           }
 
-          // If URL is working and we haven't reached max depth, extract links
+          // 🔧 CRITICAL FIX: If URL is working and we haven't reached max depth, extract links
           if (httpResult.is_working && depth < maxDepth && urlUtils.isInternalUrl(url, startUrl)) {
             try {
               // Fetch full page content for link extraction
@@ -782,19 +788,37 @@ async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
                   `🔗 TRADITIONAL: Found ${extractionResult.links.length} links on ${url}`
                 );
 
-                // Add new links to pending queue
+                // 🔧 FIXED: Add new links to pending queue with proper logic
                 extractionResult.links.forEach((link) => {
+                  //Determine if link is internal using base domain
+                  const linkIsInternal = link.isInternal;
+
+                  //Correct logic for including links
+                  const shouldIncludeLink = linkIsInternal || settings.includeExternal;
+
+                  //Only add internal links to crawl queue (for further crawling)
+                  // But check ALL links (internal + external if enabled) for broken status
+                  const shouldCrawlFurther = linkIsInternal && link.depth <= maxDepth;
+
                   if (
+                    shouldIncludeLink &&
                     !visitedUrls.has(link.url) &&
-                    !pendingUrls.has(link.url) &&
-                    link.depth <= maxDepth &&
-                    (settings.includeExternal || link.isInternal)
+                    !pendingUrls.has(link.url)
                   ) {
+                    // Add to pending for status checking
                     pendingUrls.set(link.url, {
                       depth: link.depth,
                       sourceUrl: url,
+                      isInternal: linkIsInternal,
+                      shouldCrawlFurther: shouldCrawlFurther,
                     });
                     totalDiscovered++;
+
+                    console.log(
+                      `➕ TRADITIONAL: Added to queue: ${link.url} (${
+                        linkIsInternal ? 'internal' : 'external'
+                      }, depth: ${link.depth})`
+                    );
                   }
                 });
 
