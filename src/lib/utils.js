@@ -81,14 +81,6 @@ export const urlUtils = {
 
       const isInternal = urlHostname === baseHostnameNormalized;
 
-      // 🔧 DEBUG: Add detailed logging for troubleshooting
-      console.log(`🔍 INTERNAL CHECK: 
-        URL: ${url} 
-        URL hostname: ${urlObj.hostname} (normalized: ${urlHostname})
-        Base: ${baseDomain} 
-        Base hostname: ${baseHostname} (normalized: ${baseHostnameNormalized})
-        Result: ${isInternal ? 'INTERNAL' : 'EXTERNAL'}`);
-
       return isInternal;
     } catch (error) {
       console.error(

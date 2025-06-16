@@ -40,6 +40,7 @@ const crawlSettingsSchema = z.object({
   includeExternal: z.boolean(),
   timeout: z.number().int().min(1000).max(30000),
   usePreAnalyzedUrls: z.boolean().optional(),
+  crawlMode: z.enum(['auto', 'content_pages', 'discovered_links']).optional(),
 });
 
 // Start crawl request schema
