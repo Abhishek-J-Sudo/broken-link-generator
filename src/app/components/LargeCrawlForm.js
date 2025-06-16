@@ -385,7 +385,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
       </div>
 
       {/* Link to Smart Analyzer */}
-      <div className="mt-6 text-center">
+      <div className="mt-6 mb-6 text-center">
         <Link href="/analyze" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
           ← Want smarter analysis for large sites? Try our Smart Analyzer
         </Link>

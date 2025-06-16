@@ -273,13 +273,13 @@ export default function UrlAnalyzer({
       addCrawlLogEntry(`⚡ This may take a few minutes depending on the number of links`, 'info');
 
       // DEBUGGING: Log sample source URLs to verify they're correct
-      console.log(
-        '🔍 Sample URLs for crawl:',
-        urlsForCrawl.slice(0, 3).map((url) => ({
-          url: url.url.substring(0, 50) + '...',
-          sourceUrl: url.sourceUrl,
-        }))
-      );
+      // console.log(
+      //   '🔍 Sample URLs for crawl:',
+      //   urlsForCrawl.slice(0, 3).map((url) => ({
+      //     url: url.url.substring(0, 50) + '...',
+      //     sourceUrl: url.sourceUrl,
+      //   }))
+      // );
 
       // 🔥 UPDATED: Start crawl with enhanced settings and mode
       const response = await fetch('/api/crawl/start', {
@@ -324,7 +324,6 @@ export default function UrlAnalyzer({
 
       while (!isComplete && pollCount < maxPolls) {
         pollCount++;
-
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
         try {
@@ -336,11 +335,38 @@ export default function UrlAnalyzer({
             setCrawlProgress(statusData.progress);
             setCrawlStats(statusData.stats);
 
-            // Add progress log entries
+            // 🔥 SIMPLE: Better progress messages for content pages mode
             if (statusData.progress && statusData.progress.percentage > 0) {
-              const progressMsg = `📊 Progress: ${statusData.progress.current || 0}/${
-                statusData.progress.total || 0
-              } links checked (${Math.round(statusData.progress.percentage || 0)}%)`;
+              let progressMsg;
+
+              if (crawlMode === 'content_pages') {
+                // Detect phase based on progress patterns
+                const current = statusData.progress.current || 0;
+                const total = statusData.progress.total || 0;
+                const contentPagesCount = analysis?.summary?.categories?.pages || 139; // Use the analysis data
+
+                // If we're processing a small number that matches content pages, we're in Phase 1
+                if (total <= contentPagesCount * 1.5 && current < contentPagesCount) {
+                  progressMsg = `📄 Phase 1: Visiting content pages (${current}/${contentPagesCount}) - Extracting links...`;
+                }
+                // If total is much larger than content pages, we're in Phase 2
+                else if (total > contentPagesCount * 2) {
+                  progressMsg = `🔗 Phase 2: Checking ${total} extracted links (${current}/${total}) - ${Math.round(
+                    (current / total) * 100
+                  )}%`;
+                }
+                // Fallback to standard message
+                else {
+                  progressMsg = `📊 Progress: ${current}/${total} (${Math.round(
+                    statusData.progress.percentage
+                  )}%)`;
+                }
+              } else {
+                // Standard progress for other modes
+                progressMsg = `📊 Progress: ${statusData.progress.current || 0}/${
+                  statusData.progress.total || 0
+                } links checked (${Math.round(statusData.progress.percentage || 0)}%)`;
+              }
 
               // Only add if it's different from the last log entry
               if (crawlLog.length === 0 || crawlLog[crawlLog.length - 1].message !== progressMsg) {
@@ -362,29 +388,19 @@ export default function UrlAnalyzer({
             if (statusData.status === 'completed') {
               isComplete = true;
               setCrawlStatus('completed');
-              addCrawlLogEntry(
-                `🎉 Link checking complete! Found ${
-                  statusData.stats?.brokenLinksFound || 0
-                } broken links out of ${statusData.progress?.total || 0} total links`,
-                'success'
-              );
-              addCrawlLogEntry(`📊 Final results are ready for viewing`, 'success');
-
-              // Show completion message for 3 seconds, then redirect
-              setTimeout(() => {
-                addCrawlLogEntry(`🔄 Redirecting to detailed results page...`, 'info');
-                setTimeout(() => {
-                  router.push(`/results/${jobId}`);
-                }, 1500);
-              }, 3000);
+              addCrawlLogEntry(`🎉 Link checking complete!`, 'success');
             } else if (statusData.status === 'failed') {
+              isComplete = true;
               setCrawlStatus('failed');
-              throw new Error(statusData.errorMessage || 'Crawl job failed');
+              addCrawlLogEntry(
+                `❌ Crawl failed: ${statusData.errorMessage || 'Unknown error'}`,
+                'error'
+              );
             }
           }
-        } catch (pollError) {
-          console.error('Error during polling:', pollError);
-          addCrawlLogEntry(`⚠️ Connection issue, retrying...`, 'warning');
+        } catch (error) {
+          console.error('Error checking crawl status:', error);
+          addCrawlLogEntry(`⚠️ Error checking status: ${error.message}`, 'warning');
         }
       }
 
