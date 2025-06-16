@@ -388,14 +388,21 @@ export default function UrlAnalyzer({
             if (statusData.status === 'completed') {
               isComplete = true;
               setCrawlStatus('completed');
-              addCrawlLogEntry(`🎉 Link checking complete!`, 'success');
-            } else if (statusData.status === 'failed') {
-              isComplete = true;
-              setCrawlStatus('failed');
               addCrawlLogEntry(
-                `❌ Crawl failed: ${statusData.errorMessage || 'Unknown error'}`,
-                'error'
+                `🎉 Link checking complete! Found ${
+                  statusData.stats?.brokenLinksFound || 0
+                } broken links out of ${statusData.progress?.total || 0} total links`,
+                'success'
               );
+              addCrawlLogEntry(`📊 Final results are ready for viewing`, 'success');
+
+              // Show completion message for 3 seconds, then redirect
+              setTimeout(() => {
+                addCrawlLogEntry(`🔄 Redirecting to detailed results page...`, 'info');
+                setTimeout(() => {
+                  router.push(`/results/${jobId}`);
+                }, 1500);
+              }, 3000);
             }
           }
         } catch (error) {

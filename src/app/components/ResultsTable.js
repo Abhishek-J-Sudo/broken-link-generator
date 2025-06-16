@@ -128,7 +128,7 @@ export default function ResultsTable({
       const isFilteredBroken =
         (currentFilter.statusFilter === 'broken' || !isNewFormat) && !hasActiveFilters;
 
-      if (isFilteredBroken) {
+      if (!isFilteredBroken) {
         return {
           title: 'No Broken Links Found!',
           description: 'Great news! All your links are working perfectly.',
