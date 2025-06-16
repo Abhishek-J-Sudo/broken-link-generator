@@ -6,9 +6,7 @@ export default function Footer() {
     <footer className="bg-indigo-900 border-t border-indigo-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col md:flex-row justify-between items-center">
-          <div className="text-sm text-indigo-300 mb-4 md:mb-0">
-            Built with Next.js, Supabase, and Vercel
-          </div>
+          <div className="text-sm text-indigo-300 mb-4 md:mb-0">Built with Next.js</div>
           <div className="text-sm text-indigo-300 mb-4 md:mb-0">
             @2025 Abhishek Jagtap | Made with Claude.ai
           </div>
