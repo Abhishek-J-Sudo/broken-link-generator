@@ -762,9 +762,16 @@ export default function UrlAnalyzer({
               </div>
               <div className="text-center p-4 bg-purple-50 rounded-lg">
                 <div className="text-2xl font-bold text-purple-600">
-                  {getSafeNumber(analysis.summary.totalLinksFound)}
+                  {getSafeNumber(analysis.totalLinkOccurrences)}
                 </div>
-                <div className="text-sm text-purple-800">Total Links Found</div>
+                <div className="text-sm text-purple-800">
+                  Link Occurrences
+                  {analysis.linkRedundancy && (
+                    <div className="text-xs text-purple-600">
+                      ({analysis.linkRedundancy}x redundancy)
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

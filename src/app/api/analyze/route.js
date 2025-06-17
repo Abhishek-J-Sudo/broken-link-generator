@@ -213,6 +213,7 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
 
   let pagesProcessed = 0;
   let totalLinksFound = 0;
+  let totalLinkOccurrences = 0;
 
   // Process homepage links first
   console.log(`🔧 PRODUCTION: Processing homepage links...`);
@@ -224,6 +225,7 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
 
     extractionResult.forEach((link, index) => {
       totalLinksFound++;
+      totalLinkOccurrences++;
 
       const analysis = analyzeUrlPattern(link.url, startUrl);
 
@@ -329,10 +331,10 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
       let addedToPendingQueue = 0;
 
       extractionResult.forEach((link) => {
-        totalLinksFound++;
-
+        totalLinkOccurrences++;
         if (!allUrls.find((u) => u.url === link.url)) {
           const analysis = analyzeUrlPattern(link.url, startUrl);
+          totalLinksFound++;
 
           allUrls.push({
             url: link.url,
@@ -402,7 +404,7 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
   const summary = {
     totalUrls: allUrls.length,
     pagesAnalyzed: pagesProcessed,
-    totalLinksFound, // 🔥 NEW: Add total links discovered count
+    totalLinksFound,
     categories: Object.fromEntries(
       Object.entries(urlCategories).map(([key, urls]) => [key, urls.length])
     ),
@@ -421,6 +423,8 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
       pagination: urlCategories.pagination.slice(0, 20),
       dates: urlCategories.dates.slice(0, 20),
     },
+    totalLinkOccurrences, // including duplicates
+    linkRedundancy: Math.round((totalLinkOccurrences / Math.max(totalLinksFound, 1)) * 10) / 10,
     // 🔥 NEW: Include discovered links for "Check All Links" option
     discoveredLinks: allUrls.map((url) => ({
       url: url.url,
