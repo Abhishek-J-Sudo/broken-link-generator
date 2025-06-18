@@ -714,7 +714,7 @@ export default function ResultsPage() {
               }`}
             >
               <div className="text-2xl font-bold text-purple-600 mb-2">
-                {job.stats?.pagesProcessed || job.progress?.current || 0}
+                {/* {job.stats?.pagesProcessed || job.progress?.current || 0} */}
               </div>
               <div className="text-sm text-gray-600">Pages Scanned</div>
               {selectedView === 'pages' && (

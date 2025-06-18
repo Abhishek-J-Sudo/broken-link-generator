@@ -1065,7 +1065,14 @@ export default function UrlAnalyzer({
                       <div className="text-lg font-semibold text-blue-600">
                         {crawlStats.pagesProcessed || 0}
                       </div>
-                      <div className="text-xs text-blue-800">Pages Processed</div>
+                      <div className="text-xs text-blue-800">
+                        {crawlStats.pagesScanDescription ||
+                          (crawlStats.crawlMode === 'discovered_links'
+                            ? 'Links Processed'
+                            : crawlStats.crawlMode === 'content_pages'
+                            ? 'Pages Scanned'
+                            : 'Pages Processed')}
+                      </div>
                     </div>
                   </div>
                 )}
