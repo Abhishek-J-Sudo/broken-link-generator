@@ -230,6 +230,13 @@ export async function GET(request, { params }) {
       errorTypeSummary[link.error_type] = (errorTypeSummary[link.error_type] || 0) + 1;
     });
 
+    const { count: internalPagesCount } = await db.supabase
+      .from('discovered_links')
+      .select('id', { count: 'exact' })
+      .eq('job_id', jobId)
+      .eq('status', 'checked')
+      .eq('is_internal', true);
+
     const response = {
       jobId,
       job: {
@@ -261,6 +268,7 @@ export async function GET(request, { params }) {
         workingLinks: workingCount,
         brokenLinks: brokenCount,
         successRate: allLinks?.length > 0 ? Math.round((workingCount / allLinks.length) * 100) : 0,
+        internalPagesCount: internalPagesCount || 0,
 
         // HTTP Status Code Breakdown
         statusCodes: statusCodeSummary,

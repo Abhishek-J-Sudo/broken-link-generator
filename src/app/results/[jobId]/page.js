@@ -673,7 +673,7 @@ export default function ResultsPage() {
               <div className="text-2xl font-bold text-blue-600 mb-2">
                 {job.stats?.totalLinksDiscovered || 0}
               </div>
-              <div className="text-sm text-gray-600">All Links</div>
+              <div className="text-sm text-gray-600">All Unique Links</div>
               {selectedView === 'all' && <div className="text-xs text-blue-600 mt-1">● Active</div>}
             </button>
 
@@ -714,9 +714,11 @@ export default function ResultsPage() {
               }`}
             >
               <div className="text-2xl font-bold text-purple-600 mb-2">
-                {/* {job.stats?.pagesProcessed || job.progress?.current || 0} */}
+                {results?.summary?.internalPagesCount || 0}
               </div>
-              <div className="text-sm text-gray-600">Pages Scanned</div>
+              <div className="text-sm text-gray-600">
+                {job?.crawlMode === 'discovered_links' ? 'Pages Scanned' : 'Links Checked'}
+              </div>
               {selectedView === 'pages' && (
                 <div className="text-xs text-purple-600 mt-1">● Active</div>
               )}

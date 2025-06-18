@@ -288,7 +288,7 @@ export default function UrlAnalyzer({
         body: JSON.stringify({
           url,
           settings: {
-            maxDepth: 2,
+            maxDepth: 3,
             includeExternal: false,
             timeout: 10000,
             usePreAnalyzedUrls: true,
@@ -345,15 +345,16 @@ export default function UrlAnalyzer({
                 const total = statusData.progress.total || 0;
                 const contentPagesCount = analysis?.summary?.categories?.pages || 139; // Use the analysis data
 
-                // If we're processing a small number that matches content pages, we're in Phase 1
-                if (total <= contentPagesCount * 1.5 && current < contentPagesCount) {
-                  progressMsg = `📄 Phase 1: Visiting content pages (${current}/${contentPagesCount}) - Extracting links...`;
+                // Phase 1: If we're processing a small number that matches content pages count
+                if (total <= contentPagesCount * 1.5 && current <= contentPagesCount) {
+                  const percentage =
+                    contentPagesCount > 0 ? Math.round((current / contentPagesCount) * 100) : 0;
+                  progressMsg = `📄 Phase 1: Progress: ${current}/${contentPagesCount} pages checked (${percentage}%) - Extracting links...`;
                 }
-                // If total is much larger than content pages, we're in Phase 2
+                // Phase 2: If total is much larger than content pages, we're checking extracted links
                 else if (total > contentPagesCount * 2) {
-                  progressMsg = `🔗 Phase 2: Checking ${total} extracted links (${current}/${total}) - ${Math.round(
-                    (current / total) * 100
-                  )}%`;
+                  const percentage = Math.round((current / total) * 100);
+                  progressMsg = `🔗 Phase 2: Progress: ${current}/${total} links checked (${percentage}%) - Checking status...`;
                 }
                 // Fallback to standard message
                 else {
@@ -1071,7 +1072,7 @@ export default function UrlAnalyzer({
                             ? 'Links Processed'
                             : crawlStats.crawlMode === 'content_pages'
                             ? 'Pages Scanned'
-                            : 'Pages Processed')}
+                            : 'Links Processed')}
                       </div>
                     </div>
                   </div>

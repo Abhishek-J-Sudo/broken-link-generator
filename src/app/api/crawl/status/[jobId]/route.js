@@ -123,11 +123,14 @@ export async function GET(request, { params }) {
       estimatedTimeRemaining = Math.round(remaining / rate / 1000);
     }
 
+    const crawlMode = job.settings?.crawlMode || 'auto';
+
     const response = {
       jobId,
       status: job.status,
       url: job.url,
       crawlLevel, // Include detected crawl level
+      crawlMode,
       progress: {
         current: progress.current,
         total: progress.total,
