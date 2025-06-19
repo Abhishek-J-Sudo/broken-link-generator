@@ -478,12 +478,25 @@ export default function ResultsPage() {
   };
 
   const getCurrentData = () => {
-    return {
+    const data = {
       broken: results,
       all: allLinksData,
       working: workingLinksData,
       pages: pagesData,
     }[selectedView];
+
+    // DEBUG: Log what we're returning
+    // console.log('🔍 getCurrentData Debug:', {
+    //   selectedView,
+    //   data,
+    //   hasLinks: data?.links ? 'YES' : 'NO',
+    //   linksType: typeof data?.links,
+    //   linksIsArray: Array.isArray(data?.links),
+    //   linksLength: data?.links?.length,
+    //   firstItem: data?.links?.[0],
+    // });
+
+    return data;
   };
 
   const getProgressPercentage = () => {
@@ -874,28 +887,16 @@ export default function ResultsPage() {
         )}
 
         {/* Enhanced Results Table with HTTP Status Support */}
-        {job?.status === 'completed' &&
-          (() => {
-            const currentData = getCurrentData();
-
-            return currentData ? (
-              <ResultsTable
-                jobId={jobId}
-                links={currentData.links}
-                selectedView={selectedView}
-                pagination={currentData.pagination}
-                onPageChange={handlePageChange}
-                onFilter={handleFilter}
-              />
-            ) : (
-              <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-                <div className="animate-pulse">
-                  <div className="text-4xl mb-4">🔄</div>
-                  <p className="text-gray-600">Loading {selectedView} data...</p>
-                </div>
-              </div>
-            );
-          })()}
+        {job?.status === 'completed' && getCurrentData()?.links && (
+          <ResultsTable
+            jobId={jobId}
+            links={getCurrentData().links}
+            selectedView={selectedView}
+            pagination={getCurrentData().pagination}
+            onPageChange={handlePageChange}
+            onFilter={handleFilter}
+          />
+        )}
 
         {/* Completed - Show results summary */}
         {job?.status === 'completed' && results && (

@@ -15,6 +15,7 @@ export default function ResultsTable({
   const displayData = links || brokenLinks || [];
   const isNewFormat = !!links; // New format has 'links' prop, old format has 'brokenLinks'
   const [sortDirection, setSortDirection] = useState(null); // null, 'asc', 'desc'
+  const [seoSortDirection, setSeoSortDirection] = useState(null); // null, 'asc', 'desc'
 
   const [currentFilter, setCurrentFilter] = useState(
     isNewFormat
@@ -74,9 +75,9 @@ export default function ResultsTable({
   // SEO helper functions
   const getSeoScoreColor = (score) => {
     if (score === null || score === undefined) return 'bg-gray-100 text-gray-800';
-    if (score >= 80) return 'bg-green-100 text-green-800';
-    if (score >= 60) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-red-100 text-red-800';
+    if (score >= 80) return 'bg-emerald-100 text-emerald-800 border border-emerald-200';
+    if (score >= 60) return 'bg-amber-100 text-amber-800 border border-amber-200';
+    return 'bg-red-100 text-red-800 border border-red-200';
   };
 
   const getSeoScoreLabel = (score) => {
@@ -84,6 +85,13 @@ export default function ResultsTable({
     if (score >= 80) return 'Good';
     if (score >= 60) return 'Needs Work';
     return 'Poor';
+  };
+
+  const getSeoScoreBadgeColor = (score) => {
+    if (score === null || score === undefined) return 'bg-gray-100 text-gray-600';
+    if (score >= 80) return 'bg-emerald-500 text-white';
+    if (score >= 60) return 'bg-amber-500 text-white';
+    return 'bg-red-500 text-white';
   };
 
   const hasSeoData = (item) => {
@@ -116,17 +124,36 @@ export default function ResultsTable({
     else setSortDirection(null); // Back to original order
   };
 
+  const toggleSeoSort = () => {
+    if (seoSortDirection === null) setSeoSortDirection('desc'); // Best scores first
+    else if (seoSortDirection === 'desc') setSeoSortDirection('asc'); // Worst scores first
+    else setSeoSortDirection(null); // Back to original order
+  };
+
   // Sort the display data by response time
   const sortedData = useMemo(() => {
-    if (!sortDirection || !displayData) return displayData;
+    let data = displayData;
 
-    return [...displayData].sort((a, b) => {
-      const aTime = a.response_time || 0;
-      const bTime = b.response_time || 0;
+    // Apply response time sorting first if active
+    if (sortDirection && data) {
+      data = [...data].sort((a, b) => {
+        const aTime = a.response_time || 0;
+        const bTime = b.response_time || 0;
+        return sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
+      });
+    }
 
-      return sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
-    });
-  }, [displayData, sortDirection]);
+    // Apply SEO score sorting if active (overrides response time sorting)
+    if (seoSortDirection && data) {
+      data = [...data].sort((a, b) => {
+        const aScore = a.seo_score || 0;
+        const bScore = b.seo_score || 0;
+        return seoSortDirection === 'asc' ? aScore - bScore : bScore - aScore;
+      });
+    }
+
+    return data || [];
+  }, [displayData, sortDirection, seoSortDirection]);
 
   // ENHANCED: Better logic for determining what type of "no results" message to show
   const getNoResultsMessage = () => {
@@ -422,7 +449,22 @@ export default function ResultsTable({
                   {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
                     <>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        SEO Score
+                        <button
+                          onClick={toggleSeoSort}
+                          className="flex items-center hover:text-gray-700 focus:outline-none transition-colors"
+                          title="Click to sort by SEO score"
+                        >
+                          SEO Score
+                          {seoSortDirection === 'asc' && (
+                            <span className="ml-1 text-emerald-600">▲</span>
+                          )}
+                          {seoSortDirection === 'desc' && (
+                            <span className="ml-1 text-emerald-600">▼</span>
+                          )}
+                          {seoSortDirection === null && (
+                            <span className="ml-1 text-gray-300">↕</span>
+                          )}
+                        </button>
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                         Page Title
@@ -588,11 +630,11 @@ export default function ResultsTable({
                               >
                                 {formatResponseTime(item.response_time)}
                               </span>
-                              {item.checked_at && (
+                              {/* {item.checked_at && (
                                 <span className="text-xs text-gray-500">
                                   {new Date(item.checked_at).toLocaleString()}
                                 </span>
-                              )}
+                              )} */}
                             </div>
                           </td>
                         )}
@@ -601,15 +643,23 @@ export default function ResultsTable({
                         {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             {hasSeoData(item) ? (
-                              <span
-                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSeoScoreColor(
+                              <div
+                                className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold cursor-help ${getSeoScoreBadgeColor(
+                                  item.seo_score
+                                )}`}
+                                title={`SEO Score: ${item.seo_score}/100 - ${getSeoScoreLabel(
                                   item.seo_score
                                 )}`}
                               >
                                 {item.seo_score}
-                              </span>
+                              </div>
                             ) : (
-                              <span className="text-gray-400">-</span>
+                              <span
+                                className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-500 cursor-help"
+                                title="No SEO data available for this page"
+                              >
+                                --
+                              </span>
                             )}
                           </td>
                         )}
@@ -618,11 +668,35 @@ export default function ResultsTable({
                         {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
                           <td className="px-6 py-4 text-sm text-gray-900 hidden lg:table-cell">
                             {item.seo_title?.text ? (
-                              <div className="max-w-xs truncate" title={item.seo_title.text}>
-                                {item.seo_title.text}
+                              <div className="flex flex-col">
+                                <div
+                                  className="font-medium text-gray-900 hover:text-blue-600 cursor-help truncate max-w-xs"
+                                  title={`Title: "${item.seo_title.text}"`}
+                                >
+                                  {item.seo_title.text.length > 20
+                                    ? `${item.seo_title.text.substring(0, 20)}...`
+                                    : item.seo_title.text}
+                                </div>
+                                <div
+                                  className={`text-xs ${
+                                    item.seo_title.text.length < 30
+                                      ? 'text-red-500'
+                                      : item.seo_title.text.length > 60
+                                      ? 'text-amber-500'
+                                      : 'text-emerald-500'
+                                  }`}
+                                >
+                                  {item.seo_title.text.length} chars
+                                </div>
                               </div>
                             ) : (
-                              <span className="text-gray-400">-</span>
+                              <div
+                                className="text-gray-400 text-sm cursor-help"
+                                title="No title tag found on this page"
+                              >
+                                <span>No title</span>
+                                <div className="text-xs text-red-500">0 chars</div>
+                              </div>
                             )}
                           </td>
                         )}
@@ -630,15 +704,59 @@ export default function ResultsTable({
                         {/* 🔥 NEW: Meta Description cell */}
                         {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
                           <td className="px-6 py-4 text-sm text-gray-500 hidden xl:table-cell">
-                            {item.seo_metaDescription?.text ? ( //
-                              <div
-                                className="max-w-sm truncate"
-                                title={item.seo_metaDescription.text}
-                              >
-                                {item.seo_metaDescription.text}
+                            {item.seo_metaDescription?.text ? (
+                              <div className="flex flex-col">
+                                <div
+                                  className="text-gray-700 hover:text-blue-600 cursor-help truncate max-w-sm"
+                                  title={`Meta Description: "${item.seo_metaDescription.text}"`}
+                                >
+                                  {item.seo_metaDescription.text.length > 20
+                                    ? `${item.seo_metaDescription.text.substring(0, 20)}...`
+                                    : item.seo_metaDescription.text}
+                                </div>
+                                <div
+                                  className={`text-xs ${
+                                    item.seo_metaDescription.text.length < 120
+                                      ? 'text-red-500'
+                                      : item.seo_metaDescription.text.length > 160
+                                      ? 'text-amber-500'
+                                      : 'text-emerald-500'
+                                  }`}
+                                >
+                                  {item.seo_metaDescription.text.length} chars
+                                </div>
+                              </div>
+                            ) : item.seo_metaDescription ? (
+                              // Handle case where seo_metaDescription is a string directly
+                              <div className="flex flex-col">
+                                <div
+                                  className="text-gray-700 hover:text-blue-600 cursor-help truncate max-w-sm"
+                                  title={`Meta Description: "${item.seo_metaDescription}"`}
+                                >
+                                  {item.seo_metaDescription.length > 40
+                                    ? `${item.seo_metaDescription.substring(0, 40)}...`
+                                    : item.seo_metaDescription}
+                                </div>
+                                <div
+                                  className={`text-xs ${
+                                    item.seo_metaDescription.length < 120
+                                      ? 'text-red-500'
+                                      : item.seo_metaDescription.length > 160
+                                      ? 'text-amber-500'
+                                      : 'text-emerald-500'
+                                  }`}
+                                >
+                                  {item.seo_metaDescription.length} chars
+                                </div>
                               </div>
                             ) : (
-                              <span className="text-gray-400">-</span>
+                              <div
+                                className="text-gray-400 text-sm cursor-help"
+                                title="No meta description found on this page"
+                              >
+                                <span>No description</span>
+                                <div className="text-xs text-red-500">0 chars</div>
+                              </div>
                             )}
                           </td>
                         )}
@@ -653,7 +771,7 @@ export default function ResultsTable({
                               className="text-xs text-gray-500 hover:text-blue-600 font-mono"
                               title={item.source_url || item.sourceUrl}
                             >
-                              {truncateUrl(item.source_url || item.sourceUrl, 40)}
+                              {truncateUrl(item.source_url || item.sourceUrl, 20)}
                             </a>
                           ) : (
                             <span className="text-sm text-gray-500">Discovery</span>

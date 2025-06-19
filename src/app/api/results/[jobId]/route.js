@@ -93,14 +93,14 @@ export async function GET(request, { params }) {
     const seoMap = new Map();
     seoData?.forEach((seo) => seoMap.set(seo.url, seo));
 
-    // ADD THIS DEBUG LOG HERE:
-    console.log(`🔍 SEO MAP DEBUG:`, {
-      seoDataLength: seoData?.length || 0,
-      seoMapSize: seoMap.size,
-      firstSeoUrl: seoData?.[0]?.url,
-      firstSeoScore: seoData?.[0]?.seo_score,
-      sampleMapLookup: seoMap.get(seoData?.[0]?.url),
-    });
+    // // ADD THIS DEBUG LOG HERE:
+    // console.log(`🔍 SEO MAP DEBUG:`, {
+    //   seoDataLength: seoData?.length || 0,
+    //   seoMapSize: seoMap.size,
+    //   firstSeoUrl: seoData?.[0]?.url,
+    //   firstSeoScore: seoData?.[0]?.seo_score,
+    //   sampleMapLookup: seoMap.get(seoData?.[0]?.url),
+    // });
 
     // Apply status filter
     if (statusFilter === 'working') {
@@ -134,34 +134,34 @@ export async function GET(request, { params }) {
       count: discoveredCount,
     } = await discoveredQuery;
 
-    console.log(`📊 DEBUG: Discovered links query result:`, {
-      discoveredLinksCount: discoveredLinks?.length || 0,
-      discoveredError,
-      firstLinkWithSeo: discoveredLinks?.[0]?.seo_analysis,
-      allSeoAnalysis: discoveredLinks?.map((link) => ({
-        url: link.url,
-        seo_analysis: link.seo_analysis,
-      })),
-    });
+    // console.log(`📊 DEBUG: Discovered links query result:`, {
+    //   discoveredLinksCount: discoveredLinks?.length || 0,
+    //   discoveredError,
+    //   firstLinkWithSeo: discoveredLinks?.[0]?.seo_analysis,
+    //   allSeoAnalysis: discoveredLinks?.map((link) => ({
+    //     url: link.url,
+    //     seo_analysis: link.seo_analysis,
+    //   })),
+    // });
 
     if (discoveredError) {
       throw new Error(`Database query failed: ${discoveredError.message}`);
     }
 
     // Add this AFTER the discoveredQuery but BEFORE the brokenLinksQuery
-    console.log(`🔍 DEBUG: Checking SEO analysis table directly...`);
-    const { data: directSeoCheck, error: seoError } = await db.supabase
-      .from('seo_analysis')
-      .select('*')
-      .eq('job_id', jobId)
-      .limit(5);
+    // console.log(`🔍 DEBUG: Checking SEO analysis table directly...`);
+    // const { data: directSeoCheck, error: seoError } = await db.supabase
+    //   .from('seo_analysis')
+    //   .select('*')
+    //   .eq('job_id', jobId)
+    //   .limit(5);
 
-    console.log(`📊 DEBUG: Direct SEO check:`, {
-      seoCount: directSeoCheck?.length || 0,
-      seoError,
-      firstSeoRecord: directSeoCheck?.[0],
-      allUrls: directSeoCheck?.map((s) => s.url),
-    });
+    // console.log(`📊 DEBUG: Direct SEO check:`, {
+    //   seoCount: directSeoCheck?.length || 0,
+    //   seoError,
+    //   firstSeoRecord: directSeoCheck?.[0],
+    //   allUrls: directSeoCheck?.map((s) => s.url),
+    // });
 
     // Get broken links with additional context (for error types and link text)
     let brokenLinksQuery = db.supabase.from('broken_links').select('*').eq('job_id', jobId);
