@@ -34,6 +34,10 @@ export default function ResultsPage() {
   const [isStoppingCrawl, setIsStoppingCrawl] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
 
+  //seo summary
+  const [seoSummary, setSeoSummary] = useState(null);
+  const [seoLoading, setSeoLoading] = useState(false);
+
   // Poll for status updates
   useEffect(() => {
     if (!jobId) return;
@@ -49,6 +53,7 @@ export default function ResultsPage() {
           // If job is completed, load initial results
           if (statusData.status === 'completed') {
             await loadResults();
+            await loadSeoSummary();
           }
         } else {
           console.error('Status fetch error:', statusData);
@@ -142,6 +147,23 @@ export default function ResultsPage() {
     }
   };
 
+  // Load SEO summary data
+  const loadSeoSummary = async () => {
+    if (!jobId) return;
+
+    setSeoLoading(true);
+    try {
+      const response = await fetch(`/api/seo/summary/${jobId}`);
+      if (response.ok) {
+        const seoData = await response.json();
+        setSeoSummary(seoData);
+      }
+    } catch (error) {
+      console.error('Failed to load SEO summary:', error);
+    } finally {
+      setSeoLoading(false);
+    }
+  };
   const handleCardClick = async (viewType) => {
     if (selectedView === viewType) return; // Already selected
 
@@ -245,6 +267,14 @@ export default function ResultsPage() {
           'Depth',
           'Checked At',
           'Error Message',
+          'SEO Score',
+          'SEO Grade',
+          'Page Title',
+          'Meta Description',
+          'Word Count',
+          'Has H1',
+          'Is HTTPS',
+          'SEO Issues Count',
         ];
 
         const csvRows = allData.links.map((link) => [
@@ -261,6 +291,14 @@ export default function ResultsPage() {
           link.depth || 0,
           link.checked_at ? new Date(link.checked_at).toLocaleString() : 'N/A',
           link.error_message || 'N/A',
+          link.seo_score || 'N/A',
+          link.seo_grade || 'N/A',
+          link.seo_data?.title?.text || 'N/A',
+          link.seo_data?.metaDescription?.text || 'N/A',
+          link.seo_data?.wordCount || 'N/A',
+          link.seo_data?.headings?.hasNoH1 ? 'No' : 'Yes',
+          link.seo_data?.technical?.isHttps ? 'Yes' : 'No',
+          link.seo_data?.issues?.length || 0,
         ]);
 
         const csvContent = [
@@ -726,6 +764,78 @@ export default function ResultsPage() {
           </div>
         )}
 
+        {/* NEW: SEO Summary Cards - Add this AFTER your existing stats cards */}
+        {job?.status === 'completed' && seoSummary && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {/* SEO Score Card */}
+            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+              <div
+                className={`text-2xl font-bold mb-2 ${
+                  seoSummary.averageScore >= 80
+                    ? 'text-green-600'
+                    : seoSummary.averageScore >= 60
+                    ? 'text-yellow-600'
+                    : 'text-red-600'
+                }`}
+              >
+                {Math.round(seoSummary.averageScore || 0)}/100
+              </div>
+              <div className="text-sm text-gray-600">Average SEO Score</div>
+              <div
+                className={`text-xs mt-1 ${
+                  seoSummary.averageScore >= 80
+                    ? 'text-green-600'
+                    : seoSummary.averageScore >= 60
+                    ? 'text-yellow-600'
+                    : 'text-red-600'
+                }`}
+              >
+                Grade: {seoSummary.averageGrade || 'N/A'}
+              </div>
+            </div>
+
+            {/* Pages Analyzed */}
+            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+              <div className="text-2xl font-bold text-blue-600 mb-2">
+                {seoSummary.totalAnalyzed || 0}
+              </div>
+              <div className="text-sm text-gray-600">Pages Analyzed</div>
+              <div className="text-xs text-blue-600 mt-1">SEO Data Available</div>
+            </div>
+
+            {/* SEO Issues */}
+            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+              <div className="text-2xl font-bold text-orange-600 mb-2">
+                {seoSummary.totalIssues || 0}
+              </div>
+              <div className="text-sm text-gray-600">SEO Issues Found</div>
+              <div className="text-xs text-orange-600 mt-1">Need Attention</div>
+            </div>
+
+            {/* Performance */}
+            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+              <div className="text-2xl font-bold text-purple-600 mb-2">
+                {Math.round(seoSummary.averageResponseTime || 0)}ms
+              </div>
+              <div className="text-sm text-gray-600">Avg Response Time</div>
+              <div
+                className={`text-xs mt-1 ${
+                  (seoSummary.averageResponseTime || 0) < 1000
+                    ? 'text-green-600'
+                    : (seoSummary.averageResponseTime || 0) < 3000
+                    ? 'text-yellow-600'
+                    : 'text-red-600'
+                }`}
+              >
+                {(seoSummary.averageResponseTime || 0) < 1000
+                  ? 'Fast'
+                  : (seoSummary.averageResponseTime || 0) < 3000
+                  ? 'Moderate'
+                  : 'Slow'}
+              </div>
+            </div>
+          </div>
+        )}
         {/* Export Success Message */}
         {isExporting && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
