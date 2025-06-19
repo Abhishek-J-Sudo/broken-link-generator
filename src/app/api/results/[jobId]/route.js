@@ -86,7 +86,30 @@ export async function GET(request, { params }) {
     // STEP 2: Get SEO data separately
     const { data: seoData } = await db.supabase
       .from('seo_analysis')
-      .select('url, seo_score, seo_grade, title_text, meta_description, issues_count, is_https')
+      .select(
+        `
+        url, 
+        seo_score, 
+        seo_grade, 
+        title_text, 
+        title_length,
+        meta_description, 
+        description_length,
+        issues_count, 
+        is_https,
+        h1_count,
+        h2_count,
+        h3_count,
+        word_count,
+        total_images,
+        missing_alt,
+        alt_coverage,
+        canonical_url,
+        issues,
+        status_code,
+        analyzed_at
+      `
+      )
       .eq('job_id', jobId);
 
     // STEP 3: Create SEO lookup map
@@ -221,12 +244,27 @@ export async function GET(request, { params }) {
             }
           : null,
         seo_headings: {
+          h1_count: seoDataForLink?.h1_count || 0,
+          h2_count: seoDataForLink?.h2_count || 0,
+          h3_count: seoDataForLink?.h3_count || 0,
           hasNoH1: (seoDataForLink?.h1_count || 0) === 0,
+        },
+        seo_content: {
+          word_count: seoDataForLink?.word_count || 0,
+        },
+        seo_images: {
+          total_images: seoDataForLink?.total_images || 0,
+          missing_alt: seoDataForLink?.missing_alt || 0,
+          alt_coverage: seoDataForLink?.alt_coverage || 100,
         },
         seo_technical: {
           isHttps: seoDataForLink?.is_https || false,
+          canonical_url: seoDataForLink?.canonical_url || null,
+          status_code: seoDataForLink?.status_code || null,
         },
         seo_issues_count: seoDataForLink?.issues_count || 0,
+        seo_issues: seoDataForLink?.issues || [],
+        seo_analyzed_at: seoDataForLink?.analyzed_at || null,
         has_seo_data: !!seoDataForLink,
 
         // Additional context for broken links (from broken_links table)

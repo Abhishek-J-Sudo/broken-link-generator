@@ -605,18 +605,19 @@ export default function ResultsTable({
 
                       {/* Issues Count */}
                       <td className="px-6 py-4">
-                        {item.issues && item.issues.length > 0 ? (
+                        {item.seo_issues && item.seo_issues.length > 0 ? (
                           <div className="flex items-center gap-2">
                             <span
                               className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                item.issues.some((issue) => issue.type === 'critical')
+                                item.seo_issues.some((issue) => issue.type === 'critical')
                                   ? 'bg-red-100 text-red-800'
-                                  : item.issues.some((issue) => issue.type === 'major')
+                                  : item.seo_issues.some((issue) => issue.type === 'major')
                                   ? 'bg-orange-100 text-orange-800'
                                   : 'bg-amber-100 text-amber-800'
                               }`}
                             >
-                              {item.issues.length} issue{item.issues.length !== 1 ? 's' : ''}
+                              {item.seo_issues.length} issue
+                              {item.seo_issues.length !== 1 ? 's' : ''}
                             </span>
                           </div>
                         ) : item.is_working === false ? (
@@ -682,7 +683,7 @@ export default function ResultsTable({
                                           : 'Missing'}
                                       </span>
                                     </div>
-                                    <p className="text-sm text-slate-700">
+                                    <p className="text-sm text-slate-500">
                                       {item.seo_title?.text || 'No title tag found'}
                                     </p>
                                   </div>
@@ -709,7 +710,7 @@ export default function ResultsTable({
                                           : 'Missing'}
                                       </span>
                                     </div>
-                                    <p className="text-sm text-slate-700">
+                                    <p className="text-sm text-slate-500">
                                       {item.seo_metaDescription?.text ||
                                         'No meta description found'}
                                     </p>
@@ -723,23 +724,23 @@ export default function ResultsTable({
                                     <div className="grid grid-cols-2 gap-4">
                                       <div className="text-center">
                                         <div className="text-2xl font-bold text-blue-600">
-                                          {item.word_count || 0}
+                                          {item.seo_content.word_count || 0}
                                         </div>
                                         <div className="text-xs text-slate-600">Words</div>
                                       </div>
                                       <div className="text-center">
                                         <div className="text-2xl font-bold text-purple-600">
-                                          {(item.h1_count || 0) +
-                                            (item.h2_count || 0) +
-                                            (item.h3_count || 0)}
+                                          {(item.seo_headings.h1_count || 0) +
+                                            (item.seo_headings.h2_count || 0) +
+                                            (item.seo_headings.h3_count || 0)}
                                         </div>
                                         <div className="text-xs text-slate-600">Headings</div>
                                       </div>
                                     </div>
-                                    <div className="mt-3 flex gap-4 text-sm">
-                                      <span>H1: {item.h1_count || 0}</span>
-                                      <span>H2: {item.h2_count || 0}</span>
-                                      <span>H3: {item.h3_count || 0}</span>
+                                    <div className="mt-3 flex gap-4 text-sm  text-slate-400">
+                                      <span>H1: {item.seo_headings.h1_count || 0}</span>
+                                      <span>H2: {item.seo_headings.h2_count || 0}</span>
+                                      <span>H3: {item.seo_headings.h3_count || 0}</span>
                                     </div>
                                   </div>
                                 </div>
@@ -758,43 +759,47 @@ export default function ResultsTable({
                                     </h5>
                                     <div className="space-y-2 text-sm">
                                       <div className="flex justify-between">
-                                        <span>HTTPS:</span>
+                                        <span className="text-gray-400">HTTPS:</span>
                                         <span
                                           className={
-                                            item.is_https ? 'text-emerald-600' : 'text-red-600'
+                                            item.seo_technical.isHttps
+                                              ? 'text-emerald-600'
+                                              : 'text-red-600'
                                           }
                                         >
-                                          {item.is_https ? 'Yes' : 'No'}
+                                          {item.seo_technical.isHttps ? 'Yes' : 'No'}
                                         </span>
                                       </div>
                                       <div className="flex justify-between">
-                                        <span>Canonical URL:</span>
+                                        <span className="text-gray-400">Canonical URL:</span>
                                         <span
                                           className={
-                                            item.canonical_url
+                                            item.seo_technical.canonical_url
                                               ? 'text-emerald-600'
                                               : 'text-amber-600'
                                           }
                                         >
-                                          {item.canonical_url ? 'Present' : 'Missing'}
+                                          {item.seo_technical.canonical_url ? 'Present' : 'Missing'}
                                         </span>
                                       </div>
                                       <div className="flex justify-between">
-                                        <span>Images:</span>
-                                        <span>{item.total_images || 0} total</span>
+                                        <span className="text-gray-400">Images:</span>
+                                        <span className="text-gray-700">
+                                          {item.seo_images.total_images || 0} total
+                                        </span>
                                       </div>
                                       <div className="flex justify-between">
-                                        <span>Alt Coverage:</span>
+                                        <span className="text-gray-400">Alt Coverage:</span>
                                         <span
                                           className={`${
-                                            (item.alt_coverage || 0) >= 90
+                                            (item.seo_images.alt_coverage || 0) >= 90
                                               ? 'text-emerald-600'
-                                              : (item.alt_coverage || 0) >= 70
+                                              : (item.seo_images.alt_coverage || 0) >= 70
                                               ? 'text-amber-600'
                                               : 'text-red-600'
                                           }`}
                                         >
-                                          {item.alt_coverage || 0}%
+                                          {item.seo_images.alt_coverage || 0}%
                                         </span>
                                       </div>
                                     </div>
@@ -803,9 +808,9 @@ export default function ResultsTable({
                                   {/* Issues List */}
                                   <div className="bg-white p-4 rounded-lg border">
                                     <h5 className="font-medium text-slate-900 mb-3">SEO Issues</h5>
-                                    {item.issues && item.issues.length > 0 ? (
+                                    {item.seo_issues && item.seo_issues.length > 0 ? (
                                       <div className="space-y-2">
-                                        {item.issues.map((issue, idx) => (
+                                        {item.seo_issues.map((issue, idx) => (
                                           <div
                                             key={`${issue.type}-${idx}`}
                                             className="flex items-start gap-2 text-sm"
