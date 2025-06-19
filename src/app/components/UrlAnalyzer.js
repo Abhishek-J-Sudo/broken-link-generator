@@ -32,6 +32,11 @@ export default function UrlAnalyzer({
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [currentJobId, setCurrentJobId] = useState(null);
 
+  //seo settings
+  const [seoSettings, setSeoSettings] = useState({
+    enableSEO: false,
+  });
+
   // Auto-scroll to bottom when new crawl log entries are added
   useEffect(() => {
     if (scrollRef.current && crawlLog.length > 0) {
@@ -270,7 +275,12 @@ export default function UrlAnalyzer({
         addCrawlLogEntry(`📝 Mode: Check pre-discovered links directly for status`, 'info');
       }
 
-      addCrawlLogEntry(`⚡ This may take a few minutes depending on the number of links`, 'info');
+      addCrawlLogEntry(
+        `⚡ This may take a few minutes depending on the number of links${
+          seoSettings.enableSEO ? ' (SEO analysis enabled)' : ''
+        }`,
+        'info'
+      );
 
       // DEBUGGING: Log sample source URLs to verify they're correct
       // console.log(
@@ -289,10 +299,11 @@ export default function UrlAnalyzer({
           url,
           settings: {
             maxDepth: 3,
+            enableSEO: seoSettings.enableSEO, //  Add SEO setting
             includeExternal: false,
             timeout: 10000,
             usePreAnalyzedUrls: true,
-            crawlMode: crawlMode, // 🔥 NEW: Pass crawl mode to backend
+            crawlMode: crawlMode, // Pass crawl mode to backend
           },
           preAnalyzedUrls: urlsForCrawl,
         }),
@@ -940,6 +951,33 @@ export default function UrlAnalyzer({
               </div>
             </div>
           )}
+
+          {/* 🔥 NEW: SEO and Advanced Settings */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-900 mb-3">Crawl Options</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center">
+                <input
+                  id="enableSEO"
+                  type="checkbox"
+                  checked={seoSettings.enableSEO}
+                  onChange={(e) =>
+                    setSeoSettings((prev) => ({ ...prev, enableSEO: e.target.checked }))
+                  }
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="enableSEO" className="ml-2 text-sm text-gray-700">
+                  Enable SEO Analysis
+                </label>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              SEO Analysis:{' '}
+              {seoSettings.enableSEO
+                ? 'Will analyze page titles, meta descriptions, and SEO scores'
+                : 'Disabled - Link checking only'}
+            </p>
+          </div>
 
           {/* 🔥 UPDATED: Enhanced Action Buttons with new crawl modes */}
           <div className="bg-white rounded-lg shadow-lg p-6">

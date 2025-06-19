@@ -10,6 +10,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
     url: '',
     maxDepth: 3,
     includeExternal: false,
+    enableSEO: false, //
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -31,6 +32,20 @@ export default function LargeCrawlForm({ onJobStarted }) {
 
   const getEstimatedTime = () => {
     const depth = parseInt(formData.maxDepth);
+
+    // Adjust time estimate if SEO is enabled
+    if (formData.enableSEO) {
+      const seoTime = {
+        1: '3-8 minutes',
+        2: '8-25 minutes',
+        3: '25-70 minutes',
+        4: '70-180 minutes',
+        5: '90-240 minutes',
+      };
+      return seoTime[depth] || '90-240 minutes';
+    }
+
+    // Default times without SEO
     if (depth <= 2) return '2-10 minutes';
     if (depth <= 3) return '10-30 minutes';
     if (depth <= 4) return '30-90 minutes';
@@ -55,6 +70,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
           maxDepth: parseInt(formData.maxDepth),
           includeExternal: formData.includeExternal,
           timeout: 10000,
+          enableSEO: formData.enableSEO, // Pass SEO setting to API
         },
       };
 
@@ -212,6 +228,26 @@ export default function LargeCrawlForm({ onJobStarted }) {
               </div>
               <p className="mt-1 text-sm text-gray-500">
                 Also check links pointing to other websites (may take longer)
+              </p>
+            </div>
+
+            {/* 🔥 NEW: SEO Analysis Toggle */}
+            <div className="flex flex-col justify-center">
+              <div className="flex items-center">
+                <input
+                  id="enableSEO"
+                  name="enableSEO"
+                  type="checkbox"
+                  checked={formData.enableSEO}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="enableSEO" className="ml-2 block text-sm text-gray-700">
+                  Enable SEO Analysis
+                </label>
+              </div>
+              <p className="mt-1 text-sm text-gray-500">
+                Analyze pages for SEO scores, titles, meta descriptions, and more
               </p>
             </div>
           </div>

@@ -23,6 +23,7 @@ export default function ResultsTable({
           statusCode: '',
           errorType: 'all',
           search: '',
+          seoScore: 'all',
         }
       : {
           errorType: 'all',
@@ -69,6 +70,30 @@ export default function ResultsTable({
     security_blocked: 'Security Blocked',
     robots_blocked: 'Robots.txt Blocked',
   };
+
+  // SEO helper functions
+  const getSeoScoreColor = (score) => {
+    if (score === null || score === undefined) return 'bg-gray-100 text-gray-800';
+    if (score >= 80) return 'bg-green-100 text-green-800';
+    if (score >= 60) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-red-100 text-red-800';
+  };
+
+  const getSeoScoreLabel = (score) => {
+    if (score === null || score === undefined) return 'No Data';
+    if (score >= 80) return 'Good';
+    if (score >= 60) return 'Needs Work';
+    return 'Poor';
+  };
+
+  const hasSeoData = (item) => {
+    return item.seo_score !== null && item.seo_score !== undefined;
+  };
+
+  // Check if this crawl has any SEO data
+  const crawlHasSeoData = useMemo(() => {
+    return displayData.some((item) => hasSeoData(item));
+  }, [displayData]);
 
   //sort for response time
   const toggleSort = () => {
@@ -280,6 +305,21 @@ export default function ResultsTable({
               </svg>
             </div>
 
+            {/*  SEO Filter - only show if crawl has SEO data */}
+            {isNewFormat && crawlHasSeoData && (
+              <select
+                value={currentFilter.seoScore}
+                onChange={(e) => handleFilterChange('seoScore', e.target.value)}
+                className="px-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All SEO Scores</option>
+                <option value="good">Good (80+)</option>
+                <option value="needs-work">Needs Work (60-79)</option>
+                <option value="poor">Poor (&lt;60)</option>
+                <option value="no-data">No SEO Data</option>
+              </select>
+            )}
+
             {/* FIXED: Only show error filter for 'broken' view ONLY */}
             {selectedView === 'broken' && (
               <select
@@ -315,7 +355,13 @@ export default function ResultsTable({
               <button
                 onClick={() => {
                   const resetFilters = isNewFormat
-                    ? { statusFilter: 'all', statusCode: '', errorType: 'all', search: '' }
+                    ? {
+                        statusFilter: 'all',
+                        statusCode: '',
+                        errorType: 'all',
+                        search: '',
+                        seoScore: 'all',
+                      } // Include seoScore
                     : { errorType: 'all', search: '' };
                   setCurrentFilter(resetFilters);
                   if (onFilter) onFilter(resetFilters);
@@ -357,6 +403,20 @@ export default function ResultsTable({
                         {sortDirection === null && <span className="ml-1 text-gray-300">↕</span>}
                       </button>
                     </th>
+                  )}
+                  {/*  SEO columns - only show if crawl has SEO data */}
+                  {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
+                    <>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        SEO Score
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
+                        Page Title
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">
+                        Meta Description
+                      </th>
+                    </>
                   )}
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     {selectedView === 'pages' ? 'Found At' : isNewFormat ? 'Source' : 'Found On'}
@@ -520,6 +580,49 @@ export default function ResultsTable({
                                 </span>
                               )}
                             </div>
+                          </td>
+                        )}
+
+                        {/* 🔥 NEW: SEO Score cell */}
+                        {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {hasSeoData(item) ? (
+                              <span
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSeoScoreColor(
+                                  item.seo_score
+                                )}`}
+                              >
+                                {item.seo_score}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                        )}
+
+                        {/* 🔥 NEW: Page Title cell */}
+                        {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
+                          <td className="px-6 py-4 text-sm text-gray-900 hidden lg:table-cell">
+                            {item.seo_title ? (
+                              <div className="max-w-xs truncate" title={item.seo_title}>
+                                {item.seo_title}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                        )}
+
+                        {/* 🔥 NEW: Meta Description cell */}
+                        {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
+                          <td className="px-6 py-4 text-sm text-gray-500 hidden xl:table-cell">
+                            {item.seo_description ? (
+                              <div className="max-w-sm truncate" title={item.seo_description}>
+                                {item.seo_description}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
                           </td>
                         )}
 
