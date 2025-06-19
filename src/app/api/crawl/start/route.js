@@ -12,6 +12,7 @@ import { db } from '@/lib/supabase';
 import { validateCrawlRequest, validateAdvancedRateLimit } from '@/lib/validation';
 import { logBlockedUrl, logInvalidInput, logRobotsBlocked } from '@/lib/securityLogger';
 import { errorHandler, handleValidationError, handleSecurityError } from '@/lib/errorHandler';
+import { seoDetector } from '@/lib/seoDetector';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -544,18 +545,23 @@ async function processOriginalSmartMode(jobId, baseUrl, preAnalyzedUrls, setting
 async function checkLinksStatus(jobId, linksToCheck, settings) {
   console.log(`🔗 LINK STATUS CHECK: Checking ${linksToCheck.length} links for job ${jobId}`);
 
+  // NEW: Check if SEO analysis is enabled
+  const enableSEO = settings.enableSEO || false;
+  const seoForContentPages = settings.seoForContentPages !== false; // Default true
+
   const httpChecker = new HttpChecker({
     timeout: settings.timeout || 10000,
-    maxConcurrent: 4,
+    maxConcurrent: enableSEO ? 3 : 4,
     retryAttempts: 1,
   });
 
   // Process URLs in smaller batches
-  const batchSize = 10;
+  const batchSize = enableSEO ? 8 : 10; // Smaller batches for SEO
   const batches = batchUtils.chunkArray(linksToCheck, batchSize);
 
   let processedCount = 0;
   let brokenLinksFound = 0;
+  let seoAnalyzedCount = 0;
 
   console.log(`📦 Processing ${batches.length} batches of up to ${batchSize} URLs each`);
 
@@ -577,7 +583,17 @@ async function checkLinksStatus(jobId, linksToCheck, settings) {
         linkText: linkData.linkText || 'Link',
       }));
 
-      const { results } = await httpChecker.checkUrls(urlsToCheck);
+      // NEW: Use enhanced HTTP checker with SEO
+      const { results } = await httpChecker.checkUrlsWithSEO(urlsToCheck, {
+        enableSEO: enableSEO && seoForContentPages,
+        onProgress: (progress) => {
+          console.log(
+            `🔄 Batch progress: ${progress.completed}/${progress.total}, SEO: ${
+              progress.seoAnalyzed || 0
+            }`
+          );
+        },
+      });
 
       console.log(`✅ Checked ${results.length} URLs in batch ${i + 1}`);
 
@@ -595,9 +611,15 @@ async function checkLinksStatus(jobId, linksToCheck, settings) {
               checked_at: result.checked_at,
               is_working: result.is_working,
               error_message: result.error_message,
+              has_seo_data: !!result.seo_data, // Just add this line
             })
             .eq('job_id', jobId)
             .eq('url', result.url);
+
+          // Separately save SEO data if it exists
+          if (result.seo_data && !result.seo_data.error) {
+            await db.addSEOAnalysis(jobId, result.seo_data);
+          }
 
           console.log(
             `💾 Updated status for: ${result.url} (${result.http_status_code || 'ERROR'})`
@@ -640,10 +662,11 @@ async function checkLinksStatus(jobId, linksToCheck, settings) {
       await db.updateJobProgress(jobId, processedCount, totalLinks);
 
       console.log(
-        `📊 Progress: ${processedCount}/${totalLinks} links checked, ${brokenLinksFound} broken links found`
+        `📊 Progress: ${processedCount}/${totalLinks} links checked, ${brokenLinksFound} broken, ${seoAnalyzedCount} SEO analyzed`
       );
 
-      await batchUtils.delay(500);
+      // Longer delay for SEO requests to be respectful
+      await batchUtils.delay(enableSEO ? 800 : 500);
     } catch (batchError) {
       console.error(`❌ Error processing batch ${i + 1}:`, batchError);
     }
@@ -655,6 +678,18 @@ async function checkLinksStatus(jobId, linksToCheck, settings) {
   console.log(
     `🎉 LINK CHECK COMPLETE: ${processedCount} links checked, ${brokenLinksFound} broken links found`
   );
+
+  // NEW: Log SEO summary
+  if (enableSEO && seoAnalyzedCount > 0) {
+    try {
+      const seoSummary = await db.getSEOSummary(jobId);
+      console.log(
+        `📊 SEO SUMMARY: Avg score ${seoSummary.avg_score}/100, ${seoSummary.total_issues} total issues`
+      );
+    } catch (summaryError) {
+      console.error('❌ Error getting SEO summary:', summaryError);
+    }
+  }
 }
 
 /**

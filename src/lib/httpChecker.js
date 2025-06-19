@@ -6,6 +6,7 @@
 import axios from 'axios';
 import { errorUtils, batchUtils } from './utils.js';
 import { securityUtils } from './security.js';
+import { seoDetector } from './seoDetector.js';
 
 export class HttpChecker {
   constructor(options = {}) {
@@ -289,6 +290,242 @@ export class HttpChecker {
         };
       }
     }
+  }
+
+  /**
+   * ENHANCED: Check URL with optional SEO analysis for content pages
+   * Reuses existing HTTP response - minimal resource impact
+   */
+  async checkUrlWithSEO(url, sourceUrl = null, options = {}) {
+    const enableSEO = options.enableSEO || false;
+    const startTime = Date.now();
+
+    // SECURITY: Existing validation
+    const validation = securityUtils.isSafeUrl(url);
+    if (!validation.safe) {
+      console.log(`🚫 BLOCKED URL: ${url} - ${validation.reason}`);
+      return {
+        url,
+        sourceUrl,
+        http_status_code: null,
+        response_time: Date.now() - startTime,
+        checked_at: new Date().toISOString(),
+        is_working: false,
+        error_message: `Security: ${validation.reason}`,
+        blocked: true,
+        seo_data: null, // No SEO for blocked URLs
+      };
+    }
+
+    let attempt = 0;
+    while (attempt <= this.options.retryAttempts) {
+      try {
+        // Use GET instead of HEAD to get content for SEO analysis
+        const method = enableSEO ? 'GET' : 'HEAD';
+        const response = await axios({
+          method,
+          url,
+          ...this.axiosConfig,
+        });
+
+        const responseTime = Date.now() - startTime;
+        const isWorking = this._isStatusCodeOk(response.status);
+
+        const result = {
+          url,
+          sourceUrl,
+          http_status_code: response.status,
+          response_time: responseTime,
+          checked_at: new Date().toISOString(),
+          is_working: isWorking,
+          error_message: null,
+
+          // Legacy compatibility
+          statusCode: response.status,
+          responseTime,
+          isWorking,
+          finalUrl: response.request.res?.responseUrl || url,
+          redirectCount: response.request._redirectCount || 0,
+          headers: this._extractRelevantHeaders(response.headers),
+          attempt: attempt + 1,
+          timestamp: new Date().toISOString(),
+          seo_data: null, // Will be populated if SEO enabled
+        };
+
+        // ADDITION: SEO Analysis for content pages (Railway optimized)
+        if (enableSEO && isWorking && response.data) {
+          const contentType = response.headers['content-type'] || '';
+
+          // Only analyze HTML content pages to save resources
+          if (contentType.includes('text/html')) {
+            try {
+              console.log(`🔍 SEO: Analyzing ${url}`);
+
+              result.seo_data = seoDetector.analyzePage(
+                response.data,
+                url,
+                response.status,
+                responseTime
+              );
+
+              if (result.seo_data) {
+                console.log(
+                  `✅ SEO: Score ${result.seo_data.score}/100 (${result.seo_data.grade}) for ${url}`
+                );
+              }
+            } catch (seoError) {
+              console.error(`❌ SEO analysis failed for ${url}:`, seoError.message);
+              result.seo_data = {
+                url,
+                error: seoError.message,
+                analyzedAt: new Date().toISOString(),
+              };
+            }
+          } else {
+            console.log(`⏭️ SEO: Skipping non-HTML content: ${url} (${contentType})`);
+          }
+        }
+
+        return result;
+      } catch (error) {
+        const responseTime = Date.now() - startTime;
+
+        if (attempt === this.options.retryAttempts) {
+          const errorType = errorUtils.classifyError(error.response?.status, error);
+
+          return {
+            url,
+            sourceUrl,
+            http_status_code: error.response?.status || null,
+            response_time: responseTime,
+            checked_at: new Date().toISOString(),
+            is_working: false,
+            error_message: error.message,
+
+            // Legacy compatibility
+            statusCode: error.response?.status || null,
+            responseTime,
+            isWorking: false,
+            errorType,
+            errorMessage: error.message,
+            attempt: attempt + 1,
+            timestamp: new Date().toISOString(),
+            seo_data: null, // No SEO for failed requests
+          };
+        }
+      }
+
+      attempt++;
+      if (attempt <= this.options.retryAttempts) {
+        await batchUtils.delay(this.options.retryDelay * attempt);
+      }
+    }
+  }
+
+  /**
+   * ENHANCED: Batch check URLs with optional SEO
+   * Railway optimized - only analyze content pages
+   */
+  async checkUrlsWithSEO(urls, options = {}) {
+    const enableSEO = options.enableSEO || false;
+    const seoPages = options.seoPages || []; // Specific pages to SEO analyze
+    const onProgress = options.onProgress;
+
+    const results = [];
+    const failed = [];
+
+    console.log(
+      `🔍 HTTP+SEO: Checking ${urls.length} URLs${enableSEO ? ' with SEO analysis' : ''}`
+    );
+
+    const checkFunctions = urls.map((urlData) => {
+      const url = typeof urlData === 'string' ? urlData : urlData.url;
+      const sourceUrl = typeof urlData === 'object' ? urlData.sourceUrl : null;
+
+      // Determine if this URL should get SEO analysis
+      const shouldAnalyzeSEO =
+        enableSEO &&
+        (seoPages.length === 0 || // Analyze all if no specific pages
+          seoPages.some((page) => page.url === url) || // In specific pages list
+          seoDetector.isContentPage(url)); // Is a content page
+
+      return async () => {
+        try {
+          const result = await this.checkUrlWithSEO(url, sourceUrl, {
+            enableSEO: shouldAnalyzeSEO,
+          });
+
+          results.push(result);
+
+          if (onProgress) {
+            onProgress({
+              completed: results.length + failed.length,
+              total: urls.length,
+              current: result,
+              seoAnalyzed: result.seo_data ? 1 : 0,
+            });
+          }
+
+          return result;
+        } catch (error) {
+          const failedResult = {
+            url,
+            sourceUrl,
+            http_status_code: error.response?.status || null,
+            response_time: null,
+            checked_at: new Date().toISOString(),
+            is_working: false,
+            error_message: error.message,
+            seo_data: null,
+            // Legacy compatibility
+            statusCode: error.response?.status || null,
+            isWorking: false,
+            errorType: errorUtils.classifyError(error.response?.status, error),
+            errorMessage: error.message,
+            timestamp: new Date().toISOString(),
+          };
+
+          failed.push(failedResult);
+          results.push(failedResult);
+
+          if (onProgress) {
+            onProgress({
+              completed: results.length + failed.length,
+              total: urls.length,
+              current: failedResult,
+              seoAnalyzed: 0,
+            });
+          }
+
+          return failedResult;
+        }
+      };
+    });
+
+    await batchUtils.rateLimit(
+      checkFunctions,
+      this.options.maxConcurrent,
+      enableSEO ? 300 : 200 // Slightly longer delay for SEO requests
+    );
+
+    // Enhanced summary with SEO stats
+    const summary = this._generateSummary(results);
+
+    if (enableSEO) {
+      const seoResults = results.filter((r) => r.seo_data && !r.seo_data.error);
+
+      if (seoResults.length > 0) {
+        summary.seo = seoDetector.getSummary(seoResults.map((r) => r.seo_data));
+        console.log(
+          `📊 SEO Summary: ${seoResults.length} pages analyzed, avg score: ${summary.seo.averageScore}/100`
+        );
+      }
+    }
+
+    return {
+      results,
+      summary,
+    };
   }
 
   /**
