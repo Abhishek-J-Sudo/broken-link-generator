@@ -1,6 +1,17 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  ExternalLink,
+  Clock,
+  TrendingUp,
+} from 'lucide-react';
 
 export default function ResultsTable({
   jobId,
@@ -17,6 +28,9 @@ export default function ResultsTable({
   const [sortDirection, setSortDirection] = useState(null); // null, 'asc', 'desc'
   const [seoSortDirection, setSeoSortDirection] = useState(null); // null, 'asc', 'desc'
 
+  // NEW: Expandable rows state
+  const [expandedRows, setExpandedRows] = useState(new Set());
+
   const [currentFilter, setCurrentFilter] = useState(
     isNewFormat
       ? {
@@ -32,6 +46,7 @@ export default function ResultsTable({
         }
   );
 
+  // Color mappings (keep existing)
   const statusCategoryColors = {
     success: 'bg-green-100 text-green-800',
     redirect: 'bg-blue-100 text-blue-800',
@@ -108,7 +123,6 @@ export default function ResultsTable({
       seoScores: displayData.map((item) => item.seo_score),
       seoAnalysisData: displayData.map((item) => item.seo_analysis),
       hasSeoDataResults: displayData.map((item) => hasSeoData(item)),
-      // ADD THESE NEW LINES:
       firstItemKeys: displayData[0] ? Object.keys(displayData[0]) : [],
       firstItemSeoScore: displayData[0]?.seo_score,
       firstItemSeoAnalysis: displayData[0]?.seo_analysis,
@@ -117,7 +131,18 @@ export default function ResultsTable({
     return result;
   }, [displayData]);
 
-  //sort for response time
+  // NEW: Toggle expandable rows
+  const toggleRow = (id) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedRows(newExpanded);
+  };
+
+  // Sort functions (keep existing)
   const toggleSort = () => {
     if (sortDirection === null) setSortDirection('desc'); // Slowest first
     else if (sortDirection === 'desc') setSortDirection('asc'); // Fastest first
@@ -130,7 +155,7 @@ export default function ResultsTable({
     else setSeoSortDirection(null); // Back to original order
   };
 
-  // Sort the display data by response time
+  // Sort the display data
   const sortedData = useMemo(() => {
     let data = displayData;
 
@@ -155,9 +180,32 @@ export default function ResultsTable({
     return data || [];
   }, [displayData, sortDirection, seoSortDirection]);
 
-  // ENHANCED: Better logic for determining what type of "no results" message to show
+  // NEW: Helper functions for the enhanced UI
+  const getStatusIcon = (isWorking) => {
+    return isWorking ? (
+      <CheckCircle className="w-4 h-4 text-emerald-600" />
+    ) : (
+      <XCircle className="w-4 h-4 text-red-600" />
+    );
+  };
+
+  const getIssueIcon = (type) => {
+    switch (type) {
+      case 'critical':
+        return <XCircle className="w-4 h-4 text-red-500" />;
+      case 'major':
+        return <AlertTriangle className="w-4 h-4 text-orange-500" />;
+      case 'warning':
+        return <AlertTriangle className="w-4 h-4 text-amber-500" />;
+      case 'minor':
+        return <AlertTriangle className="w-4 h-4 text-blue-500" />;
+      default:
+        return <AlertTriangle className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
+  // Keep existing helper functions
   const getNoResultsMessage = () => {
-    // Check if any filters are active
     const hasActiveFilters =
       (currentFilter.statusFilter && currentFilter.statusFilter !== 'all') ||
       (currentFilter.statusCode && currentFilter.statusCode !== '') ||
@@ -167,7 +215,6 @@ export default function ResultsTable({
       (currentFilter.search && currentFilter.search !== '');
 
     if (hasActiveFilters) {
-      // Filters are active but no results - this is filtered out data
       return {
         title: 'No Matching Results Found',
         description:
@@ -190,10 +237,8 @@ export default function ResultsTable({
         type: 'filtered',
       };
     } else {
-      // No filters active - check if we're in broken-only mode or if there genuinely are no broken links
       const isFilteredBroken =
         (currentFilter.statusFilter === 'broken' || !isNewFormat) && !hasActiveFilters;
-
       if (!isFilteredBroken) {
         return {
           title: 'No Broken Links Found!',
@@ -240,13 +285,12 @@ export default function ResultsTable({
     }
   };
 
-  // ENHANCED: Always show the header and filters, even when no results
   const noResultsInfo = !displayData || displayData.length === 0 ? getNoResultsMessage() : null;
 
+  // Keep existing event handlers
   const handleFilterChange = (filterType, value) => {
     const newFilter = { ...currentFilter, [filterType]: value };
     setCurrentFilter(newFilter);
-
     if (onFilter) {
       onFilter(newFilter);
     }
@@ -254,17 +298,21 @@ export default function ResultsTable({
 
   const handleSearchChange = (e) => {
     const newSearch = e.target.value;
-
-    // Debounce search
     clearTimeout(window.searchTimeout);
     window.searchTimeout = setTimeout(() => {
       handleFilterChange('search', newSearch);
     }, 500);
   };
 
+  // Keep existing utility functions
   const truncateUrl = (url, maxLength = 60) => {
     if (url?.length <= maxLength) return url;
     return url?.substring(0, maxLength) + '...';
+  };
+
+  const truncateText = (text, maxLength = 50) => {
+    if (!text || text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
   };
 
   const formatResponseTime = (responseTime) => {
@@ -275,14 +323,12 @@ export default function ResultsTable({
 
   const getStatusBadgeColor = (item) => {
     if (isNewFormat && item.is_working !== undefined) {
-      // New format with HTTP status
       if (item.is_working === true) {
         return 'bg-green-100 text-green-800';
       } else if (item.is_working === false) {
         return 'bg-red-100 text-red-800';
       }
     } else {
-      // Old format - all items are broken links
       return 'bg-red-100 text-red-800';
     }
     return 'bg-gray-100 text-gray-800';
@@ -299,18 +345,18 @@ export default function ResultsTable({
     const label = errorTypeLabels[errorType] || 'Unknown Error';
     return statusCode ? `${label} (${statusCode})` : label;
   };
-
   return (
-    <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-5">
-      {/* Header with filters */}
-      <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      {/* Enhanced Header */}
+      <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-5 border-b border-slate-200">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              {isNewFormat ? 'Link Check Results' : 'Broken Links Found'}
+            <h2 className="text-2xl font-bold text-slate-900 mb-1">
+              {isNewFormat ? 'SEO Analysis Results' : 'Broken Links Found'}
             </h2>
-            <p className="text-sm text-gray-600">
+            <p className="text-slate-600 text-sm">
               {pagination?.totalCount || 0} {isNewFormat ? 'links' : 'broken links'} total
+              {expandedRows.size > 0 && ` • ${expandedRows.size} expanded`}
               {isNewFormat &&
                 currentFilter.statusFilter === 'working' &&
                 ' • Showing only working links'}
@@ -346,7 +392,7 @@ export default function ResultsTable({
               </svg>
             </div>
 
-            {/*  SEO Filter - only show if crawl has SEO data */}
+            {/* SEO Filter - only show if crawl has SEO data */}
             {isNewFormat && crawlHasSeoData && (
               <select
                 value={currentFilter.seoScore}
@@ -361,7 +407,7 @@ export default function ResultsTable({
               </select>
             )}
 
-            {/* FIXED: Only show error filter for 'broken' view ONLY */}
+            {/* Error filter for broken view only */}
             {selectedView === 'broken' && (
               <select
                 value={currentFilter.errorType}
@@ -383,7 +429,7 @@ export default function ResultsTable({
         </div>
       </div>
 
-      {/* ENHANCED: Show appropriate no results message */}
+      {/* Show appropriate no results message */}
       {noResultsInfo ? (
         <div className="bg-white rounded-lg p-8 text-center">
           <div className="flex flex-col items-center">
@@ -391,7 +437,7 @@ export default function ResultsTable({
             <h3 className="text-xl font-semibold text-gray-900 mb-2">{noResultsInfo.title}</h3>
             <p className="text-gray-600">{noResultsInfo.description}</p>
 
-            {/* ENHANCED: Show clear filters button for filtered results */}
+            {/* Show clear filters button for filtered results */}
             {noResultsInfo.type === 'filtered' && (
               <button
                 onClick={() => {
@@ -402,7 +448,7 @@ export default function ResultsTable({
                         errorType: 'all',
                         search: '',
                         seoScore: 'all',
-                      } // Include seoScore
+                      }
                     : { errorType: 'all', search: '' };
                   setCurrentFilter(resetFilters);
                   if (onFilter) onFilter(resetFilters);
@@ -416,370 +462,412 @@ export default function ResultsTable({
         </div>
       ) : (
         <>
-          {/* Enhanced Table */}
+          {/* Enhanced Expandable Table */}
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full">
+              <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider w-8">
+                    {/* Expand column */}
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
                     {selectedView === 'pages' ? 'Page URL' : isNewFormat ? 'URL' : 'Broken URL'}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {selectedView === 'pages' ? 'Status' : isNewFormat ? 'Status' : 'Error Type'}
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Status
                   </th>
-                  {selectedView === 'pages' && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Depth
-                    </th>
-                  )}
-                  {isNewFormat && selectedView !== 'pages' && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <button
-                        onClick={toggleSort}
-                        className="flex items-center hover:text-gray-700 focus:outline-none"
-                      >
-                        Response Time
-                        {sortDirection === 'asc' && <span className="ml-1">▲</span>}
-                        {sortDirection === 'desc' && <span className="ml-1">▼</span>}
-                        {sortDirection === null && <span className="ml-1 text-gray-300">↕</span>}
-                      </button>
-                    </th>
-                  )}
-                  {/*  SEO columns - only show if crawl has SEO data */}
                   {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
-                    <>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={toggleSeoSort}
-                          className="flex items-center hover:text-gray-700 focus:outline-none transition-colors"
-                          title="Click to sort by SEO score"
-                        >
-                          SEO Score
-                          {seoSortDirection === 'asc' && (
-                            <span className="ml-1 text-emerald-600">▲</span>
-                          )}
-                          {seoSortDirection === 'desc' && (
-                            <span className="ml-1 text-emerald-600">▼</span>
-                          )}
-                          {seoSortDirection === null && (
-                            <span className="ml-1 text-gray-300">↕</span>
-                          )}
-                        </button>
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
-                        Page Title
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">
-                        Meta Description
-                      </th>
-                    </>
+                    <th
+                      className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer"
+                      onClick={toggleSeoSort}
+                    >
+                      SEO Score
+                      {seoSortDirection === 'asc' && <ChevronUp className="w-3 h-3 inline ml-1" />}
+                      {seoSortDirection === 'desc' && (
+                        <ChevronDown className="w-3 h-3 inline ml-1" />
+                      )}
+                    </th>
                   )}
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {selectedView === 'pages' ? 'Found At' : isNewFormat ? 'Source' : 'Found On'}
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Issues
                   </th>
+                  {isNewFormat && selectedView !== 'pages' && (
+                    <th
+                      className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer"
+                      onClick={toggleSort}
+                    >
+                      <Clock className="w-3 h-3 inline mr-1" />
+                      Response
+                      {sortDirection === 'asc' && <ChevronUp className="w-3 h-3 inline ml-1" />}
+                      {sortDirection === 'desc' && <ChevronDown className="w-3 h-3 inline ml-1" />}
+                    </th>
+                  )}
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white">
                 {sortedData.map((item, index) => (
-                  <tr key={item.id || index} className="hover:bg-gray-50">
-                    {/* NEW: Pages view columns */}
-                    {selectedView === 'pages' ? (
-                      <>
-                        {/* Page URL */}
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <a
-                              href={item.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm font-mono break-all text-blue-600 hover:text-blue-800"
-                              title={item.url}
-                            >
-                              {truncateUrl(item.url)}
-                            </a>
-                            {item.url?.length > 60 && (
-                              <span className="text-xs text-gray-500 mt-1">
-                                Click to view full URL
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Status */}
-                        <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              item.is_working === true
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {item.is_working === true ? 'Checked' : 'Pending'}
-                          </span>
-                        </td>
-
-                        {/* Depth */}
-                        <td className="px-6 py-4">
-                          <span className="text-sm text-gray-600">{item.depth || 0}</span>
-                        </td>
-
-                        {/* Found At */}
-                        <td className="px-6 py-4">
-                          <span className="text-xs text-gray-500">
-                            {item.checked_at ? new Date(item.checked_at).toLocaleString() : 'N/A'}
-                          </span>
-                        </td>
-                      </>
-                    ) : (
-                      /* Existing table columns for other views */
-                      <>
-                        {/* URL */}
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <a
-                              href={item.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`text-sm font-mono break-all ${
-                                isNewFormat
-                                  ? item.is_working
-                                    ? 'text-blue-600 hover:text-blue-800'
-                                    : 'text-red-600 hover:text-red-800'
-                                  : 'text-red-600 hover:text-red-800'
-                              }`}
-                              title={item.url}
-                            >
-                              {truncateUrl(item.url)}
-                            </a>
-                            {item.url?.length > 60 && (
-                              <span className="text-xs text-gray-500 mt-1">
-                                Click to view full URL
-                              </span>
-                            )}
-
-                            {/* Internal/External indicator - new format only */}
-                            {isNewFormat && item.is_internal !== undefined && (
-                              <div className="flex items-center mt-1 space-x-2">
-                                <span
-                                  className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                    item.is_internal
-                                      ? 'bg-blue-100 text-blue-800'
-                                      : 'bg-purple-100 text-purple-800'
-                                  }`}
-                                >
-                                  {item.is_internal ? 'Internal' : 'External'}
-                                </span>
-                                {item.depth > 0 && (
-                                  <span className="text-xs text-gray-500">Depth: {item.depth}</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Status/Error Type */}
-                        <td className="px-6 py-4">
-                          {isNewFormat ? (
-                            /* New format with HTTP status */
-                            <div className="flex flex-col space-y-1">
-                              {/* HTTP Status Code */}
-                              <span
-                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(
-                                  item
-                                )}`}
-                              >
-                                {item.http_status_code ? `${item.http_status_code}` : 'ERROR'}
-                              </span>
-
-                              {/* Status Label */}
-                              <span className="text-xs text-gray-600">
-                                {item.status_label || 'Unknown'}
-                              </span>
-
-                              {/* Error Type for broken links */}
-                              {!item.is_working && item.error_type && (
-                                <span
-                                  className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                    errorTypeColors[item.error_type] || errorTypeColors.other
-                                  }`}
-                                >
-                                  {item.error_type.replace('_', ' ')}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            /* Old format - just error type */
-                            <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                errorTypeColors[item.error_type] || errorTypeColors.other
-                              }`}
-                            >
-                              {formatErrorMessage(item.error_type, item.status_code)}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Response Time - new format only */}
-                        {isNewFormat && (
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col">
-                              <span
-                                className={`text-sm font-medium ${getResponseTimeColor(
-                                  item.response_time
-                                )}`}
-                              >
-                                {formatResponseTime(item.response_time)}
-                              </span>
-                              {/* {item.checked_at && (
-                                <span className="text-xs text-gray-500">
-                                  {new Date(item.checked_at).toLocaleString()}
-                                </span>
-                              )} */}
-                            </div>
-                          </td>
+                  <React.Fragment key={item.url || index}>
+                    {/* Main Row */}
+                    <tr
+                      key={item.url || index}
+                      className={`hover:bg-slate-50 transition-colors cursor-pointer border-b border-slate-100 ${
+                        expandedRows.has(item.id || index) ? 'bg-blue-50' : ''
+                      }`}
+                      onClick={() => toggleRow(item.id || index)}
+                    >
+                      {/* Expand/Collapse Button */}
+                      <td className="px-6 py-4 text-center">
+                        {expandedRows.has(item.id || index) ? (
+                          <ChevronDown className="w-4 h-4 text-slate-500" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-slate-500" />
                         )}
+                      </td>
 
-                        {/* 🔥 NEW: SEO Score cell */}
-                        {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            {hasSeoData(item) ? (
+                      {/* URL */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-start gap-2">
+                          {getStatusIcon(item.is_working)}
+                          <div className="flex-1 min-w-0">
+                            <div
+                              className={`text-sm font-medium break-all ${
+                                item.is_working ? 'text-blue-600' : 'text-red-600'
+                              }`}
+                            >
+                              {truncateText(item.url, 60)}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  item.is_internal
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                    : 'bg-purple-50 text-purple-700 border border-purple-200'
+                                }`}
+                              >
+                                {item.is_internal ? 'Internal' : 'External'}
+                              </span>
+                              <span className="text-xs text-slate-500">Depth: {item.depth}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-6 py-4">
+                        <div
+                          className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                            item.is_working
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-red-50 text-red-700 border border-red-200'
+                          }`}
+                        >
+                          {item.http_status_code || 'ERROR'}
+                        </div>
+                      </td>
+
+                      {/* SEO Score */}
+                      {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
+                        <td className="px-6 py-4">
+                          {hasSeoData(item) ? (
+                            <div className="flex items-center gap-3">
                               <div
-                                className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold cursor-help ${getSeoScoreBadgeColor(
-                                  item.seo_score
-                                )}`}
-                                title={`SEO Score: ${item.seo_score}/100 - ${getSeoScoreLabel(
+                                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${getSeoScoreBadgeColor(
                                   item.seo_score
                                 )}`}
                               >
                                 {item.seo_score}
                               </div>
-                            ) : (
-                              <span
-                                className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-500 cursor-help"
-                                title="No SEO data available for this page"
-                              >
-                                --
-                              </span>
-                            )}
-                          </td>
-                        )}
-
-                        {/* 🔥 NEW: Page Title cell */}
-                        {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
-                          <td className="px-6 py-4 text-sm text-gray-900 hidden lg:table-cell">
-                            {item.seo_title?.text ? (
-                              <div className="flex flex-col">
+                              <div className="text-xs">
                                 <div
-                                  className="font-medium text-gray-900 hover:text-blue-600 cursor-help truncate max-w-xs"
-                                  title={`Title: "${item.seo_title.text}"`}
-                                >
-                                  {item.seo_title.text.length > 20
-                                    ? `${item.seo_title.text.substring(0, 20)}...`
-                                    : item.seo_title.text}
-                                </div>
-                                <div
-                                  className={`text-xs ${
-                                    item.seo_title.text.length < 30
-                                      ? 'text-red-500'
-                                      : item.seo_title.text.length > 60
-                                      ? 'text-amber-500'
-                                      : 'text-emerald-500'
+                                  className={`font-medium ${
+                                    item.seo_score >= 80
+                                      ? 'text-emerald-700'
+                                      : item.seo_score >= 60
+                                      ? 'text-amber-700'
+                                      : 'text-red-700'
                                   }`}
                                 >
-                                  {item.seo_title.text.length} chars
+                                  {item.seo_grade ||
+                                    (item.seo_score >= 80 ? 'A' : item.seo_score >= 60 ? 'B' : 'C')}
                                 </div>
                               </div>
-                            ) : (
-                              <div
-                                className="text-gray-400 text-sm cursor-help"
-                                title="No title tag found on this page"
-                              >
-                                <span>No title</span>
-                                <div className="text-xs text-red-500">0 chars</div>
-                              </div>
-                            )}
-                          </td>
-                        )}
-
-                        {/* 🔥 NEW: Meta Description cell */}
-                        {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
-                          <td className="px-6 py-4 text-sm text-gray-500 hidden xl:table-cell">
-                            {item.seo_metaDescription?.text ? (
-                              <div className="flex flex-col">
-                                <div
-                                  className="text-gray-700 hover:text-blue-600 cursor-help truncate max-w-sm"
-                                  title={`Meta Description: "${item.seo_metaDescription.text}"`}
-                                >
-                                  {item.seo_metaDescription.text.length > 20
-                                    ? `${item.seo_metaDescription.text.substring(0, 20)}...`
-                                    : item.seo_metaDescription.text}
-                                </div>
-                                <div
-                                  className={`text-xs ${
-                                    item.seo_metaDescription.text.length < 120
-                                      ? 'text-red-500'
-                                      : item.seo_metaDescription.text.length > 160
-                                      ? 'text-amber-500'
-                                      : 'text-emerald-500'
-                                  }`}
-                                >
-                                  {item.seo_metaDescription.text.length} chars
-                                </div>
-                              </div>
-                            ) : item.seo_metaDescription ? (
-                              // Handle case where seo_metaDescription is a string directly
-                              <div className="flex flex-col">
-                                <div
-                                  className="text-gray-700 hover:text-blue-600 cursor-help truncate max-w-sm"
-                                  title={`Meta Description: "${item.seo_metaDescription}"`}
-                                >
-                                  {item.seo_metaDescription.length > 40
-                                    ? `${item.seo_metaDescription.substring(0, 40)}...`
-                                    : item.seo_metaDescription}
-                                </div>
-                                <div
-                                  className={`text-xs ${
-                                    item.seo_metaDescription.length < 120
-                                      ? 'text-red-500'
-                                      : item.seo_metaDescription.length > 160
-                                      ? 'text-amber-500'
-                                      : 'text-emerald-500'
-                                  }`}
-                                >
-                                  {item.seo_metaDescription.length} chars
-                                </div>
-                              </div>
-                            ) : (
-                              <div
-                                className="text-gray-400 text-sm cursor-help"
-                                title="No meta description found on this page"
-                              >
-                                <span>No description</span>
-                                <div className="text-xs text-red-500">0 chars</div>
-                              </div>
-                            )}
-                          </td>
-                        )}
-
-                        {/* Source */}
-                        <td className="px-6 py-4">
-                          {item.source_url || item.sourceUrl ? (
-                            <a
-                              href={item.source_url || item.sourceUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-gray-500 hover:text-blue-600 font-mono"
-                              title={item.source_url || item.sourceUrl}
-                            >
-                              {truncateUrl(item.source_url || item.sourceUrl, 20)}
-                            </a>
+                            </div>
                           ) : (
-                            <span className="text-sm text-gray-500">Discovery</span>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+                                <span className="text-xs text-slate-500">--</span>
+                              </div>
+                              <div className="text-xs text-slate-500">No Data</div>
+                            </div>
                           )}
                         </td>
-                      </>
+                      )}
+
+                      {/* Issues Count */}
+                      <td className="px-6 py-4">
+                        {item.issues && item.issues.length > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                item.issues.some((issue) => issue.type === 'critical')
+                                  ? 'bg-red-100 text-red-800'
+                                  : item.issues.some((issue) => issue.type === 'major')
+                                  ? 'bg-orange-100 text-orange-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {item.issues.length} issue{item.issues.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        ) : item.is_working === false ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            1 issue
+                          </span>
+                        ) : (
+                          <span className="text-xs text-emerald-600">No issues</span>
+                        )}
+                      </td>
+
+                      {/* Response Time */}
+                      {isNewFormat && selectedView !== 'pages' && (
+                        <td className="px-6 py-4">
+                          <span
+                            className={`text-sm font-medium ${
+                              !item.response_time
+                                ? 'text-slate-500'
+                                : item.response_time < 1000
+                                ? 'text-emerald-600'
+                                : item.response_time < 3000
+                                ? 'text-amber-600'
+                                : 'text-red-600'
+                            }`}
+                          >
+                            {formatResponseTime(item.response_time)}
+                          </span>
+                        </td>
+                      )}
+                    </tr>
+
+                    {/* Expanded SEO Details Row */}
+                    {expandedRows.has(item.id || index) && (
+                      <tr className="bg-slate-50">
+                        <td colSpan="6" className="px-6 py-6">
+                          <div className="max-w-6xl">
+                            {hasSeoData(item) ? (
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Left Column - Page Content */}
+                                <div className="space-y-4">
+                                  <h4 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                                    <TrendingUp className="w-5 h-5" />
+                                    Page Content Analysis
+                                  </h4>
+
+                                  {/* Page Title */}
+                                  <div className="bg-white p-4 rounded-lg border">
+                                    <div className="flex justify-between items-start mb-2">
+                                      <h5 className="font-medium text-slate-900">Page Title</h5>
+                                      <span
+                                        className={`text-xs px-2 py-1 rounded ${
+                                          !item.seo_title?.text
+                                            ? 'bg-red-100 text-red-800'
+                                            : item.seo_title.text.length < 30
+                                            ? 'bg-amber-100 text-amber-800'
+                                            : item.seo_title.text.length > 60
+                                            ? 'bg-amber-100 text-amber-800'
+                                            : 'bg-emerald-100 text-emerald-800'
+                                        }`}
+                                      >
+                                        {item.seo_title?.text
+                                          ? `${item.seo_title.text.length} chars`
+                                          : 'Missing'}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-slate-700">
+                                      {item.seo_title?.text || 'No title tag found'}
+                                    </p>
+                                  </div>
+
+                                  {/* Meta Description */}
+                                  <div className="bg-white p-4 rounded-lg border">
+                                    <div className="flex justify-between items-start mb-2">
+                                      <h5 className="font-medium text-slate-900">
+                                        Meta Description
+                                      </h5>
+                                      <span
+                                        className={`text-xs px-2 py-1 rounded ${
+                                          !item.seo_metaDescription?.text
+                                            ? 'bg-red-100 text-red-800'
+                                            : item.seo_metaDescription.text.length < 120
+                                            ? 'bg-amber-100 text-amber-800'
+                                            : item.seo_metaDescription.text.length > 160
+                                            ? 'bg-amber-100 text-amber-800'
+                                            : 'bg-emerald-100 text-emerald-800'
+                                        }`}
+                                      >
+                                        {item.seo_metaDescription?.text
+                                          ? `${item.seo_metaDescription.text.length} chars`
+                                          : 'Missing'}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-slate-700">
+                                      {item.seo_metaDescription?.text ||
+                                        'No meta description found'}
+                                    </p>
+                                  </div>
+
+                                  {/* Content Structure */}
+                                  <div className="bg-white p-4 rounded-lg border">
+                                    <h5 className="font-medium text-slate-900 mb-3">
+                                      Content Structure
+                                    </h5>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="text-center">
+                                        <div className="text-2xl font-bold text-blue-600">
+                                          {item.word_count || 0}
+                                        </div>
+                                        <div className="text-xs text-slate-600">Words</div>
+                                      </div>
+                                      <div className="text-center">
+                                        <div className="text-2xl font-bold text-purple-600">
+                                          {(item.h1_count || 0) +
+                                            (item.h2_count || 0) +
+                                            (item.h3_count || 0)}
+                                        </div>
+                                        <div className="text-xs text-slate-600">Headings</div>
+                                      </div>
+                                    </div>
+                                    <div className="mt-3 flex gap-4 text-sm">
+                                      <span>H1: {item.h1_count || 0}</span>
+                                      <span>H2: {item.h2_count || 0}</span>
+                                      <span>H3: {item.h3_count || 0}</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Right Column - Technical & Issues */}
+                                <div className="space-y-4">
+                                  <h4 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                                    <AlertTriangle className="w-5 h-5" />
+                                    Technical & Issues
+                                  </h4>
+
+                                  {/* Technical Details */}
+                                  <div className="bg-white p-4 rounded-lg border">
+                                    <h5 className="font-medium text-slate-900 mb-3">
+                                      Technical Details
+                                    </h5>
+                                    <div className="space-y-2 text-sm">
+                                      <div className="flex justify-between">
+                                        <span>HTTPS:</span>
+                                        <span
+                                          className={
+                                            item.is_https ? 'text-emerald-600' : 'text-red-600'
+                                          }
+                                        >
+                                          {item.is_https ? 'Yes' : 'No'}
+                                        </span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span>Canonical URL:</span>
+                                        <span
+                                          className={
+                                            item.canonical_url
+                                              ? 'text-emerald-600'
+                                              : 'text-amber-600'
+                                          }
+                                        >
+                                          {item.canonical_url ? 'Present' : 'Missing'}
+                                        </span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span>Images:</span>
+                                        <span>{item.total_images || 0} total</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span>Alt Coverage:</span>
+                                        <span
+                                          className={`${
+                                            (item.alt_coverage || 0) >= 90
+                                              ? 'text-emerald-600'
+                                              : (item.alt_coverage || 0) >= 70
+                                              ? 'text-amber-600'
+                                              : 'text-red-600'
+                                          }`}
+                                        >
+                                          {item.alt_coverage || 0}%
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Issues List */}
+                                  <div className="bg-white p-4 rounded-lg border">
+                                    <h5 className="font-medium text-slate-900 mb-3">SEO Issues</h5>
+                                    {item.issues && item.issues.length > 0 ? (
+                                      <div className="space-y-2">
+                                        {item.issues.map((issue, idx) => (
+                                          <div
+                                            key={`${issue.type}-${idx}`}
+                                            className="flex items-start gap-2 text-sm"
+                                          >
+                                            {getIssueIcon(issue.type)}
+                                            <span className="text-slate-700">{issue.message}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : !item.is_working ? (
+                                      <div className="flex items-start gap-2 text-sm">
+                                        <XCircle className="w-4 h-4 text-red-500" />
+                                        <span className="text-slate-700">
+                                          {formatErrorMessage(
+                                            item.error_type,
+                                            item.http_status_code
+                                          )}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2 text-sm text-emerald-600">
+                                        <CheckCircle className="w-4 h-4" />
+                                        No issues found
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-center py-8">
+                                <XCircle className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                                <h4 className="text-lg font-medium text-slate-900 mb-2">
+                                  No SEO Analysis Available
+                                </h4>
+                                <p className="text-slate-600">
+                                  {item.is_working
+                                    ? 'SEO analysis failed or is still processing'
+                                    : 'Page could not be accessed for analysis'}
+                                </p>
+                                {!item.is_working && (
+                                  <div className="mt-4 p-3 bg-red-50 rounded-lg">
+                                    <div className="flex items-center gap-2 text-sm text-red-700">
+                                      <XCircle className="w-4 h-4" />
+                                      <span className="font-medium">Link Status:</span>
+                                      <span>
+                                        {formatErrorMessage(item.error_type, item.http_status_code)}
+                                      </span>
+                                    </div>
+                                    {item.response_time && (
+                                      <div className="text-xs text-red-600 mt-1">
+                                        Response time: {formatResponseTime(item.response_time)}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </tr>
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -807,7 +895,6 @@ export default function ResultsTable({
                     Previous
                   </button>
 
-                  {/* Page numbers */}
                   {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
                     const startPage = Math.max(1, pagination.currentPage - 2);
                     const pageNum = startPage + i;
@@ -849,7 +936,6 @@ export default function ResultsTable({
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                 {isNewFormat ? (
-                  /* New format with working/broken stats */
                   <>
                     <div>
                       <div className="text-lg font-semibold text-green-600">
@@ -863,6 +949,14 @@ export default function ResultsTable({
                       </div>
                       <div className="text-xs text-gray-600">Broken Links</div>
                     </div>
+                    {crawlHasSeoData && (
+                      <div>
+                        <div className="text-lg font-semibold text-emerald-600">
+                          {displayData.filter((l) => hasSeoData(l) && l.seo_score >= 80).length}
+                        </div>
+                        <div className="text-xs text-gray-600">Good SEO (80+)</div>
+                      </div>
+                    )}
                     <div>
                       <div className="text-lg font-semibold text-blue-600">
                         {
@@ -872,18 +966,8 @@ export default function ResultsTable({
                       </div>
                       <div className="text-xs text-gray-600">Fast Responses (&lt;1s)</div>
                     </div>
-                    <div>
-                      <div className="text-lg font-semibold text-orange-600">
-                        {
-                          displayData.filter((l) => l.response_time && l.response_time > 5000)
-                            .length
-                        }
-                      </div>
-                      <div className="text-xs text-gray-600">Slow Responses (&gt;5s)</div>
-                    </div>
                   </>
                 ) : (
-                  /* Old format - just broken link stats */
                   <>
                     <div>
                       <div className="text-lg font-semibold text-red-600">{displayData.length}</div>
