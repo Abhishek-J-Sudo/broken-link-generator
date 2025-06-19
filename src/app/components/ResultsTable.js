@@ -92,7 +92,21 @@ export default function ResultsTable({
 
   // Check if this crawl has any SEO data
   const crawlHasSeoData = useMemo(() => {
-    return displayData.some((item) => hasSeoData(item));
+    const result = displayData.some((item) => hasSeoData(item));
+    console.log('🔍 SEO Debug:', {
+      crawlHasSeoData: result,
+      displayDataLength: displayData.length,
+      firstItem: displayData[0],
+      seoScores: displayData.map((item) => item.seo_score),
+      seoAnalysisData: displayData.map((item) => item.seo_analysis),
+      hasSeoDataResults: displayData.map((item) => hasSeoData(item)),
+      // ADD THESE NEW LINES:
+      firstItemKeys: displayData[0] ? Object.keys(displayData[0]) : [],
+      firstItemSeoScore: displayData[0]?.seo_score,
+      firstItemSeoAnalysis: displayData[0]?.seo_analysis,
+      rawFirstItem: displayData[0],
+    });
+    return result;
   }, [displayData]);
 
   //sort for response time
@@ -603,9 +617,9 @@ export default function ResultsTable({
                         {/* 🔥 NEW: Page Title cell */}
                         {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
                           <td className="px-6 py-4 text-sm text-gray-900 hidden lg:table-cell">
-                            {item.seo_title ? (
-                              <div className="max-w-xs truncate" title={item.seo_title}>
-                                {item.seo_title}
+                            {item.seo_title?.text ? (
+                              <div className="max-w-xs truncate" title={item.seo_title.text}>
+                                {item.seo_title.text}
                               </div>
                             ) : (
                               <span className="text-gray-400">-</span>
@@ -616,9 +630,12 @@ export default function ResultsTable({
                         {/* 🔥 NEW: Meta Description cell */}
                         {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
                           <td className="px-6 py-4 text-sm text-gray-500 hidden xl:table-cell">
-                            {item.seo_description ? (
-                              <div className="max-w-sm truncate" title={item.seo_description}>
-                                {item.seo_description}
+                            {item.seo_metaDescription?.text ? ( //
+                              <div
+                                className="max-w-sm truncate"
+                                title={item.seo_metaDescription.text}
+                              >
+                                {item.seo_metaDescription.text}
                               </div>
                             ) : (
                               <span className="text-gray-400">-</span>

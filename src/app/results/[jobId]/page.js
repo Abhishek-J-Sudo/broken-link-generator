@@ -164,6 +164,7 @@ export default function ResultsPage() {
       setSeoLoading(false);
     }
   };
+
   const handleCardClick = async (viewType) => {
     if (selectedView === viewType) return; // Already selected
 
@@ -293,12 +294,11 @@ export default function ResultsPage() {
           link.error_message || 'N/A',
           link.seo_score || 'N/A',
           link.seo_grade || 'N/A',
-          link.seo_data?.title?.text || 'N/A',
-          link.seo_data?.metaDescription?.text || 'N/A',
-          link.seo_data?.wordCount || 'N/A',
-          link.seo_data?.headings?.hasNoH1 ? 'No' : 'Yes',
-          link.seo_data?.technical?.isHttps ? 'Yes' : 'No',
-          link.seo_data?.issues?.length || 0,
+          link.seo_title?.text || 'N/A',
+          link.seo_metaDescription?.text || 'N/A',
+          link.seo_headings?.hasNoH1 ? 'No' : 'Yes',
+          link.seo_technical?.isHttps ? 'Yes' : 'No',
+          link.seo_issues_count || 0,
         ]);
 
         const csvContent = [
@@ -771,33 +771,42 @@ export default function ResultsPage() {
             <div className="bg-white rounded-lg shadow-lg p-6 text-center">
               <div
                 className={`text-2xl font-bold mb-2 ${
-                  seoSummary.averageScore >= 80
+                  seoSummary.avg_score >= 80
                     ? 'text-green-600'
-                    : seoSummary.averageScore >= 60
+                    : seoSummary.avg_score >= 60
                     ? 'text-yellow-600'
                     : 'text-red-600'
                 }`}
               >
-                {Math.round(seoSummary.averageScore || 0)}/100
+                {Math.round(seoSummary.avg_score || 0)}/100
               </div>
               <div className="text-sm text-gray-600">Average SEO Score</div>
               <div
                 className={`text-xs mt-1 ${
-                  seoSummary.averageScore >= 80
+                  seoSummary.avg_score >= 80
                     ? 'text-green-600'
-                    : seoSummary.averageScore >= 60
+                    : seoSummary.avg_score >= 60
                     ? 'text-yellow-600'
                     : 'text-red-600'
                 }`}
               >
-                Grade: {seoSummary.averageGrade || 'N/A'}
+                Grade:
+                {seoSummary.avg_score >= 90
+                  ? 'A'
+                  : seoSummary.avg_score >= 80
+                  ? 'B'
+                  : seoSummary.avg_score >= 70
+                  ? 'C'
+                  : seoSummary.avg_score >= 60
+                  ? 'D'
+                  : 'F'}
               </div>
             </div>
 
             {/* Pages Analyzed */}
             <div className="bg-white rounded-lg shadow-lg p-6 text-center">
               <div className="text-2xl font-bold text-blue-600 mb-2">
-                {seoSummary.totalAnalyzed || 0}
+                {seoSummary.total_pages || 0}
               </div>
               <div className="text-sm text-gray-600">Pages Analyzed</div>
               <div className="text-xs text-blue-600 mt-1">SEO Data Available</div>
@@ -806,7 +815,7 @@ export default function ResultsPage() {
             {/* SEO Issues */}
             <div className="bg-white rounded-lg shadow-lg p-6 text-center">
               <div className="text-2xl font-bold text-orange-600 mb-2">
-                {seoSummary.totalIssues || 0}
+                {seoSummary.total_issues || 0}
               </div>
               <div className="text-sm text-gray-600">SEO Issues Found</div>
               <div className="text-xs text-orange-600 mt-1">Need Attention</div>
@@ -815,21 +824,21 @@ export default function ResultsPage() {
             {/* Performance */}
             <div className="bg-white rounded-lg shadow-lg p-6 text-center">
               <div className="text-2xl font-bold text-purple-600 mb-2">
-                {Math.round(seoSummary.averageResponseTime || 0)}ms
+                {Math.round(seoSummary.avg_response_time || 0)}ms
               </div>
               <div className="text-sm text-gray-600">Avg Response Time</div>
               <div
                 className={`text-xs mt-1 ${
-                  (seoSummary.averageResponseTime || 0) < 1000
+                  (seoSummary.avg_response_time || 0) < 1000
                     ? 'text-green-600'
-                    : (seoSummary.averageResponseTime || 0) < 3000
+                    : (seoSummary.avg_response_time || 0) < 3000
                     ? 'text-yellow-600'
                     : 'text-red-600'
                 }`}
               >
-                {(seoSummary.averageResponseTime || 0) < 1000
+                {(seoSummary.avg_response_time || 0) < 1000
                   ? 'Fast'
-                  : (seoSummary.averageResponseTime || 0) < 3000
+                  : (seoSummary.avg_response_time || 0) < 3000
                   ? 'Moderate'
                   : 'Slow'}
               </div>

@@ -611,14 +611,20 @@ async function checkLinksStatus(jobId, linksToCheck, settings) {
               checked_at: result.checked_at,
               is_working: result.is_working,
               error_message: result.error_message,
-              has_seo_data: !!result.seo_data, // Just add this line
+              has_seo_data: result.seo_data && !result.seo_data.error,
             })
             .eq('job_id', jobId)
             .eq('url', result.url);
 
-          // Separately save SEO data if it exists
+          // Save SEO analysis data if available
           if (result.seo_data && !result.seo_data.error) {
-            await db.addSEOAnalysis(jobId, result.seo_data);
+            try {
+              await db.addSEOAnalysis(jobId, result.seo_data);
+              seoAnalyzedCount++; // Increment only when successfully saved
+              console.log(`📊 SEO: Saved data for ${result.url} (${seoAnalyzedCount} total)`);
+            } catch (seoSaveError) {
+              console.error(`❌ Failed to save SEO data for ${result.url}:`, seoSaveError);
+            }
           }
 
           console.log(

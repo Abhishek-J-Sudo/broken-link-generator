@@ -1,10 +1,11 @@
 // src/app/api/seo/summary/[jobId]/route.js
 import { NextResponse } from 'next/server';
-import db from '@/lib/supabase';
+import { db } from '@/lib/supabase'; // CHANGED: Use named import with braces
 
 export async function GET(request, { params }) {
   try {
-    const { jobId } = params;
+    // FIX: Await params for Next.js 15
+    const { jobId } = await params;
 
     if (!jobId) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
@@ -12,7 +13,7 @@ export async function GET(request, { params }) {
 
     console.log(`📊 Getting SEO summary for job: ${jobId}`);
 
-    // Use the calculateSEOSummary function directly (since the view might not exist yet)
+    // FIX: Use the correct method name
     const seoSummary = await db.calculateSEOSummary(jobId);
 
     if (!seoSummary) {
@@ -24,6 +25,12 @@ export async function GET(request, { params }) {
     return NextResponse.json(seoSummary);
   } catch (error) {
     console.error('❌ Error getting SEO summary:', error);
-    return NextResponse.json({ error: 'Failed to get SEO summary' }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: 'Failed to get SEO summary',
+        details: error.message,
+      },
+      { status: 500 }
+    );
   }
 }

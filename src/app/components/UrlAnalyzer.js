@@ -952,33 +952,6 @@ export default function UrlAnalyzer({
             </div>
           )}
 
-          {/* 🔥 NEW: SEO and Advanced Settings */}
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <h4 className="text-sm font-medium text-gray-900 mb-3">Crawl Options</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center">
-                <input
-                  id="enableSEO"
-                  type="checkbox"
-                  checked={seoSettings.enableSEO}
-                  onChange={(e) =>
-                    setSeoSettings((prev) => ({ ...prev, enableSEO: e.target.checked }))
-                  }
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="enableSEO" className="ml-2 text-sm text-gray-700">
-                  Enable SEO Analysis
-                </label>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-gray-500">
-              SEO Analysis:{' '}
-              {seoSettings.enableSEO
-                ? 'Will analyze page titles, meta descriptions, and SEO scores'
-                : 'Disabled - Link checking only'}
-            </p>
-          </div>
-
           {/* 🔥 UPDATED: Enhanced Action Buttons with new crawl modes */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">🚀 Next Steps</h2>
@@ -1163,6 +1136,33 @@ export default function UrlAnalyzer({
               >
                 🔄 Check {getSafeNumber(analysis.summary.totalLinksFound)} Discovered Links Directly
               </button>
+            </div>
+
+            {/* 🔥 NEW: SEO and Advanced Settings */}
+            <div className="mb-6 mt-6 p-4 bg-gray-50 rounded-lg">
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Crawl Options</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center">
+                  <input
+                    id="enableSEO"
+                    type="checkbox"
+                    checked={seoSettings.enableSEO}
+                    onChange={(e) =>
+                      setSeoSettings((prev) => ({ ...prev, enableSEO: e.target.checked }))
+                    }
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="enableSEO" className="ml-2 text-sm text-gray-700">
+                    Enable SEO Analysis
+                  </label>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                SEO Analysis:{' '}
+                {seoSettings.enableSEO
+                  ? 'Will analyze page titles, meta descriptions, and SEO scores'
+                  : 'Disabled - Link checking only'}
+              </p>
             </div>
 
             {/* 🔥 UPDATED: Enhanced Recommendation Text */}

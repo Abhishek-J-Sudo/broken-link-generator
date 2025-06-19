@@ -76,11 +76,31 @@ export async function GET(request, { params }) {
         is_working,
         error_message,
         created_at
-      `,
+      )
+    `,
         { count: 'exact' }
       )
       .eq('job_id', jobId)
       .eq('status', 'checked'); // Only show checked links
+
+    // STEP 2: Get SEO data separately
+    const { data: seoData } = await db.supabase
+      .from('seo_analysis')
+      .select('url, seo_score, seo_grade, title_text, meta_description, issues_count, is_https')
+      .eq('job_id', jobId);
+
+    // STEP 3: Create SEO lookup map
+    const seoMap = new Map();
+    seoData?.forEach((seo) => seoMap.set(seo.url, seo));
+
+    // ADD THIS DEBUG LOG HERE:
+    console.log(`🔍 SEO MAP DEBUG:`, {
+      seoDataLength: seoData?.length || 0,
+      seoMapSize: seoMap.size,
+      firstSeoUrl: seoData?.[0]?.url,
+      firstSeoScore: seoData?.[0]?.seo_score,
+      sampleMapLookup: seoMap.get(seoData?.[0]?.url),
+    });
 
     // Apply status filter
     if (statusFilter === 'working') {
@@ -114,9 +134,34 @@ export async function GET(request, { params }) {
       count: discoveredCount,
     } = await discoveredQuery;
 
+    console.log(`📊 DEBUG: Discovered links query result:`, {
+      discoveredLinksCount: discoveredLinks?.length || 0,
+      discoveredError,
+      firstLinkWithSeo: discoveredLinks?.[0]?.seo_analysis,
+      allSeoAnalysis: discoveredLinks?.map((link) => ({
+        url: link.url,
+        seo_analysis: link.seo_analysis,
+      })),
+    });
+
     if (discoveredError) {
       throw new Error(`Database query failed: ${discoveredError.message}`);
     }
+
+    // Add this AFTER the discoveredQuery but BEFORE the brokenLinksQuery
+    console.log(`🔍 DEBUG: Checking SEO analysis table directly...`);
+    const { data: directSeoCheck, error: seoError } = await db.supabase
+      .from('seo_analysis')
+      .select('*')
+      .eq('job_id', jobId)
+      .limit(5);
+
+    console.log(`📊 DEBUG: Direct SEO check:`, {
+      seoCount: directSeoCheck?.length || 0,
+      seoError,
+      firstSeoRecord: directSeoCheck?.[0],
+      allUrls: directSeoCheck?.map((s) => s.url),
+    });
 
     // Get broken links with additional context (for error types and link text)
     let brokenLinksQuery = db.supabase.from('broken_links').select('*').eq('job_id', jobId);
@@ -140,6 +185,7 @@ export async function GET(request, { params }) {
     // FIXED: Enhanced results with proper source URL information
     const enhancedResults = (discoveredLinks || []).map((link) => {
       const brokenLinkData = brokenLinksMap.get(link.url);
+      const seoDataForLink = seoMap.get(link.url);
 
       return {
         id: link.id,
@@ -160,6 +206,28 @@ export async function GET(request, { params }) {
 
         // FIXED: Source URL now comes from discovered_links table
         source_url: link.source_url || 'Discovery',
+
+        // SEO Data
+        seo_score: seoDataForLink?.seo_score || null,
+        seo_grade: seoDataForLink?.seo_grade || null,
+        seo_title: seoDataForLink?.title_text
+          ? {
+              text: seoDataForLink.title_text,
+            }
+          : null,
+        seo_metaDescription: seoDataForLink?.meta_description
+          ? {
+              text: seoDataForLink.meta_description,
+            }
+          : null,
+        seo_headings: {
+          hasNoH1: (seoDataForLink?.h1_count || 0) === 0,
+        },
+        seo_technical: {
+          isHttps: seoDataForLink?.is_https || false,
+        },
+        seo_issues_count: seoDataForLink?.issues_count || 0,
+        has_seo_data: !!seoDataForLink,
 
         // Additional context for broken links (from broken_links table)
         link_text: brokenLinkData?.link_text || 'Unknown',
@@ -305,6 +373,28 @@ export async function GET(request, { params }) {
                 }
               : null,
         },
+      },
+
+      // seo
+      seo: {
+        totalAnalyzed: enhancedResults.filter((link) => link.seo_score !== null).length,
+        averageScore:
+          enhancedResults.filter((link) => link.seo_score !== null).length > 0
+            ? Math.round(
+                enhancedResults
+                  .filter((link) => link.seo_score !== null)
+                  .reduce((sum, link) => sum + link.seo_score, 0) /
+                  enhancedResults.filter((link) => link.seo_score !== null).length
+              )
+            : null,
+        gradeDistribution: {
+          A: enhancedResults.filter((link) => link.seo_grade === 'A').length,
+          B: enhancedResults.filter((link) => link.seo_grade === 'B').length,
+          C: enhancedResults.filter((link) => link.seo_grade === 'C').length,
+          D: enhancedResults.filter((link) => link.seo_grade === 'D').length,
+          F: enhancedResults.filter((link) => link.seo_grade === 'F').length,
+        },
+        httpsPages: enhancedResults.filter((link) => link.seo_is_https === true).length,
       },
 
       filters: {
