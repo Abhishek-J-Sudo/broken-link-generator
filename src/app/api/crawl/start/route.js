@@ -34,9 +34,9 @@ export async function POST(request) {
       });
     }
 
-    console.log(`🚀 ENHANCED START: Starting crawl for: ${body.url}`);
-    console.log(`📊 ENHANCED START: Has analyzed data: ${!!body.preAnalyzedUrls}`);
-    console.log(`🎯 ENHANCED START: Crawl mode: ${body.settings?.crawlMode || 'auto'}`);
+    console.log(`🚀 CRAWL START: Starting crawl for: ${body.url}`);
+    console.log(`📊 CRAWL START: Has analyzed data: ${!!body.preAnalyzedUrls}`);
+    console.log(`🎯 CRAWL START: Crawl mode: ${body.settings?.crawlMode || 'auto'}`);
 
     const clientIP = request.headers.get('x-forwarded-for') || 'unknown';
     const rateLimit = validateAdvancedRateLimit(clientIP, 'crawl');
@@ -123,7 +123,8 @@ export async function POST(request) {
       includeExternal: validatedSettings.includeExternal || false,
       timeout: validatedSettings.timeout || 10000,
       usePreAnalyzedUrls: !!validatedPreAnalyzedUrls,
-      crawlMode: validatedSettings.crawlMode || 'auto', // 🔥 NEW: Store crawl mode
+      crawlMode: validatedSettings.crawlMode || 'auto', //  Store crawl mode
+      enableSEO: validatedSettings.enableSEO || false, // seo setting
     };
 
     console.log('📋 Creating database job...');
@@ -548,7 +549,6 @@ async function checkLinksStatus(jobId, linksToCheck, settings) {
   // NEW: Check if SEO analysis is enabled
   const enableSEO = settings.enableSEO || false;
   const seoForContentPages = settings.seoForContentPages !== false; // Default true
-
   const httpChecker = new HttpChecker({
     timeout: settings.timeout || 10000,
     maxConcurrent: enableSEO ? 3 : 4,
@@ -590,7 +590,7 @@ async function checkLinksStatus(jobId, linksToCheck, settings) {
           console.log(
             `🔄 Batch progress: ${progress.completed}/${progress.total}, SEO: ${
               progress.seoAnalyzed || 0
-            }`
+            } // SEO enabled: ${enableSEO}`
           );
         },
       });
