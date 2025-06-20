@@ -21,6 +21,8 @@ export default function ResultsTable({
   pagination,
   onPageChange,
   onFilter,
+  job,
+  crawlMode,
 }) {
   // ENHANCED: Support both old (brokenLinks) and new (links) data structures
   const displayData = links || brokenLinks || [];
@@ -111,6 +113,26 @@ export default function ResultsTable({
 
   const hasSeoData = (item) => {
     return item.seo_score !== null && item.seo_score !== undefined;
+  };
+
+  const getTableTitle = () => {
+    // Determine the mode part
+    let mode = 'Link Check';
+    // Check for content pages mode from either source
+    if (crawlMode === 'content_pages' || job?.settings?.crawlMode === 'content_pages') {
+      mode = 'Content Page Crawl';
+    } else if (crawlMode === 'discovered_links' || job?.settings?.crawlMode === 'discovered_links')
+      mode = 'Discovered Links';
+
+    // Determine the SEO part
+    const seoEnabled = job?.settings?.enableSEO;
+    const hasSeoData = seoEnabled && crawlHasSeoData;
+
+    if (hasSeoData) {
+      return `${mode} : SEO Analysis`;
+    } else {
+      return `${mode} Results`;
+    }
   };
 
   // Check if this crawl has any SEO data
@@ -351,9 +373,7 @@ export default function ResultsTable({
       <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-5 border-b border-slate-200">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-1">
-              {isNewFormat ? 'SEO Analysis Results' : 'Broken Links Found'}
-            </h2>
+            <h2 className="text-2xl font-bold text-slate-900 mb-1">{getTableTitle()}</h2>
             <p className="text-slate-600 text-sm">
               {pagination?.totalCount || 0} {isNewFormat ? 'links' : 'broken links'} total
               {expandedRows.size > 0 && ` • ${expandedRows.size} expanded`}

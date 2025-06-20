@@ -207,7 +207,8 @@ export default function LargeCrawlForm({ onJobStarted }) {
                 <option value={5}>5 - Four levels deep (very large)</option>
               </select>
               <p className="mt-1 text-sm text-gray-500">
-                Estimated size: {estimateSize()} • Time: {getEstimatedTime()}
+                Estimated size: {estimateSize()} • Time:
+                <span className="text-rose-600 font-bold">{getEstimatedTime()}</span>
               </p>
             </div>
 

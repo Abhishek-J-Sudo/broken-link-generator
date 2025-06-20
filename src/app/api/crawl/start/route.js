@@ -37,6 +37,7 @@ export async function POST(request) {
     console.log(`🚀 CRAWL START: Starting crawl for: ${body.url}`);
     console.log(`📊 CRAWL START: Has analyzed data: ${!!body.preAnalyzedUrls}`);
     console.log(`🎯 CRAWL START: Crawl mode: ${body.settings?.crawlMode || 'auto'}`);
+    console.log(`🎯 CRAWL START: SEO Enabled: ${body.settings?.enableSEO}`);
 
     const clientIP = request.headers.get('x-forwarded-for') || 'unknown';
     const rateLimit = validateAdvancedRateLimit(clientIP, 'crawl');
@@ -702,12 +703,10 @@ async function checkLinksStatus(jobId, linksToCheck, settings) {
  * EXISTING TRADITIONAL CRAWL LOGIC (unchanged)
  * Process traditional crawl with discovery-based approach
  */
-// FIXED: Traditional crawl logic in processTraditionalCrawlBackground function
-// Replace lines ~400-500 in /src/app/api/crawl/start/route.js
-
 async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
   try {
     console.log(`🕷️ TRADITIONAL CRAWL: Starting background processing for job ${jobId}`);
+    console.log(`🎯 TRADITIONAL CRAWL: SEO enabled: ${!!settings.enableSEO}`);
 
     await db.updateJobStatus(jobId, 'running');
 
@@ -717,19 +716,15 @@ async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
       maxLinksPerPage: 1000,
     });
 
-    const httpChecker = new HttpChecker({
-      timeout: settings.timeout || 10000,
-      maxConcurrent: 3,
-      retryAttempts: 2,
-    });
-
     // Traditional crawler state
     const visitedUrls = new Set();
     const pendingUrls = new Map(); // url -> {depth, sourceUrl}
+    const discoveredUrlsBatch = []; // Batch URLs for efficient checking
     const maxDepth = settings.maxDepth || 3;
     const maxPages = 500; // Reasonable limit
+    const batchSize = 20; // Process URLs in batches
 
-    // 🔧 FIX: Get base domain for internal link checking
+    // Get base domain for internal link checking
     const baseDomain = new URL(startUrl).hostname;
 
     // Add starting URL to pending queue
@@ -752,7 +747,7 @@ async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
 
       // Get next batch of URLs to process
       const batchUrls = [];
-      const batchSize = 5; // Small batches for traditional crawl
+      const batchSize = 10; // Smaller batches for traditional crawl
 
       const urlEntries = Array.from(pendingUrls.entries()).slice(0, batchSize);
       urlEntries.forEach(([url, metadata]) => {
@@ -764,113 +759,75 @@ async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
 
       console.log(`📦 TRADITIONAL: Processing batch of ${batchUrls.length} URLs`);
 
-      // Process each URL in the batch
-      for (const urlData of batchUrls) {
-        const { url, depth, sourceUrl } = urlData;
+      // 🔥 NEW: Use checkLinksStatus() for both HTTP + SEO analysis
+      const linksToCheck = batchUrls
+        .filter((urlData) => !visitedUrls.has(urlData.url))
+        .map((urlData) => ({
+          url: urlData.url,
+          sourceUrl: urlData.sourceUrl || startUrl,
+          linkText: 'Traditional crawl link',
+          isInternal: urlUtils.isInternalUrl(urlData.url, startUrl),
+          depth: urlData.depth,
+        }));
 
-        if (visitedUrls.has(url)) continue;
-
-        try {
-          visitedUrls.add(url);
+      if (linksToCheck.length > 0) {
+        // Mark as visited before processing
+        linksToCheck.forEach((linkData) => {
+          visitedUrls.add(linkData.url);
           totalProcessed++;
+        });
 
-          console.log(`🔍 TRADITIONAL: [${totalProcessed}] Checking: ${url} (depth: ${depth})`);
+        console.log(
+          `🔍 TRADITIONAL: [${totalProcessed}] Checking ${
+            linksToCheck.length
+          } URLs with SEO: ${!!settings.enableSEO}`
+        );
 
-          // Check if URL is working and get content
-          const httpResult = await httpChecker.quickCheck(url);
-
-          // Save discovered URL to database
-          const discoveredLink = {
-            url: url,
-            sourceUrl: sourceUrl,
-            isInternal: urlUtils.isInternalUrl(url, startUrl),
-            depth: depth,
-            status: 'checked',
-            http_status_code: httpResult.http_status_code,
-            response_time: httpResult.response_time,
-            checked_at: httpResult.checked_at,
-            is_working: httpResult.is_working,
-            error_message: httpResult.error_message,
-          };
-
-          try {
-            await db.addDiscoveredLinks(jobId, [discoveredLink]);
-          } catch (dbError) {
-            console.error('❌ Error saving discovered link:', dbError);
+        // 🔥 KEY CHANGE: Smart checking - lightweight for link status, full content only if SEO enabled
+        try {
+          if (settings.enableSEO) {
+            // SEO enabled: Use full content checking (slower but comprehensive)
+            await checkLinksStatusForTraditional(jobId, linksToCheck, settings);
+          } else {
+            // SEO disabled: Use lightweight quickCheck for fast status checking
+            await checkLinksStatusLightweight(jobId, linksToCheck, settings);
           }
+        } catch (checkError) {
+          console.error('❌ Error in batch checking:', checkError);
+          // Continue with remaining URLs
+        }
 
-          // If broken, record it
-          if (!httpResult.is_working) {
-            const brokenLink = {
-              url: url,
-              sourceUrl: sourceUrl || 'Discovery',
-              statusCode: httpResult.http_status_code,
-              errorType: httpResult.errorType || 'other',
-              linkText: 'Traditional crawl link',
-            };
+        // 🔧 Extract links from working internal pages for further crawling
+        for (const linkData of linksToCheck) {
+          const { url, depth } = linkData;
 
+          // Only extract links if we haven't reached max depth and it's an internal URL
+          if (depth < maxDepth && urlUtils.isInternalUrl(url, startUrl)) {
             try {
-              await db.addBrokenLink(jobId, brokenLink);
-              brokenLinksFound++;
-              console.log(
-                `💔 TRADITIONAL: Found broken link: ${url} (${
-                  httpResult.http_status_code || httpResult.errorType
-                })`
-              );
-            } catch (dbError) {
-              console.error('❌ Error saving broken link:', dbError);
-            }
-          }
-
-          // 🔧 CRITICAL FIX: If URL is working and we haven't reached max depth, extract links
-          if (httpResult.is_working && depth < maxDepth && urlUtils.isInternalUrl(url, startUrl)) {
-            try {
-              // Fetch full page content for link extraction
+              // Fetch page content for link extraction
               const pageResponse = await fetch(url, {
                 timeout: settings.timeout || 10000,
                 headers: {
                   'User-Agent': 'Broken Link Checker Bot/1.0',
-                  Accept: 'text/html,application/xhtml+xml',
                 },
               });
 
-              if (pageResponse.ok) {
+              if (pageResponse.status < 500) {
                 const pageContent = await pageResponse.text();
                 const extractionResult = linkExtractor.extractLinks(pageContent, url, depth);
 
-                console.log(
-                  `🔗 TRADITIONAL: Found ${extractionResult.links.length} links on ${url}`
-                );
-
-                // 🔧 FIXED: Add new links to pending queue with proper logic
+                // Add new discovered links to pending queue
                 extractionResult.links.forEach((link) => {
-                  //Determine if link is internal using base domain
-                  const linkIsInternal = link.isInternal;
-
-                  //Correct logic for including links
-                  const shouldIncludeLink = linkIsInternal || settings.includeExternal;
-
-                  //Only add internal links to crawl queue (for further crawling)
-                  // But check ALL links (internal + external if enabled) for broken status
-                  const shouldCrawlFurther = linkIsInternal && link.depth <= maxDepth;
-
-                  if (
-                    shouldIncludeLink &&
-                    !visitedUrls.has(link.url) &&
-                    !pendingUrls.has(link.url)
-                  ) {
-                    // Add to pending for status checking
+                  if (!visitedUrls.has(link.url) && !pendingUrls.has(link.url)) {
                     pendingUrls.set(link.url, {
                       depth: link.depth,
                       sourceUrl: url,
-                      isInternal: linkIsInternal,
-                      shouldCrawlFurther: shouldCrawlFurther,
                     });
                     totalDiscovered++;
 
                     console.log(
-                      `➕ TRADITIONAL: Added to queue: ${link.url} (${
-                        linkIsInternal ? 'internal' : 'external'
+                      `🔗 TRADITIONAL: Discovered ${link.url} (${
+                        link.isInternal ? 'internal' : 'external'
                       }, depth: ${link.depth})`
                     );
                   }
@@ -884,50 +841,38 @@ async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
               console.error(`❌ Error extracting links from ${url}:`, extractError);
             }
           }
-
-          // Update progress
-          await db.updateJobProgress(
-            jobId,
-            totalProcessed,
-            Math.max(totalProcessed, totalDiscovered)
-          );
-
-          console.log(
-            `📊 TRADITIONAL: Progress: ${totalProcessed} processed, ${brokenLinksFound} broken, ${pendingUrls.size} pending`
-          );
-
-          // Small delay between requests
-          await batchUtils.delay(200);
-        } catch (error) {
-          console.error(`❌ TRADITIONAL: Error processing ${url}:`, error);
-
-          // Record as broken due to processing error
-          try {
-            const brokenLink = {
-              url: url,
-              sourceUrl: sourceUrl || 'Discovery',
-              statusCode: null,
-              errorType: 'other',
-              linkText: 'Traditional crawl link',
-            };
-            await db.addBrokenLink(jobId, brokenLink);
-            brokenLinksFound++;
-          } catch (dbError) {
-            console.error('❌ Error saving error link:', dbError);
-          }
         }
       }
 
       // Update progress after batch
       await db.updateJobProgress(jobId, totalProcessed, Math.max(totalProcessed, totalDiscovered));
+
+      console.log(
+        `📊 TRADITIONAL: Progress: ${totalProcessed} processed, ${pendingUrls.size} pending`
+      );
+
+      // Small delay between batches
+      await batchUtils.delay(200);
     }
 
     // Complete the job
     await db.updateJobStatus(jobId, 'completed');
 
-    console.log(
-      `🎉 TRADITIONAL CRAWL COMPLETE: ${totalProcessed} URLs processed, ${brokenLinksFound} broken links found`
-    );
+    console.log(`🎉 TRADITIONAL CRAWL COMPLETE: ${totalProcessed} URLs processed`);
+
+    // 🔥 NEW: Log SEO summary if enabled
+    if (settings.enableSEO) {
+      try {
+        const seoSummary = await db.calculateSEOSummary(jobId);
+        if (seoSummary && seoSummary.total_pages > 0) {
+          console.log(
+            `📊 SEO SUMMARY: ${seoSummary.total_pages} pages analyzed, avg score: ${seoSummary.avg_score}/100, ${seoSummary.total_issues} total issues`
+          );
+        }
+      } catch (summaryError) {
+        console.error('❌ Error getting SEO summary:', summaryError);
+      }
+    }
   } catch (error) {
     console.error('❌ TRADITIONAL CRAWL: Error in background processing:', error);
     console.error('❌ Error details:', {
@@ -941,6 +886,211 @@ async function processTraditionalCrawlBackground(jobId, startUrl, settings) {
       console.error('❌ Failed to update job status after error:', dbError);
     }
   }
+}
+
+/**
+ * 🔥 NEW: Wrapper function for traditional crawl to use checkLinksStatus
+ * This reuses the same logic as smart crawl modes but for traditional discovery
+ */
+async function checkLinksStatusForTraditional(jobId, linksToCheck, settings) {
+  console.log(
+    `🔗 TRADITIONAL-CHECK: Processing ${linksToCheck.length} URLs with SEO: ${!!settings.enableSEO}`
+  );
+
+  // NEW: Check if SEO analysis is enabled
+  const enableSEO = settings.enableSEO || false;
+
+  const httpChecker = new HttpChecker({
+    timeout: settings.timeout || 10000,
+    maxConcurrent: enableSEO ? 2 : 3, // Reduce concurrency if SEO enabled
+    retryAttempts: 1,
+  });
+
+  let processedCount = 0;
+  let brokenLinksFound = 0;
+  let seoAnalyzedCount = 0;
+
+  // Process in small batches
+  const batchSize = enableSEO ? 10 : 20;
+  const batches = batchUtils.chunkArray(linksToCheck, batchSize);
+
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+
+    console.log(
+      `📦 TRADITIONAL-CHECK: Processing batch ${i + 1}/${batches.length} (${batch.length} URLs)`
+    );
+
+    try {
+      // 🔥 KEY: Use the same enhanced HTTP checking as smart crawl modes
+      const checkResults = await httpChecker.checkUrlsWithSEO(
+        batch.map((link) => ({
+          url: link.url,
+          sourceUrl: link.sourceUrl,
+        })),
+        {
+          enableSEO,
+          onProgress: (progress) => {
+            console.log(
+              `🔍 Progress: ${progress.completed}/${progress.total}, SEO analyzed: ${
+                progress.seoAnalyzed || 0
+              }`
+            );
+          },
+        }
+      );
+
+      // Process results
+      for (let j = 0; j < checkResults.results.length; j++) {
+        const result = checkResults.results[j];
+        const originalLink = batch[j];
+
+        processedCount++;
+
+        // Save discovered link to database (all links, working or broken)
+        const discoveredLink = {
+          url: result.url,
+          sourceUrl: originalLink.sourceUrl,
+          isInternal: originalLink.isInternal,
+          depth: originalLink.depth,
+          status: 'checked',
+          http_status_code: result.http_status_code,
+          response_time: result.response_time,
+          checked_at: result.checked_at,
+          is_working: result.is_working,
+          error_message: result.error_message,
+        };
+
+        try {
+          await db.addDiscoveredLinks(jobId, [discoveredLink]);
+        } catch (dbError) {
+          console.error('❌ Error saving discovered link:', dbError);
+        }
+
+        // Handle broken links
+        if (!result.is_working) {
+          const brokenLink = {
+            url: result.url,
+            sourceUrl: originalLink.sourceUrl,
+            statusCode: result.http_status_code,
+            errorType: result.errorType || 'other',
+            linkText: originalLink.linkText,
+            responseTime: result.response_time,
+          };
+
+          try {
+            await db.addBrokenLink(jobId, brokenLink);
+            brokenLinksFound++;
+          } catch (dbError) {
+            console.error('❌ Error saving broken link:', dbError);
+          }
+        }
+
+        // 🔥 NEW: Handle SEO data if enabled
+        if (enableSEO && result.seo_data && !result.seo_data.error) {
+          try {
+            await db.addSEOAnalysis(jobId, result.seo_data);
+            seoAnalyzedCount++;
+          } catch (seoError) {
+            console.error('❌ Error saving SEO data:', seoError);
+          }
+        }
+      }
+
+      // Small delay between batches
+      await batchUtils.delay(enableSEO ? 800 : 500);
+    } catch (batchError) {
+      console.error(`❌ Error processing batch ${i + 1}:`, batchError);
+    }
+  }
+}
+
+/**
+ * 🔗 LIGHTWEIGHT: Fast link checking without SEO (maintains current performance)
+ */
+async function checkLinksStatusLightweight(jobId, linksToCheck, settings) {
+  console.log(`⚡ LIGHTWEIGHT-CHECK: Fast checking ${linksToCheck.length} URLs (no SEO)`);
+
+  const httpChecker = new HttpChecker({
+    timeout: settings.timeout || 10000,
+    maxConcurrent: 5, // Higher concurrency since no SEO
+    retryAttempts: 1,
+  });
+
+  let processedCount = 0;
+  let brokenLinksFound = 0;
+
+  // Process in larger batches since it's just status checking
+  const batchSize = 25;
+  const batches = batchUtils.chunkArray(linksToCheck, batchSize);
+
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+
+    console.log(
+      `📦 LIGHTWEIGHT: Processing batch ${i + 1}/${batches.length} (${batch.length} URLs)`
+    );
+
+    try {
+      // Use quickCheck for fast HEAD requests
+      const checkPromises = batch.map(async (linkData) => {
+        const result = await httpChecker.quickCheck(linkData.url);
+
+        // Save discovered link to database
+        const discoveredLink = {
+          url: result.url,
+          sourceUrl: linkData.sourceUrl,
+          isInternal: linkData.isInternal,
+          depth: linkData.depth,
+          status: 'checked',
+          http_status_code: result.http_status_code,
+          response_time: result.response_time,
+          checked_at: result.checked_at,
+          is_working: result.is_working,
+          error_message: result.error_message,
+        };
+
+        try {
+          await db.addDiscoveredLinks(jobId, [discoveredLink]);
+        } catch (dbError) {
+          console.error('❌ Error saving discovered link:', dbError);
+        }
+
+        // Handle broken links
+        if (!result.is_working) {
+          const brokenLink = {
+            url: result.url,
+            sourceUrl: linkData.sourceUrl,
+            statusCode: result.http_status_code,
+            errorType: result.errorType || 'other',
+            linkText: linkData.linkText,
+            responseTime: result.response_time,
+          };
+
+          try {
+            await db.addBrokenLink(jobId, brokenLink);
+            brokenLinksFound++;
+          } catch (dbError) {
+            console.error('❌ Error saving broken link:', dbError);
+          }
+        }
+
+        processedCount++;
+        return result;
+      });
+
+      await Promise.all(checkPromises);
+
+      // Small delay between batches
+      await batchUtils.delay(200);
+    } catch (batchError) {
+      console.error(`❌ Error processing lightweight batch ${i + 1}:`, batchError);
+    }
+  }
+
+  console.log(
+    `⚡ LIGHTWEIGHT-CHECK COMPLETE: ${processedCount} links checked, ${brokenLinksFound} broken links found`
+  );
 }
 
 // Handle OPTIONS for CORS
