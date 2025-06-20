@@ -26,6 +26,7 @@ export default function UrlAnalyzer({
 
   const scrollRef = useRef(null);
   const analysisScrollRef = useRef(null);
+  const resultsRef = useRef(null);
 
   //stop crawl
   const [isStoppingCrawl, setIsStoppingCrawl] = useState(false);
@@ -222,6 +223,11 @@ export default function UrlAnalyzer({
       if (onAnalysisComplete) {
         onAnalysisComplete(enrichedResult);
       }
+      setTimeout(() => {
+        if (resultsRef.current) {
+          resultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 1000);
     } catch (err) {
       addLogEntry(`❌ Error: ${err.message}`, 'error');
       setError(err.message);
@@ -554,116 +560,259 @@ export default function UrlAnalyzer({
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">🔍 URL Structure Analyzer</h1>
-        <p className="text-gray-600 mb-6">
-          Analyze your website's URL structure to see what types of pages exist before running a
-          full crawl. This helps identify junk URLs and estimate real crawl scope.
-        </p>
-
-        <form onSubmit={handleAnalyze} className="flex gap-4 mb-6">
-          <input
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://example.com"
-            required
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            type="submit"
-            disabled={isAnalyzing || !url}
-            className={`px-6 py-2 rounded-md font-medium ${
-              isAnalyzing || !url
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
-          >
-            {isAnalyzing ? 'Analyzing...' : 'Analyze URLs'}
-          </button>
-        </form>
-
-        {/* Analysis Progress Log */}
-        {(analysisLog.length > 0 || isAnalyzing) && (
-          <div
-            ref={analysisScrollRef}
-            className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-md"
-          >
-            <h3 className="text-sm font-medium text-gray-900 mb-3">Analysis Progress</h3>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {analysisLog.map((log, index) => (
-                <div key={index} className="flex items-start text-sm">
-                  <span className="mr-2">{getLogIcon(log.type)}</span>
-                  <span className="text-gray-500 mr-2 text-xs">{log.timestamp}</span>
-                  <span className={getLogColor(log.type)}>{log.message}</span>
-                </div>
-              ))}
-              {isAnalyzing && (
-                <div className="flex items-center text-sm">
-                  <div className="animate-spin mr-2 h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                  <span className="text-blue-600">Analyzing website structure...</span>
-                </div>
-              )}
+    <div className="bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 mb-8">
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <div className="p-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full shadow-lg">
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                URL Structure Analyzer
+              </h1>
             </div>
+            <p className="text-lg text-slate-600 max-w-3xl mx-auto">
+              Analyze your website's URL structure to see what types of pages exist before running a
+              full crawl. This helps identify junk URLs and estimate real crawl scope.
+            </p>
           </div>
-        )}
 
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                  clipRule="evenodd"
-                />
-              </svg>
+          <form onSubmit={handleAnalyze} className="mb-8">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <svg
+                  className="h-5 w-5 text-slate-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"
+                  />
+                </svg>
+              </div>
+              <input
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://example.com"
+                required
+                className="w-full pl-12 pr-32 text-slate-500 py-4 text-lg border border-slate-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              />
+              <button
+                type="submit"
+                disabled={isAnalyzing || !url}
+                className={`absolute right-2 top-2 bottom-2 px-6 rounded-lg font-semibold transition-all ${
+                  isAnalyzing || !url
+                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg'
+                }`}
+              >
+                {isAnalyzing ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Analyzing...
+                  </div>
+                ) : (
+                  'Analyze URLs'
+                )}
+              </button>
             </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">How it works</h3>
-              <div className="mt-2 text-sm text-blue-700 space-y-1">
-                <p>• Crawls up to 100 pages to discover URL patterns</p>
-                <p>• Categorizes URLs by type (content, pagination, admin, etc.)</p>
-                <p>• Shows what to expect in a full crawl</p>
-                <p>
-                  • <strong>Open Developer Console (F12) to see detailed progress logs</strong>
-                </p>
+          </form>
+
+          {/* Analysis Progress Log */}
+          {(analysisLog.length > 0 || isAnalyzing) && (
+            <div
+              ref={analysisScrollRef}
+              className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl"
+            >
+              <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                <svg
+                  className="w-5 h-5 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                  />
+                </svg>
+                Analysis Progress
+              </h3>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {analysisLog.map((log, index) => (
+                  <div key={index} className="flex items-start text-sm">
+                    <span className="mr-2">{getLogIcon(log.type)}</span>
+                    <span className="text-slate-500 mr-2 text-xs">{log.timestamp}</span>
+                    <span className={getLogColor(log.type)}>{log.message}</span>
+                  </div>
+                ))}
+                {isAnalyzing && (
+                  <div className="flex items-center text-sm">
+                    <div className="animate-spin mr-2 h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                    <span className="text-blue-600">Analyzing website structure...</span>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        </div>
+          )}
 
-        {error && !isAnalyzing && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
-            <div className="flex">
+          <div className="p-6 bg-blue-50 border border-blue-200 rounded-xl">
+            <div className="flex items-start">
               <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <svg
+                  className="h-6 w-6 text-blue-600 mt-0.5"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
                   <path
                     fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
                     clipRule="evenodd"
                   />
                 </svg>
               </div>
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">Analysis Failed</h3>
-                <p className="text-red-700">{error}</p>
+                <h3 className="text-lg font-semibold text-blue-900">How it works</h3>
+                <div className="mt-2 text-sm text-blue-800 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></span>
+                    <span>Crawls up to 100 pages to discover URL patterns</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></span>
+                    <span>Categorizes URLs by type (content, pagination, admin, etc.)</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></span>
+                    <span>Shows what to expect in a full crawl</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></span>
+                    <span>
+                      <strong>Open Developer Console (F12) to see detailed progress logs</strong>
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        )}
-      </div>
 
-      {analysis && analysis.summary && (
-        <div className="space-y-6">
-          {/* JavaScript Site Detection */}
-          {analysis.summary.isJavaScriptSite && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-              <div className="flex items-start">
+          {error && !isAnalyzing && (
+            <div className="mt-6 bg-red-50 border border-red-200 rounded-xl p-6">
+              <div className="flex">
                 <div className="flex-shrink-0">
+                  <svg className="h-6 w-6 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-lg font-semibold text-red-800">Analysis Failed</h3>
+                  <p className="text-red-700 mt-1">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {analysis && analysis.summary && (
+          <div className="space-y-8">
+            {/* JavaScript Site Detection */}
+            {analysis.summary.isJavaScriptSite && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 shadow-lg">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg
+                      className="h-8 w-8 text-amber-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                      />
+                    </svg>
+                  </div>
+                  <div className="ml-4">
+                    <h3 className="text-2xl font-bold text-amber-800">
+                      JavaScript-Heavy Site Detected
+                    </h3>
+                    <div className="mt-3 text-amber-700">
+                      <p className="text-lg">
+                        This website loads its content dynamically using JavaScript. Our static
+                        analyzer can only see the initial HTML shell.
+                      </p>
+
+                      {analysis.summary.frameworks &&
+                        Object.entries(analysis.summary.frameworks).some(
+                          ([, detected]) => detected
+                        ) && (
+                          <div className="mt-4">
+                            <p className="font-semibold">Detected frameworks:</p>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {Object.entries(analysis.summary.frameworks)
+                                .filter(([, detected]) => detected)
+                                .map(([framework]) => (
+                                  <span
+                                    key={framework}
+                                    className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm font-medium"
+                                  >
+                                    {framework.charAt(0).toUpperCase() + framework.slice(1)}
+                                  </span>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                      <div className="mt-4">
+                        <p className="font-semibold">Recommended next steps:</p>
+                        <ul className="list-disc list-inside mt-2 space-y-1">
+                          <li>
+                            Use the <strong>Full Broken Link Checker</strong> instead (may work
+                            better with JavaScript sites)
+                          </li>
+                          <li>Check the sitemap.xml for site structure</li>
+                          <li>Try specific pages manually</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Debug Information */}
+            {analysis.summary.debug && (
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
+                <h3 className="text-2xl font-bold text-slate-800 mb-4 flex items-center gap-3">
                   <svg
-                    className="h-6 w-6 text-yellow-600"
+                    className="w-6 h-6 text-slate-600"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -672,621 +821,792 @@ export default function UrlAnalyzer({
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                     />
                   </svg>
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-lg font-medium text-yellow-800">
-                    JavaScript-Heavy Site Detected
-                  </h3>
-                  <div className="mt-2 text-sm text-yellow-700">
-                    <p>
-                      This website loads its content dynamically using JavaScript. Our static
-                      analyzer can only see the initial HTML shell.
-                    </p>
-
-                    {analysis.summary.frameworks &&
-                      Object.entries(analysis.summary.frameworks).some(
-                        ([, detected]) => detected
-                      ) && (
-                        <div className="mt-3">
-                          <p className="font-medium">Detected frameworks:</p>
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {Object.entries(analysis.summary.frameworks)
-                              .filter(([, detected]) => detected)
-                              .map(([framework]) => (
-                                <span
-                                  key={framework}
-                                  className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs"
-                                >
-                                  {framework.charAt(0).toUpperCase() + framework.slice(1)}
-                                </span>
-                              ))}
-                          </div>
-                        </div>
-                      )}
-
-                    <div className="mt-3">
-                      <p className="font-medium">Recommended next steps:</p>
-                      <ul className="list-disc list-inside mt-1 space-y-1">
-                        <li>
-                          Use the <strong>Full Broken Link Checker</strong> instead (may work better
-                          with JavaScript sites)
-                        </li>
-                        <li>Check the sitemap.xml for site structure</li>
-                        <li>Try specific pages manually</li>
-                      </ul>
+                  Debug Information
+                </h3>
+                <div className="text-slate-700 space-y-3">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-slate-50 rounded-xl">
+                      <span className="font-semibold">Original Links Found:</span>{' '}
+                      {analysis.summary.debug.originalLinksCount || 'N/A'}
+                    </div>
+                    <div className="p-4 bg-slate-50 rounded-xl">
+                      <span className="font-semibold">Processed Links:</span>{' '}
+                      {analysis.summary.debug.processedLinksCount || 'N/A'}
                     </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
-          {/* Debug Information */}
-          {analysis.summary.debug && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-3">🔧 Debug Information</h3>
-              <div className="text-sm text-gray-700 space-y-2">
-                <div>
-                  Original Links Found: {analysis.summary.debug.originalLinksCount || 'N/A'}
-                </div>
-                <div>Processed Links: {analysis.summary.debug.processedLinksCount || 'N/A'}</div>
-                {analysis.summary.debug.errors && analysis.summary.debug.errors.length > 0 && (
-                  <div>
-                    <div className="font-medium">Errors:</div>
-                    <ul className="list-disc list-inside ml-4">
-                      {analysis.summary.debug.errors.map((error, i) => (
-                        <li key={i} className="text-red-600">
-                          {error}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          {/* Summary Stats */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">📊 Analysis Summary</h2>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">
-                  {getSafeNumber(analysis.summary.totalUrls)}
-                </div>
-                <div className="text-sm text-blue-800">
-                  {analysis.summary.isJavaScriptSite ? 'URLs Found (Sitemap)' : 'Total URLs Found'}
-                </div>
-              </div>
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">
-                  {getSafeNumber(getSafeCategories().pages)}
-                </div>
-                <div className="text-sm text-green-800">Content Pages</div>
-              </div>
-              <div className="text-center p-4 bg-yellow-50 rounded-lg">
-                <div className="text-2xl font-bold text-yellow-600">
-                  {getSafeNumber(analysis.summary.pagesAnalyzed)}
-                </div>
-                <div className="text-sm text-yellow-800">Pages Analyzed</div>
-              </div>
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">
-                  {getSafeNumber(analysis.totalLinkOccurrences)}
-                </div>
-                <div className="text-sm text-purple-800">
-                  Link Occurrences
-                  {analysis.linkRedundancy && (
-                    <div className="text-xs text-purple-600">
-                      ({analysis.linkRedundancy}x redundancy)
+                  {analysis.summary.debug.errors && analysis.summary.debug.errors.length > 0 && (
+                    <div>
+                      <div className="font-semibold">Errors:</div>
+                      <ul className="list-disc list-inside ml-4 mt-2">
+                        {analysis.summary.debug.errors.map((error, i) => (
+                          <li key={i} className="text-red-600">
+                            {error}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Alternative Sources for JS sites */}
-            {analysis.alternatives && analysis.alternatives.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-3">
-                  🔍 Alternative URL Sources Found
-                </h3>
-                {analysis.alternatives.map((alt, index) => (
-                  <div
-                    key={index}
-                    className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium text-blue-900">
-                          {alt.type === 'sitemap' ? '🗺️ Sitemap.xml' : '🤖 Robots.txt'}
-                        </h4>
-                        <p className="text-sm text-blue-700">
-                          Found {alt.total} URLs from {alt.type}
-                        </p>
-                      </div>
-                      <button className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-                        View URLs
-                      </button>
-                    </div>
-                    {alt.urls && alt.urls.length > 0 && (
-                      <div className="mt-3 text-xs">
-                        <p className="text-blue-600 font-medium">Sample URLs:</p>
-                        <div className="mt-1 space-y-1">
-                          {alt.urls.slice(0, 3).map((url, i) => (
-                            <div key={i} className="font-mono text-blue-800 break-all">
-                              {url}
-                            </div>
-                          ))}
-                          {alt.urls.length > 3 && (
-                            <div className="text-blue-600">... and {alt.urls.length - 3} more</div>
-                          )}
-                        </div>
+            {/* Summary Stats */}
+            <div
+              ref={resultsRef}
+              className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8"
+            >
+              <h2 className="text-3xl font-bold text-slate-800 mb-6 flex items-center gap-3">
+                <svg
+                  className="w-8 h-8 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                  />
+                </svg>
+                Analysis Summary
+              </h2>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+                <div className="text-center p-6 bg-blue-50 rounded-2xl border border-blue-200">
+                  <div className="text-3xl font-bold text-blue-600">
+                    {getSafeNumber(analysis.summary.totalUrls)}
+                  </div>
+                  <div className="text-sm text-blue-800 mt-2">
+                    {analysis.summary.isJavaScriptSite
+                      ? 'URLs Found (Sitemap)'
+                      : 'Total URLs Found'}
+                  </div>
+                </div>
+                <div className="text-center p-6 bg-green-50 rounded-2xl border border-green-200">
+                  <div className="text-3xl font-bold text-green-600">
+                    {getSafeNumber(getSafeCategories().pages)}
+                  </div>
+                  <div className="text-sm text-green-800 mt-2">Content Pages</div>
+                </div>
+                <div className="text-center p-6 bg-amber-50 rounded-2xl border border-amber-200">
+                  <div className="text-3xl font-bold text-amber-600">
+                    {getSafeNumber(analysis.summary.pagesAnalyzed)}
+                  </div>
+                  <div className="text-sm text-amber-800 mt-2">Pages Analyzed</div>
+                </div>
+                <div className="text-center p-6 bg-purple-50 rounded-2xl border border-purple-200">
+                  <div className="text-3xl font-bold text-purple-600">
+                    {getSafeNumber(analysis.totalLinkOccurrences)}
+                  </div>
+                  <div className="text-sm text-purple-800 mt-2">
+                    Link Occurrences
+                    {analysis.linkRedundancy && (
+                      <div className="text-xs text-purple-600 mt-1">
+                        ({analysis.linkRedundancy}x redundancy)
                       </div>
                     )}
                   </div>
-                ))}
+                </div>
               </div>
-            )}
 
-            {/* Category Breakdown - only show if we have real categories */}
-            {!analysis.summary.isJavaScriptSite && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {Object.entries(getSafeCategories()).map(([category, count]) => (
-                  <button
-                    key={category}
-                    onClick={() => setSelectedCategory(category)}
-                    className={`p-3 rounded-lg text-left transition-colors ${
-                      selectedCategory === category
-                        ? 'ring-2 ring-blue-500 bg-blue-50'
-                        : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <div
-                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(
-                        category
-                      )}`}
+              {/* Alternative Sources for JS sites */}
+              {analysis.alternatives && analysis.alternatives.length > 0 && (
+                <div className="mb-8">
+                  <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <svg
+                      className="w-6 h-6 text-blue-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
                     >
-                      {getCategoryLabel(category)}
-                    </div>
-                    <div className="text-lg font-semibold text-gray-900 mt-1">{count}</div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {/* Recommendations */}
-          {getSafeRecommendations().length > 0 && (
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">💡 Recommendations</h2>
-              <div className="space-y-3">
-                {getSafeRecommendations().map((rec, index) => (
-                  <div
-                    key={index}
-                    className={`p-4 rounded-lg border-l-4 ${
-                      rec.type === 'warning'
-                        ? 'bg-yellow-50 border-yellow-400'
-                        : rec.type === 'info'
-                        ? 'bg-blue-50 border-blue-400'
-                        : 'bg-green-50 border-green-400'
-                    }`}
-                  >
-                    <p className="font-medium text-gray-900">{rec.message}</p>
-                    <p className="text-sm text-gray-600 mt-1">{rec.action}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {/* URL Category Details */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              📋 {getCategoryLabel(selectedCategory)}
-              <span className="text-gray-500 font-normal">
-                ({getSafeNumber(getSafeCategories()[selectedCategory])} URLs)
-              </span>
-            </h2>
-
-            {getSafeCategoryData(selectedCategory).length > 0 ? (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {getSafeCategoryData(selectedCategory)
-                  .slice(0, 50)
-                  .map((item, index) => (
-                    <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 font-mono text-sm break-all"
-                      >
-                        {item.url}
-                      </a>
-                      {item.pattern && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Pattern: <code>{item.pattern}</code>
-                          {item.sourceUrl && ` • Found on: ${new URL(item.sourceUrl).pathname}`}
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                    Alternative URL Sources Found
+                  </h3>
+                  {analysis.alternatives.map((alt, index) => (
+                    <div
+                      key={index}
+                      className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-4"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-bold text-blue-900 text-lg">
+                            {alt.type === 'sitemap' ? '🗺️ Sitemap.xml' : '🤖 Robots.txt'}
+                          </h4>
+                          <p className="text-blue-700 mt-1">
+                            Found {alt.total} URLs from {alt.type}
+                          </p>
+                        </div>
+                        <button className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm hover:bg-blue-700 transition-colors">
+                          View URLs
+                        </button>
+                      </div>
+                      {alt.urls && alt.urls.length > 0 && (
+                        <div className="mt-4 text-sm">
+                          <p className="text-blue-700 font-semibold">Sample URLs:</p>
+                          <div className="mt-2 space-y-1">
+                            {alt.urls.slice(0, 3).map((url, i) => (
+                              <div
+                                key={i}
+                                className="font-mono text-blue-800 break-all bg-blue-100 p-2 rounded"
+                              >
+                                {url}
+                              </div>
+                            ))}
+                            {alt.urls.length > 3 && (
+                              <div className="text-blue-600">
+                                ... and {alt.urls.length - 3} more
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
                   ))}
-                {getSafeCategoryData(selectedCategory).length > 50 && (
-                  <div className="text-center py-3 text-gray-500">
-                    ... and {getSafeCategoryData(selectedCategory).length - 50} more URLs
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-gray-500 italic">No URLs found in this category.</p>
-            )}
-          </div>
-          {/* Top URL Patterns */}
-          {getSafePatterns().length > 0 && (
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                🔗 Most Common URL Patterns
-              </h2>
-              <div className="space-y-3">
-                {getSafePatterns()
-                  .slice(0, 8)
-                  .map((pattern, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                </div>
+              )}
+
+              {/* Category Breakdown - only show if we have real categories */}
+              {!analysis.summary.isJavaScriptSite && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {Object.entries(getSafeCategories()).map(([category, count]) => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className={`p-4 rounded-xl text-left transition-all ${
+                        selectedCategory === category
+                          ? 'ring-2 ring-blue-500 bg-blue-50 shadow-lg'
+                          : 'hover:bg-slate-50 shadow-md'
+                      } bg-white border border-slate-200`}
                     >
-                      <div className="flex-1">
-                        <code className="text-sm font-mono text-gray-800">{pattern.pattern}</code>
-                        <div className="text-xs text-gray-500 mt-1">
-                          Examples: {(pattern.examples || []).slice(0, 2).join(', ')}
-                          {(pattern.examples || []).length > 2 &&
-                            ` ... +${pattern.examples.length - 2} more`}
-                        </div>
+                      <div
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getCategoryColor(
+                          category
+                        )}`}
+                      >
+                        {getCategoryLabel(category)}
                       </div>
-                      <span className="ml-4 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                        {pattern.count}
-                      </span>
-                    </div>
+                      <div className="text-2xl font-bold text-slate-800 mt-2">{count}</div>
+                    </button>
                   ))}
-              </div>
+                </div>
+              )}
             </div>
-          )}
 
-          {/* 🔥 UPDATED: Enhanced Action Buttons with new crawl modes */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">🚀 Next Steps</h2>
-
-            {/* Loading State */}
-            {isStartingCrawl && (
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
-                <div className="flex items-center">
+            {/* Recommendations */}
+            {getSafeRecommendations().length > 0 && (
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
+                <h2 className="text-3xl font-bold text-slate-800 mb-6 flex items-center gap-3">
                   <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600"
+                    className="w-8 h-8 text-amber-600"
                     fill="none"
+                    stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
                     <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
                     />
                   </svg>
-                  <span className="text-blue-800">
-                    Starting smart crawl with pre-analyzed URLs...
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Live Crawling Progress */}
-            {crawlStatus !== 'idle' && (
-              <div className="bg-white border border-gray-200 rounded-md p-6 mb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">🔍 Live Crawling Progress</h3>
-                  <div className="flex items-center space-x-3">
-                    {/* Stop Button */}
-                    {crawlStatus === 'running' && (
-                      <button
-                        onClick={() => setShowStopConfirm(true)}
-                        disabled={isStoppingCrawl}
-                        className={`px-3 py-1 text-sm rounded-md ${
-                          isStoppingCrawl
-                            ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                            : 'bg-red-600 text-white hover:bg-red-700'
-                        }`}
-                      >
-                        {isStoppingCrawl ? '⏳ Stopping...' : '🛑 Stop'}
-                      </button>
-                    )}
-
-                    {/* Status Badge */}
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        crawlStatus === 'running'
-                          ? 'bg-blue-100 text-blue-800'
-                          : crawlStatus === 'completed'
-                          ? 'bg-green-100 text-green-800'
-                          : crawlStatus === 'failed'
-                          ? 'bg-red-100 text-red-800'
-                          : crawlStatus === 'stopped'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-gray-100 text-gray-800'
+                  Recommendations
+                </h2>
+                <div className="space-y-4">
+                  {getSafeRecommendations().map((rec, index) => (
+                    <div
+                      key={index}
+                      className={`p-6 rounded-xl border-l-4 ${
+                        rec.type === 'warning'
+                          ? 'bg-amber-50 border-amber-400'
+                          : rec.type === 'info'
+                          ? 'bg-blue-50 border-blue-400'
+                          : 'bg-green-50 border-green-400'
                       }`}
                     >
-                      {crawlStatus === 'starting'
-                        ? 'Starting...'
-                        : crawlStatus === 'running'
-                        ? 'Running'
-                        : crawlStatus === 'completed'
-                        ? 'Completed'
-                        : crawlStatus === 'failed'
-                        ? 'Failed'
-                        : crawlStatus === 'stopped'
-                        ? 'Stopped'
-                        : 'Timeout'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Progress Bar */}
-                {crawlProgress && crawlProgress.total > 0 && (
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm text-gray-600 mb-2">
-                      <span>Checking links...</span>
-                      <span>
-                        {crawlProgress.current || 0} / {crawlProgress.total || 0}
-                      </span>
+                      <p className="font-bold text-slate-800 text-lg">{rec.message}</p>
+                      <p className="text-slate-600 mt-2">{rec.action}</p>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(crawlProgress.percentage || 0, 100)}%` }}
-                      ></div>
-                    </div>
-                    <div className="text-center text-sm text-gray-500 mt-2">
-                      {Math.round(crawlProgress.percentage || 0)}% complete
-                    </div>
-                  </div>
-                )}
-
-                {/* Stats */}
-                {crawlStats && (
-                  <div className="grid grid-cols-3 gap-4 mb-4">
-                    <div className="text-center p-3 bg-green-50 rounded-lg">
-                      <div className="text-lg font-semibold text-green-600">
-                        {(crawlStats.totalLinksDiscovered || 0) -
-                          (crawlStats.brokenLinksFound || 0)}
-                      </div>
-                      <div className="text-xs text-green-800">Working Links</div>
-                    </div>
-                    <div className="text-center p-3 bg-red-50 rounded-lg">
-                      <div className="text-lg font-semibold text-red-600">
-                        {crawlStats.brokenLinksFound || 0}
-                      </div>
-                      <div className="text-xs text-red-800">Broken Links</div>
-                    </div>
-                    <div className="text-center p-3 bg-blue-50 rounded-lg">
-                      <div className="text-lg font-semibold text-blue-600">
-                        {crawlStats.pagesProcessed || 0}
-                      </div>
-                      <div className="text-xs text-blue-800">
-                        {crawlStats.pagesScanDescription ||
-                          (crawlStats.crawlMode === 'discovered_links'
-                            ? 'Links Processed'
-                            : crawlStats.crawlMode === 'content_pages'
-                            ? 'Pages Scanned'
-                            : 'Links Processed')}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Live Log */}
-                <div ref={scrollRef} className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
-                  <h4 className="text-sm font-medium text-gray-900 mb-3">Activity Log</h4>
-                  <div className="space-y-2">
-                    {crawlLog.map((log, index) => (
-                      <div key={index} className="flex items-start text-sm">
-                        <span className="mr-2">{getLogIcon(log.type)}</span>
-                        <span className="text-gray-500 mr-2 text-xs">{log.timestamp}</span>
-                        <span className={getLogColor(log.type)}>{log.message}</span>
-                      </div>
-                    ))}
-                    {crawlStatus === 'running' && crawlLog.length === 0 && (
-                      <div className="flex items-center text-sm">
-                        <div className="animate-spin mr-2 h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                        <span className="text-blue-600">Initializing crawl...</span>
-                      </div>
-                    )}
-                  </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* 🔥 UPDATED: New Enhanced Action Buttons */}
-            <div className="flex flex-wrap gap-4">
-              <button
-                onClick={() => handleSmartCrawl('content_pages')}
-                disabled={isStartingCrawl}
-                className={`px-6 py-3 rounded-lg font-medium ${
-                  isStartingCrawl
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                    : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
-              >
-                🎯 Crawl {getSafeNumber(getSafeCategories().pages)} Content Pages (Extract + Check
-                Links)
-              </button>
-              <button
-                onClick={() => handleSmartCrawl('discovered_links')}
-                disabled={isStartingCrawl}
-                className={`px-6 py-3 rounded-lg font-medium ${
-                  isStartingCrawl
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                🔄 Check {getSafeNumber(analysis.summary.totalLinksFound)} Discovered Links Directly
-              </button>
-            </div>
+            {/* URL Category Details */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
+              <h2 className="text-3xl font-bold text-slate-800 mb-6">
+                📋 {getCategoryLabel(selectedCategory)}
+                <span className="text-slate-500 font-normal text-xl ml-2">
+                  ({getSafeNumber(getSafeCategories()[selectedCategory])} URLs)
+                </span>
+              </h2>
 
-            {/* 🔥 NEW: SEO and Advanced Settings */}
-            <div className="mb-6 mt-6 p-4 bg-gray-50 rounded-lg">
-              <h4 className="text-sm font-medium text-gray-900 mb-3">Crawl Options</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center">
-                  <input
-                    id="enableSEO"
-                    type="checkbox"
-                    checked={seoSettings.enableSEO}
-                    onChange={(e) =>
-                      setSeoSettings((prev) => ({ ...prev, enableSEO: e.target.checked }))
-                    }
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="enableSEO" className="ml-2 text-sm text-gray-700">
-                    Enable SEO Analysis
-                  </label>
+              {getSafeCategoryData(selectedCategory).length > 0 ? (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {getSafeCategoryData(selectedCategory)
+                    .slice(0, 50)
+                    .map((item, index) => (
+                      <div
+                        key={index}
+                        className="p-4 bg-slate-50 rounded-xl border border-slate-200"
+                      >
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 font-mono text-sm break-all block"
+                        >
+                          {item.url}
+                        </a>
+                        {item.pattern && (
+                          <div className="text-xs text-slate-500 mt-2 flex items-center gap-2">
+                            <span>Pattern:</span>
+                            <code className="bg-slate-200 px-2 py-1 rounded">{item.pattern}</code>
+                            {item.sourceUrl && (
+                              <span>• Found on: {new URL(item.sourceUrl).pathname}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  {getSafeCategoryData(selectedCategory).length > 50 && (
+                    <div className="text-center py-6 text-slate-500 bg-slate-50 rounded-xl">
+                      ... and {getSafeCategoryData(selectedCategory).length - 50} more URLs
+                    </div>
+                  )}
                 </div>
-              </div>
-              <p className="mt-2 text-xs text-gray-500">
-                SEO Analysis:{' '}
-                {seoSettings.enableSEO
-                  ? 'Will analyze page titles, meta descriptions, and SEO scores'
-                  : 'Disabled - Link checking only'}
-              </p>
+              ) : (
+                <p className="text-slate-500 italic text-lg text-center py-8">
+                  No URLs found in this category.
+                </p>
+              )}
             </div>
 
-            {/* 🔥 UPDATED: Enhanced Recommendation Text */}
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Recommendation:</strong>
-                {analysis.summary.totalLinksFound && analysis.summary.categories.pages ? (
-                  <>
-                    <strong> Content Pages Mode</strong> visits {analysis.summary.categories.pages}{' '}
-                    pages to extract and check ALL their links (comprehensive).
-                    <strong> Discovered Links Mode</strong> checks the{' '}
-                    {analysis.summary.totalLinksFound} already-found links directly (faster).
-                  </>
-                ) : (
-                  <>
-                    Content Pages mode extracts links from pages for comprehensive checking.
-                    Discovered Links mode checks pre-found links directly for faster results.
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
-
-          {/* Technical Details */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">🔧 Technical Details</h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-sm font-medium text-gray-900 mb-2">Analysis Settings</h3>
-                <div className="space-y-1 text-sm text-gray-600">
-                  <div>Max Depth: 3 levels</div>
-                  <div>Max Pages: 100 pages</div>
-                  <div>Pages Analyzed: {getSafeNumber(analysis.summary.pagesAnalyzed)}</div>
-                  <div>
-                    Coverage:{' '}
-                    {Math.round((getSafeNumber(analysis.summary.pagesAnalyzed) / 100) * 100)}%
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-medium text-gray-900 mb-2">URL Distribution</h3>
-                <div className="space-y-1 text-sm text-gray-600">
-                  {Object.entries(getSafeCategories())
-                    .sort(([, a], [, b]) => b - a)
-                    .slice(0, 4)
-                    .map(([category, count]) => (
-                      <div key={category} className="flex justify-between">
-                        <span>{getCategoryLabel(category)}:</span>
-                        <span>
-                          {count} (
-                          {Math.round(
-                            (count / Math.max(getSafeNumber(analysis.summary.totalUrls), 1)) * 100
-                          )}
-                          %)
+            {/* Top URL Patterns */}
+            {getSafePatterns().length > 0 && (
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
+                <h2 className="text-3xl font-bold text-slate-800 mb-6 flex items-center gap-3">
+                  <svg
+                    className="w-8 h-8 text-green-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                    />
+                  </svg>
+                  Most Common URL Patterns
+                </h2>
+                <div className="space-y-4">
+                  {getSafePatterns()
+                    .slice(0, 8)
+                    .map((pattern, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200"
+                      >
+                        <div className="flex-1">
+                          <code className="text-sm font-mono text-slate-800 bg-slate-200 px-3 py-1 rounded">
+                            {pattern.pattern}
+                          </code>
+                          <div className="text-sm text-slate-500 mt-2">
+                            Examples: {(pattern.examples || []).slice(0, 2).join(', ')}
+                            {(pattern.examples || []).length > 2 &&
+                              ` ... +${pattern.examples.length - 2} more`}
+                          </div>
+                        </div>
+                        <span className="ml-4 px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-bold">
+                          {pattern.count}
                         </span>
                       </div>
                     ))}
                 </div>
               </div>
+            )}
+
+            {/* Enhanced Action Buttons with new crawl modes */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
+              <h2 className="text-3xl font-bold text-slate-800 mb-6 flex items-center gap-3">
+                <svg
+                  className="w-8 h-8 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
+                </svg>
+                Next Steps
+              </h2>
+
+              {/* Loading State */}
+              {isStartingCrawl && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
+                  <div className="flex items-center">
+                    <svg
+                      className="animate-spin -ml-1 mr-3 h-6 w-6 text-blue-600"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    <span className="text-blue-800 text-lg font-medium">
+                      Starting smart crawl with pre-analyzed URLs...
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Live Crawling Progress */}
+              {crawlStatus !== 'idle' && (
+                <div className="bg-white border border-slate-200 rounded-xl p-8 mb-6 shadow-lg">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+                      <svg
+                        className="w-6 h-6 text-blue-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                      Live Crawling Progress
+                    </h3>
+                    <div className="flex items-center space-x-4">
+                      {/* Stop Button */}
+                      {crawlStatus === 'running' && (
+                        <button
+                          onClick={() => setShowStopConfirm(true)}
+                          disabled={isStoppingCrawl}
+                          className={`px-4 py-2 text-sm rounded-xl font-medium transition-all ${
+                            isStoppingCrawl
+                              ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                              : 'bg-red-600 text-white hover:bg-red-700 shadow-lg'
+                          }`}
+                        >
+                          {isStoppingCrawl ? '⏳ Stopping...' : '🛑 Stop'}
+                        </button>
+                      )}
+
+                      {/* Status Badge */}
+                      <span
+                        className={`px-4 py-2 rounded-full text-sm font-bold ${
+                          crawlStatus === 'running'
+                            ? 'bg-blue-100 text-blue-800'
+                            : crawlStatus === 'completed'
+                            ? 'bg-green-100 text-green-800'
+                            : crawlStatus === 'failed'
+                            ? 'bg-red-100 text-red-800'
+                            : crawlStatus === 'stopped'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-slate-100 text-slate-800'
+                        }`}
+                      >
+                        {crawlStatus === 'starting'
+                          ? 'Starting...'
+                          : crawlStatus === 'running'
+                          ? 'Running'
+                          : crawlStatus === 'completed'
+                          ? 'Completed'
+                          : crawlStatus === 'failed'
+                          ? 'Failed'
+                          : crawlStatus === 'stopped'
+                          ? 'Stopped'
+                          : 'Timeout'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  {crawlProgress && crawlProgress.total > 0 && (
+                    <div className="mb-6">
+                      <div className="flex justify-between text-sm text-slate-600 mb-3">
+                        <span className="font-medium">Checking links...</span>
+                        <span className="font-bold">
+                          {crawlProgress.current || 0} / {crawlProgress.total || 0}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-4">
+                        <div
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 h-4 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min(crawlProgress.percentage || 0, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="text-center text-lg font-bold text-slate-700 mt-3">
+                        {Math.round(crawlProgress.percentage || 0)}% complete
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stats */}
+                  {crawlStats && (
+                    <div className="grid grid-cols-3 gap-6 mb-6">
+                      <div className="text-center p-4 bg-green-50 rounded-xl border border-green-200">
+                        <div className="text-2xl font-bold text-green-600">
+                          {(crawlStats.totalLinksDiscovered || 0) -
+                            (crawlStats.brokenLinksFound || 0)}
+                        </div>
+                        <div className="text-sm text-green-800">Working Links</div>
+                      </div>
+                      <div className="text-center p-4 bg-red-50 rounded-xl border border-red-200">
+                        <div className="text-2xl font-bold text-red-600">
+                          {crawlStats.brokenLinksFound || 0}
+                        </div>
+                        <div className="text-sm text-red-800">Broken Links</div>
+                      </div>
+                      <div className="text-center p-4 bg-blue-50 rounded-xl border border-blue-200">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {crawlStats.pagesProcessed || 0}
+                        </div>
+                        <div className="text-sm text-blue-800">
+                          {crawlStats.pagesScanDescription ||
+                            (crawlStats.crawlMode === 'discovered_links'
+                              ? 'Links Processed'
+                              : crawlStats.crawlMode === 'content_pages'
+                              ? 'Pages Scanned'
+                              : 'Links Processed')}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Live Log */}
+                  <div
+                    ref={scrollRef}
+                    className="bg-slate-50 rounded-xl p-6 max-h-64 overflow-y-auto border border-slate-200"
+                  >
+                    <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <svg
+                        className="w-5 h-5 text-blue-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      Activity Log
+                    </h4>
+                    <div className="space-y-2">
+                      {crawlLog.map((log, index) => (
+                        <div key={index} className="flex items-start text-sm">
+                          <span className="mr-2">{getLogIcon(log.type)}</span>
+                          <span className="text-slate-500 mr-2 text-xs">{log.timestamp}</span>
+                          <span className={getLogColor(log.type)}>{log.message}</span>
+                        </div>
+                      ))}
+                      {crawlStatus === 'running' && crawlLog.length === 0 && (
+                        <div className="flex items-center text-sm">
+                          <div className="animate-spin mr-2 h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                          <span className="text-blue-600">Initializing crawl...</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Enhanced Action Buttons */}
+              <div className="flex flex-wrap gap-6">
+                <button
+                  onClick={() => handleSmartCrawl('content_pages')}
+                  disabled={isStartingCrawl}
+                  className={`flex-1 min-w-[300px] flex items-center justify-center gap-3 py-6 px-8 rounded-xl font-bold text-xm transition-all ${
+                    isStartingCrawl
+                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl transform hover:scale-105'
+                  }`}
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+                    />
+                  </svg>
+                  Crawl {getSafeNumber(getSafeCategories().pages)} Content Pages (Extract + Check
+                  Links)
+                </button>
+                <button
+                  onClick={() => handleSmartCrawl('discovered_links')}
+                  disabled={isStartingCrawl}
+                  className={`flex-1 min-w-[300px] flex items-center justify-center gap-3 py-6 px-8 rounded-xl font-bold text-xm transition-all ${
+                    isStartingCrawl
+                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transform hover:scale-105'
+                  }`}
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  Check {getSafeNumber(analysis.summary.totalLinksFound)} Discovered Links Directly
+                </button>
+              </div>
+
+              {/* SEO and Advanced Settings */}
+              <div className="mt-8 p-6 bg-slate-50 rounded-xl border border-slate-200">
+                <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <svg
+                    className="w-5 h-5 text-slate-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
+                  Crawl Options
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex items-center">
+                    <input
+                      id="enableSEO"
+                      type="checkbox"
+                      checked={seoSettings.enableSEO}
+                      onChange={(e) =>
+                        setSeoSettings((prev) => ({ ...prev, enableSEO: e.target.checked }))
+                      }
+                      className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+                    />
+                    <label htmlFor="enableSEO" className="ml-3 text-slate-700 font-medium">
+                      Enable SEO Analysis
+                    </label>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm text-slate-500">
+                  SEO Analysis:{' '}
+                  {seoSettings.enableSEO
+                    ? 'Will analyze page titles, meta descriptions, and SEO scores'
+                    : 'Disabled - Link checking only'}
+                </p>
+              </div>
+
+              {/* Enhanced Recommendation Text */}
+              <div className="mt-6 p-6 bg-blue-50 rounded-xl border border-blue-200">
+                <p className="text-blue-800">
+                  <strong className="text-lg">Recommendation:</strong>
+                  {analysis.summary.totalLinksFound && analysis.summary.categories.pages ? (
+                    <>
+                      <strong> Content Pages Mode</strong> visits{' '}
+                      {analysis.summary.categories.pages} pages to extract and check ALL their links
+                      (comprehensive). <strong> Discovered Links Mode</strong> checks the{' '}
+                      {analysis.summary.totalLinksFound} already-found links directly (faster).
+                    </>
+                  ) : (
+                    <>
+                      Content Pages mode extracts links from pages for comprehensive checking.
+                      Discovered Links mode checks pre-found links directly for faster results.
+                    </>
+                  )}
+                </p>
+              </div>
             </div>
 
-            {/* 🔥 NEW: Enhanced Technical Details */}
-            {analysis.summary.totalLinksFound && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <h3 className="text-sm font-medium text-gray-900 mb-2">Link Discovery Summary</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                  <div>
-                    <span className="font-medium">Total Links Found:</span>{' '}
-                    {analysis.summary.totalLinksFound}
+            {/* Technical Details */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
+              <h2 className="text-3xl font-bold text-slate-800 mb-6 flex items-center gap-3">
+                <svg
+                  className="w-8 h-8 text-slate-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+                Technical Details
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="p-6 bg-slate-50 rounded-xl">
+                  <h3 className="text-lg font-bold text-slate-800 mb-4">Analysis Settings</h3>
+                  <div className="space-y-3 text-slate-700">
+                    <div className="flex justify-between">
+                      <span>Max Depth:</span>
+                      <span className="font-medium">3 levels</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Max Pages:</span>
+                      <span className="font-medium">100 pages</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Pages Analyzed:</span>
+                      <span className="font-medium">
+                        {getSafeNumber(analysis.summary.pagesAnalyzed)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Coverage:</span>
+                      <span className="font-medium">
+                        {Math.round((getSafeNumber(analysis.summary.pagesAnalyzed) / 100) * 100)}%
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="font-medium">Content Pages:</span> {getSafeCategories().pages}
-                  </div>
-                  <div>
-                    <span className="font-medium">Coverage Ratio:</span>{' '}
-                    {Math.round(
-                      (analysis.summary.totalLinksFound /
-                        Math.max(analysis.summary.pagesAnalyzed, 1)) *
-                        10
-                    ) / 10}{' '}
-                    links/page
-                  </div>
-                  <div>
-                    <span className="font-medium">Analysis Efficiency:</span>{' '}
-                    {Math.round(
-                      (getSafeCategories().pages / Math.max(analysis.summary.totalUrls, 1)) * 100
-                    )}
-                    % content
+                </div>
+
+                <div className="p-6 bg-slate-50 rounded-xl">
+                  <h3 className="text-lg font-bold text-slate-800 mb-4">URL Distribution</h3>
+                  <div className="space-y-3 text-slate-700">
+                    {Object.entries(getSafeCategories())
+                      .sort(([, a], [, b]) => b - a)
+                      .slice(0, 4)
+                      .map(([category, count]) => (
+                        <div key={category} className="flex justify-between">
+                          <span>{getCategoryLabel(category)}:</span>
+                          <span className="font-medium">
+                            {count} (
+                            {Math.round(
+                              (count / Math.max(getSafeNumber(analysis.summary.totalUrls), 1)) * 100
+                            )}
+                            %)
+                          </span>
+                        </div>
+                      ))}
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* Stop Confirmation Dialog */}
-      {showStopConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">🛑 Stop Smart Crawl?</h3>
-            <p className="text-gray-600 mb-6">
-              Stop the current crawl? You'll be redirected to see partial results for any links that
-              have already been processed.
-            </p>
-            <div className="flex space-x-3">
-              <button
-                onClick={handleStopSmartCrawl}
-                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-              >
-                Yes, Stop Crawl
-              </button>
-              <button
-                onClick={() => setShowStopConfirm(false)}
-                className="flex-1 bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
-              >
-                Continue Crawling
-              </button>
+              {/* Enhanced Technical Details */}
+              {analysis.summary.totalLinksFound && (
+                <div className="mt-8 pt-6 border-t border-slate-200">
+                  <h3 className="text-lg font-bold text-slate-800 mb-4">Link Discovery Summary</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-slate-700">
+                    <div className="text-center p-4 bg-blue-50 rounded-xl">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {analysis.summary.totalLinksFound}
+                      </div>
+                      <div className="text-sm text-blue-800">Total Links Found</div>
+                    </div>
+                    <div className="text-center p-4 bg-green-50 rounded-xl">
+                      <div className="text-2xl font-bold text-green-600">
+                        {getSafeCategories().pages}
+                      </div>
+                      <div className="text-sm text-green-800">Content Pages</div>
+                    </div>
+                    <div className="text-center p-4 bg-purple-50 rounded-xl">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {Math.round(
+                          (analysis.summary.totalLinksFound /
+                            Math.max(analysis.summary.pagesAnalyzed, 1)) *
+                            10
+                        ) / 10}
+                      </div>
+                      <div className="text-sm text-purple-800">Links/Page Ratio</div>
+                    </div>
+                    <div className="text-center p-4 bg-amber-50 rounded-xl">
+                      <div className="text-2xl font-bold text-amber-600">
+                        {Math.round(
+                          (getSafeCategories().pages / Math.max(analysis.summary.totalUrls, 1)) *
+                            100
+                        )}
+                        %
+                      </div>
+                      <div className="text-sm text-amber-800">Content Efficiency</div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Stop Confirmation Dialog */}
+        {showStopConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4">
+              <h3 className="text-xl font-bold text-slate-800 mb-4">🛑 Stop Smart Crawl?</h3>
+              <p className="text-slate-600 mb-6">
+                Stop the current crawl? You'll be redirected to see partial results for any links
+                that have already been processed.
+              </p>
+              <div className="flex space-x-4">
+                <button
+                  onClick={handleStopSmartCrawl}
+                  className="flex-1 bg-red-600 text-white px-4 py-3 rounded-xl hover:bg-red-700 font-medium transition-colors"
+                >
+                  Yes, Stop Crawl
+                </button>
+                <button
+                  onClick={() => setShowStopConfirm(false)}
+                  className="flex-1 bg-slate-600 text-white px-4 py-3 rounded-xl hover:bg-slate-700 font-medium transition-colors"
+                >
+                  Continue Crawling
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

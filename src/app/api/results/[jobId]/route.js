@@ -36,6 +36,7 @@ export async function GET(request, { params }) {
     const statusCode = searchParams.get('statusCode'); // Filter by specific HTTP status code
     const errorType = searchParams.get('errorType'); // Filter by error type (from broken_links)
     const search = searchParams.get('search'); // Search in URLs or link text
+    const seoScore = searchParams.get('seoScore') || 'all';
 
     // Check if job exists
     const job = await db.getJob(jobId);
@@ -147,9 +148,7 @@ export async function GET(request, { params }) {
 
     // Apply pagination and ordering
     const offset = (validPage - 1) * validLimit;
-    discoveredQuery = discoveredQuery
-      .order('checked_at', { ascending: false })
-      .range(offset, offset + validLimit - 1);
+    discoveredQuery = discoveredQuery.order('checked_at', { ascending: false });
 
     const {
       data: discoveredLinks,
@@ -281,11 +280,36 @@ export async function GET(request, { params }) {
       filteredResults = enhancedResults.filter((link) => link.error_type === errorType);
     }
 
+    // ADD SEO SCORE FILTERING
+    if (seoScore && seoScore !== 'all') {
+      filteredResults = filteredResults.filter((link) => {
+        const score = link.seo_score;
+
+        switch (seoScore) {
+          case 'good':
+            return score !== null && score >= 80;
+          case 'needs-work':
+            return score !== null && score >= 60 && score < 80;
+          case 'poor':
+            return score !== null && score < 60;
+          case 'no-data':
+            return score === null || score === undefined;
+          default:
+            return true;
+        }
+      });
+    }
+
     // Calculate pagination info
-    const totalCount = discoveredCount || 0;
+    const totalCount = filteredResults.length;
     const totalPages = Math.ceil(totalCount / validLimit);
     const hasNextPage = validPage < totalPages;
     const hasPrevPage = validPage > 1;
+
+    const paginatedResults = filteredResults.slice(
+      (validPage - 1) * validLimit,
+      validPage * validLimit
+    );
 
     // Get comprehensive statistics
     const statsQuery = db.supabase
@@ -355,7 +379,7 @@ export async function GET(request, { params }) {
       },
 
       // Enhanced results with HTTP status data and FIXED source URLs
-      links: filteredResults,
+      links: paginatedResults,
 
       pagination: {
         currentPage: validPage,
@@ -440,6 +464,7 @@ export async function GET(request, { params }) {
         statusCode: statusCode || null,
         errorType: errorType || null,
         search: search || null,
+        seoScore: seoScore || null,
       },
 
       // Available filter options

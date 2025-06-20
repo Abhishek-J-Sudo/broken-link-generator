@@ -138,18 +138,18 @@ export default function ResultsTable({
   // Check if this crawl has any SEO data
   const crawlHasSeoData = useMemo(() => {
     const result = displayData.some((item) => hasSeoData(item));
-    console.log('🔍 SEO Debug:', {
-      crawlHasSeoData: result,
-      displayDataLength: displayData.length,
-      firstItem: displayData[0],
-      seoScores: displayData.map((item) => item.seo_score),
-      seoAnalysisData: displayData.map((item) => item.seo_analysis),
-      hasSeoDataResults: displayData.map((item) => hasSeoData(item)),
-      firstItemKeys: displayData[0] ? Object.keys(displayData[0]) : [],
-      firstItemSeoScore: displayData[0]?.seo_score,
-      firstItemSeoAnalysis: displayData[0]?.seo_analysis,
-      rawFirstItem: displayData[0],
-    });
+    // console.log('🔍 SEO Debug:', {
+    //   crawlHasSeoData: result,
+    //   displayDataLength: displayData.length,
+    //   firstItem: displayData[0],
+    //   seoScores: displayData.map((item) => item.seo_score),
+    //   //seoAnalysisData: displayData.map((item) => item.seo_analysis),
+    //   // hasSeoDataResults: displayData.map((item) => hasSeoData(item)),
+    //   // firstItemKeys: displayData[0] ? Object.keys(displayData[0]) : [],
+    //   // firstItemSeoScore: displayData[0]?.seo_score,
+    //   //firstItemSeoAnalysis: displayData[0]?.seo_analysis,
+    //   //rawFirstItem: displayData[0],
+    // });
     return result;
   }, [displayData]);
 
@@ -311,6 +311,12 @@ export default function ResultsTable({
 
   // Keep existing event handlers
   const handleFilterChange = (filterType, value) => {
+    console.log('🎛️ FRONTEND FILTER CHANGE:', {
+      filterType,
+      value,
+      currentFilter,
+      newFilter: { ...currentFilter, [filterType]: value },
+    });
     const newFilter = { ...currentFilter, [filterType]: value };
     setCurrentFilter(newFilter);
     if (onFilter) {
@@ -368,7 +374,7 @@ export default function ResultsTable({
     return statusCode ? `${label} (${statusCode})` : label;
   };
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div className="bg-white rounded-xl mb-8 shadow-sm border border-slate-200 overflow-hidden">
       {/* Enhanced Header */}
       <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-5 border-b border-slate-200">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -413,7 +419,7 @@ export default function ResultsTable({
             </div>
 
             {/* SEO Filter - only show if crawl has SEO data */}
-            {isNewFormat && crawlHasSeoData && (
+            {isNewFormat && (
               <select
                 value={currentFilter.seoScore}
                 onChange={(e) => handleFilterChange('seoScore', e.target.value)}
@@ -496,7 +502,7 @@ export default function ResultsTable({
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
                     Status
                   </th>
-                  {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
+                  {isNewFormat && selectedView !== 'pages' && (
                     <th
                       className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer"
                       onClick={toggleSeoSort}
@@ -586,7 +592,7 @@ export default function ResultsTable({
                       </td>
 
                       {/* SEO Score */}
-                      {isNewFormat && selectedView !== 'pages' && crawlHasSeoData && (
+                      {isNewFormat && selectedView !== 'pages' && (
                         <td className="px-6 py-4">
                           {hasSeoData(item) ? (
                             <div className="flex items-center gap-3">
@@ -867,7 +873,7 @@ export default function ResultsTable({
                                 </h4>
                                 <p className="text-slate-600">
                                   {item.is_working
-                                    ? 'SEO analysis failed or is still processing'
+                                    ? 'SEO analysis failed or not found.'
                                     : 'Page could not be accessed for analysis'}
                                 </p>
                                 {!item.is_working && (

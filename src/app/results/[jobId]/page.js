@@ -109,6 +109,10 @@ export default function ResultsPage() {
         params.append('search', filterOptions.search);
       }
 
+      if (filterOptions.seoScore && filterOptions.seoScore !== 'all') {
+        params.append('seoScore', filterOptions.seoScore);
+      }
+
       console.log(`Loading results for job ${jobId} with params:`, params.toString());
 
       const response = await fetch(`/api/results/${jobId}?${params}`);
@@ -568,20 +572,30 @@ export default function ResultsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Header */}
       <Header />
-      <div className="bg-white shadow-sm">
+      <div className="bg-white shadow-sm border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Link Check Results</h1>
-              <p className="text-gray-600 break-all">{job?.url}</p>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Link Check Results
+              </h1>
+              <p className="text-slate-600 break-all mt-2">{job?.url}</p>
               <div
                 onClick={() => router.push('/analyze?restore=true')}
-                className="block w-full text-gray-500 p-2 cursor-pointer py-2 hover:text-indigo-500"
+                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 cursor-pointer py-2 transition-colors duration-200 font-medium"
               >
-                ⬅ Back to Analysis
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                  />
+                </svg>
+                Back to Analysis
               </div>
             </div>
 
@@ -593,10 +607,10 @@ export default function ResultsPage() {
                   <button
                     onClick={() => setShowStopConfirm(true)}
                     disabled={isStoppingCrawl}
-                    className={`px-3 py-1 text-sm rounded-md ${
+                    className={`px-4 py-2 text-sm rounded-xl font-medium transition-all ${
                       isStoppingCrawl
-                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                        : 'bg-red-600 text-white hover:bg-red-700'
+                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                        : 'bg-red-600 text-white hover:bg-red-700 shadow-lg'
                     }`}
                   >
                     {isStoppingCrawl ? '⏳ Stopping...' : '🛑 Stop Crawl'}
@@ -608,10 +622,10 @@ export default function ResultsPage() {
                     <button
                       onClick={exportToCSV}
                       disabled={isExporting}
-                      className={`px-3 py-1 text-sm rounded-md ${
+                      className={`px-4 py-2 text-sm rounded-xl font-medium transition-all ${
                         isExporting
-                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                          : 'bg-green-600 text-white hover:bg-green-700'
+                          ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                          : 'bg-green-600 text-white hover:bg-green-700 shadow-lg'
                       }`}
                     >
                       {isExporting ? '⏳' : '📊'} Export CSV
@@ -619,10 +633,10 @@ export default function ResultsPage() {
                     <button
                       onClick={exportToJSON}
                       disabled={isExporting}
-                      className={`px-3 py-1 text-sm rounded-md ${
+                      className={`px-4 py-2 text-sm rounded-xl font-medium transition-all ${
                         isExporting
-                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                          ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
                       }`}
                     >
                       {isExporting ? '⏳' : '📁'} Export JSON
@@ -631,7 +645,7 @@ export default function ResultsPage() {
                 )}
 
                 <span
-                  className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                  className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold ${
                     job?.status === 'completed'
                       ? 'bg-green-100 text-green-800'
                       : job?.status === 'running'
@@ -645,7 +659,7 @@ export default function ResultsPage() {
                 </span>
               </div>
               {job?.timestamps?.elapsedTime && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-slate-500">
                   {formatDuration(job.timestamps.elapsedTime)}
                 </p>
               )}
@@ -658,24 +672,22 @@ export default function ResultsPage() {
         {/* Stop Confirmation Dialog */}
         {showStopConfirm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                🛑 Stop Crawl Confirmation
-              </h3>
-              <p className="text-gray-600 mb-6">
+            <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4">
+              <h3 className="text-xl font-bold text-slate-800 mb-4">🛑 Stop Crawl Confirmation</h3>
+              <p className="text-slate-600 mb-6">
                 Are you sure you want to stop this crawl? You'll be able to see partial results for
                 links that have already been checked.
               </p>
-              <div className="flex space-x-3">
+              <div className="flex space-x-4">
                 <button
                   onClick={handleStopCrawl}
-                  className="flex-1 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+                  className="flex-1 bg-red-600 text-white px-4 py-3 rounded-xl hover:bg-red-700 font-medium transition-colors"
                 >
                   Yes, Stop Crawl
                 </button>
                 <button
                   onClick={() => setShowStopConfirm(false)}
-                  className="flex-1 bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+                  className="flex-1 bg-slate-600 text-white px-4 py-3 rounded-xl hover:bg-slate-700 font-medium transition-colors"
                 >
                   Cancel
                 </button>
@@ -683,24 +695,40 @@ export default function ResultsPage() {
             </div>
           </div>
         )}
+
         {/* Progress Section */}
         {job?.status === 'running' && (
-          <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Scan in Progress</h2>
-              <span className="text-sm text-gray-600">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+                <svg
+                  className="w-6 h-6 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
+                </svg>
+                Scan in Progress
+              </h2>
+              <span className="text-slate-600 font-medium">
                 {job.progress?.current || 0} / {job.progress?.total || 0} links checked
               </span>
             </div>
 
-            <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+            <div className="w-full bg-slate-200 rounded-full h-4 mb-4">
               <div
-                className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 h-4 rounded-full transition-all duration-300"
                 style={{ width: `${getProgressPercentage()}%` }}
               ></div>
             </div>
 
-            <p className="text-sm text-gray-600">
+            <p className="text-slate-600">
               {getProgressPercentage()}% complete
               {job.progress?.estimatedTimeRemaining && (
                 <>
@@ -712,78 +740,13 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {/* Enhanced Stats Cards with Modern Data */}
-        {job && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <button
-              onClick={() => handleCardClick('all')}
-              className={`bg-white rounded-lg shadow-lg p-6 text-center transition-all hover:shadow-xl hover:scale-105 ${
-                selectedView === 'all' ? 'ring-2 ring-blue-500 bg-blue-50' : ''
-              }`}
-            >
-              <div className="text-2xl font-bold text-blue-600 mb-2">
-                {job.stats?.totalLinksDiscovered || 0}
-              </div>
-              <div className="text-sm text-gray-600">All Unique Links</div>
-              {selectedView === 'all' && <div className="text-xs text-blue-600 mt-1">● Active</div>}
-            </button>
-
-            <button
-              onClick={() => handleCardClick('working')}
-              className={`bg-white rounded-lg shadow-lg p-6 text-center transition-all hover:shadow-xl hover:scale-105 ${
-                selectedView === 'working' ? 'ring-2 ring-green-500 bg-green-50' : ''
-              }`}
-            >
-              <div className="text-2xl font-bold text-green-600 mb-2">
-                {(job.stats?.totalLinksDiscovered || 0) - (job.stats?.brokenLinksFound || 0)}
-              </div>
-              <div className="text-sm text-gray-600">Working Links</div>
-              {selectedView === 'working' && (
-                <div className="text-xs text-green-600 mt-1">● Active</div>
-              )}
-            </button>
-
-            <button
-              onClick={() => handleCardClick('broken')}
-              className={`bg-white rounded-lg shadow-lg p-6 text-center transition-all hover:shadow-xl hover:scale-105 ${
-                selectedView === 'broken' ? 'ring-2 ring-red-500 bg-red-50' : ''
-              }`}
-            >
-              <div className="text-2xl font-bold text-red-600 mb-2">
-                {job.stats?.brokenLinksFound || 0}
-              </div>
-              <div className="text-sm text-gray-600">Broken Links</div>
-              {selectedView === 'broken' && (
-                <div className="text-xs text-red-600 mt-1">● Active</div>
-              )}
-            </button>
-
-            <button
-              onClick={() => handleCardClick('pages')}
-              className={`bg-white rounded-lg shadow-lg p-6 text-center transition-all hover:shadow-xl hover:scale-105 ${
-                selectedView === 'pages' ? 'ring-2 ring-purple-500 bg-purple-50' : ''
-              }`}
-            >
-              <div className="text-2xl font-bold text-purple-600 mb-2">
-                {results?.summary?.internalPagesCount || 0}
-              </div>
-              <div className="text-sm text-gray-600">
-                {job?.crawlMode === 'discovered_links' ? 'Pages Scanned' : 'Links Checked'}
-              </div>
-              {selectedView === 'pages' && (
-                <div className="text-xs text-purple-600 mt-1">● Active</div>
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* NEW: SEO Summary Cards - Add this AFTER your existing stats cards */}
+        {/* SEO Summary Cards */}
         {job?.status === 'completed' && seoSummary && job?.settings?.enableSEO && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {/* SEO Score Card */}
-            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+            <div className="bg-white rounded-xl shadow-2xs p-4 text-center border border-slate-200">
               <div
-                className={`text-2xl font-bold mb-2 ${
+                className={`text-2xl font-bold mb-1 ${
                   seoSummary.avg_score >= 80
                     ? 'text-green-600'
                     : seoSummary.avg_score >= 60
@@ -793,9 +756,9 @@ export default function ResultsPage() {
               >
                 {Math.round(seoSummary.avg_score || 0)}/100
               </div>
-              <div className="text-sm text-gray-600">Average SEO Score</div>
+              <div className="text-slate-600 font-medium text-sm">Average SEO Score</div>
               <div
-                className={`text-xs mt-1 ${
+                className={`text-xs mt-1 font-bold ${
                   seoSummary.avg_score >= 80
                     ? 'text-green-600'
                     : seoSummary.avg_score >= 60
@@ -803,7 +766,7 @@ export default function ResultsPage() {
                     : 'text-red-600'
                 }`}
               >
-                Grade:
+                Grade:{' '}
                 {seoSummary.avg_score >= 90
                   ? 'A'
                   : seoSummary.avg_score >= 80
@@ -817,31 +780,31 @@ export default function ResultsPage() {
             </div>
 
             {/* Pages Analyzed */}
-            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
-              <div className="text-2xl font-bold text-blue-600 mb-2">
+            <div className="bg-white rounded-xl shadow-2xs p-4 text-center border border-slate-200">
+              <div className="text-2xl font-bold text-blue-600 mb-1">
                 {seoSummary.total_pages || 0}
               </div>
-              <div className="text-sm text-gray-600">Pages Analyzed</div>
-              <div className="text-xs text-blue-600 mt-1">SEO Data Available</div>
+              <div className="text-slate-600 font-medium text-sm">Pages Analyzed</div>
+              <div className="text-xs text-blue-600 mt-1 font-bold">SEO Data Available</div>
             </div>
 
             {/* SEO Issues */}
-            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
-              <div className="text-2xl font-bold text-orange-600 mb-2">
+            <div className="bg-white rounded-xl shadow-2xs p-4 text-center border border-slate-200">
+              <div className="text-2xl font-bold text-orange-600 mb-1">
                 {seoSummary.total_issues || 0}
               </div>
-              <div className="text-sm text-gray-600">SEO Issues Found</div>
-              <div className="text-xs text-orange-600 mt-1">Need Attention</div>
+              <div className="text-slate-600 font-medium text-sm">SEO Issues Found</div>
+              <div className="text-xs text-orange-600 mt-1 font-bold">Need Attention</div>
             </div>
 
             {/* Performance */}
-            <div className="bg-white rounded-lg shadow-lg p-6 text-center">
-              <div className="text-2xl font-bold text-purple-600 mb-2">
+            <div className="bg-white rounded-xl shadow-2xs p-4 text-center border border-slate-200">
+              <div className="text-2xl font-bold text-purple-600 mb-1">
                 {Math.round(seoSummary.avg_response_time || 0)}ms
               </div>
-              <div className="text-sm text-gray-600">Avg Response Time</div>
+              <div className="text-slate-600 font-medium text-sm">Avg Response Time</div>
               <div
-                className={`text-xs mt-1 ${
+                className={`text-xs mt-1 font-bold ${
                   (seoSummary.avg_response_time || 0) < 1000
                     ? 'text-green-600'
                     : (seoSummary.avg_response_time || 0) < 3000
@@ -858,12 +821,80 @@ export default function ResultsPage() {
             </div>
           </div>
         )}
+
+        {/* Enhanced Stats Cards with Modern Data */}
+        {job && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <button
+              onClick={() => handleCardClick('all')}
+              className={`bg-white rounded-xl shadow-lg p-4 text-center transition-all hover:shadow-xl transform hover:scale-105 ${
+                selectedView === 'all' ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+              }`}
+            >
+              <div className="text-2xl font-bold text-blue-600 mb-1">
+                {job.stats?.totalLinksDiscovered || 0}
+              </div>
+              <div className="text-slate-600 font-medium text-sm">All Unique Links</div>
+              {selectedView === 'all' && (
+                <div className="text-xs text-blue-600 mt-1 font-bold">● Active</div>
+              )}
+            </button>
+
+            <button
+              onClick={() => handleCardClick('working')}
+              className={`bg-white rounded-xl shadow-lg p-4 text-center transition-all hover:shadow-xl transform hover:scale-105 ${
+                selectedView === 'working' ? 'ring-2 ring-green-500 bg-green-50' : ''
+              }`}
+            >
+              <div className="text-2xl font-bold text-green-600 mb-1">
+                {(job.stats?.totalLinksDiscovered || 0) - (job.stats?.brokenLinksFound || 0)}
+              </div>
+              <div className="text-slate-600 font-medium text-sm">Working Links</div>
+              {selectedView === 'working' && (
+                <div className="text-xs text-green-600 mt-1 font-bold">● Active</div>
+              )}
+            </button>
+
+            <button
+              onClick={() => handleCardClick('broken')}
+              className={`bg-white rounded-xl shadow-lg p-4 text-center transition-all hover:shadow-xl transform hover:scale-105 ${
+                selectedView === 'broken' ? 'ring-2 ring-red-500 bg-red-50' : ''
+              }`}
+            >
+              <div className="text-2xl font-bold text-red-600 mb-1">
+                {job.stats?.brokenLinksFound || 0}
+              </div>
+              <div className="text-slate-600 font-medium text-sm">Broken Links</div>
+              {selectedView === 'broken' && (
+                <div className="text-xs text-red-600 mt-1 font-bold">● Active</div>
+              )}
+            </button>
+
+            <button
+              onClick={() => handleCardClick('pages')}
+              className={`bg-white rounded-xl shadow-lg p-4 text-center transition-all hover:shadow-xl transform hover:scale-105 ${
+                selectedView === 'pages' ? 'ring-2 ring-purple-500 bg-purple-50' : ''
+              }`}
+            >
+              <div className="text-2xl font-bold text-purple-600 mb-1">
+                {results?.summary?.internalPagesCount || 0}
+              </div>
+              <div className="text-slate-600 font-medium text-sm">
+                {job?.crawlMode === 'discovered_links' ? 'Pages Scanned' : 'Links Checked'}
+              </div>
+              {selectedView === 'pages' && (
+                <div className="text-xs text-purple-600 mt-1 font-bold">● Active</div>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Export Success Message */}
         {isExporting && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
             <div className="flex items-center">
               <svg
-                className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600"
+                className="animate-spin -ml-1 mr-3 h-6 w-6 text-blue-600"
                 fill="none"
                 viewBox="0 0 24 24"
               >
@@ -881,7 +912,7 @@ export default function ResultsPage() {
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 />
               </svg>
-              <span className="text-blue-800">Preparing export file...</span>
+              <span className="text-blue-800 font-medium">Preparing export file...</span>
             </div>
           </div>
         )}
@@ -900,9 +931,9 @@ export default function ResultsPage() {
 
         {/* Completed - Show results summary */}
         {job?.status === 'completed' && results && (
-          <div className="bg-white rounded-lg shadow-lg p-8 text-center mb-6">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center mb-8">
             <svg
-              className={`w-16 h-16 mx-auto mb-4 ${
+              className={`w-20 h-20 mx-auto mb-6 ${
                 results.summary?.brokenLinks === 0 ? 'text-green-500' : 'text-yellow-500'
               }`}
               fill="none"
@@ -926,13 +957,13 @@ export default function ResultsPage() {
               )}
             </svg>
 
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            <h3 className="text-2xl font-bold text-slate-800 mb-4">
               {results.summary?.brokenLinks === 0
                 ? '🎉 Excellent! No Broken Links Found'
                 : `⚠️ Found ${results.summary?.brokenLinks} Broken Links`}
             </h3>
 
-            <p className="text-gray-600 mb-4">
+            <p className="text-slate-600 mb-6">
               {results.summary?.brokenLinks === 0
                 ? `All ${
                     job.stats?.totalLinksDiscovered || 0
@@ -946,20 +977,20 @@ export default function ResultsPage() {
               <button
                 onClick={exportToCSV}
                 disabled={isExporting}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+                className="bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 font-medium transition-all shadow-lg"
               >
                 📊 Export CSV
               </button>
               <button
                 onClick={exportToJSON}
                 disabled={isExporting}
-                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+                className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-medium transition-all shadow-lg"
               >
                 📁 Export JSON
               </button>
               <button
                 onClick={() => router.push('/analyze')}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                className="bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 font-medium transition-all shadow-lg"
               >
                 🔍 Analyze Another Site
               </button>
@@ -969,11 +1000,11 @@ export default function ResultsPage() {
 
         {/* Pending/Running State */}
         {job?.status === 'running' && (
-          <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center">
             <div className="animate-pulse">
-              <div className="text-4xl mb-4">🔍</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Scanning Your Website</h3>
-              <p className="text-gray-600">
+              <div className="text-6xl mb-6">🔍</div>
+              <h3 className="text-2xl font-bold text-slate-800 mb-4">Scanning Your Website</h3>
+              <p className="text-slate-600 text-lg">
                 We're checking each link for broken status and measuring response times. This page
                 will update automatically when complete.
               </p>
@@ -983,9 +1014,9 @@ export default function ResultsPage() {
 
         {/* Failed State */}
         {job?.status === 'failed' && (
-          <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center">
             <svg
-              className="w-16 h-16 text-red-500 mx-auto mb-4"
+              className="w-20 h-20 text-red-500 mx-auto mb-6"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -997,19 +1028,20 @@ export default function ResultsPage() {
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
               />
             </svg>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Scan Failed</h3>
-            <p className="text-gray-600 mb-4">
+            <h3 className="text-2xl font-bold text-slate-800 mb-4">Scan Failed</h3>
+            <p className="text-slate-600 mb-6 text-lg">
               {job.errorMessage || 'The scan encountered an error and could not be completed.'}
             </p>
             <button
               onClick={() => router.push('/analyze')}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-medium transition-all shadow-lg"
             >
               Try Again
             </button>
           </div>
         )}
       </div>
+
       {/* Security notice */}
       <SecurityNotice variant="compact" />
       {/* Footer */}
