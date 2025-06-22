@@ -241,7 +241,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
                   onChange={handleInputChange}
                   placeholder="https://example.com"
                   required
-                  className="w-full pl-12 pr-4 py-4 text-lg border border-slate-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  className="w-full pl-12 pr-4 py-4 text-gray-500 text-lg border border-slate-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                 />
               </div>
               <p className="mt-2 text-sm text-slate-500 flex items-center gap-1">

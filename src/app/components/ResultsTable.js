@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Clock,
   TrendingUp,
+  X,
 } from 'lucide-react';
 import ToolTip from './ToolTip';
 
@@ -121,7 +122,7 @@ export default function ResultsTable({
 
   const getTableTitle = () => {
     // Determine the mode part
-    let mode = 'Link Check';
+    let mode = 'Basic Checker';
     // Check for content pages mode from either source
     if (crawlMode === 'content_pages' || job?.settings?.crawlMode === 'content_pages') {
       mode = 'Content Mode';
@@ -130,13 +131,32 @@ export default function ResultsTable({
 
     // Determine the SEO part
     const seoEnabled = job?.settings?.enableSEO;
-    const hasSeoData = seoEnabled && crawlHasSeoData;
+    const externalLinksEnabled = job?.settings?.includeExternal;
+    const externalIncluded = job?.settings?.crawlMode || externalLinksEnabled;
 
-    if (hasSeoData) {
-      return `${mode} Results (SEO)`;
-    } else {
-      return `${mode} Results`;
-    }
+    return (
+      <span className="flex items-baseline gap-2">
+        {mode} Results
+        <div className="flex items-center gap-1 text-gray-400 text-sm">
+          <span className="flex items-center gap-1">
+            {seoEnabled ? (
+              <CheckCircle className="w-3 h-3 text-green-500" />
+            ) : (
+              <X className="w-3 h-3 text-red-500" />
+            )}
+            SEO
+          </span>
+          <span className="flex items-center gap-1">
+            {externalIncluded ? (
+              <CheckCircle className="w-3 h-3 text-green-500" />
+            ) : (
+              <X className="w-3 h-3 text-red-500" />
+            )}
+            External
+          </span>
+        </div>
+      </span>
+    );
   };
 
   const handlePageChangeWithScroll = (newPage) => {
