@@ -41,13 +41,13 @@ export default function Header() {
               Smart Analyzer
             </Link>
             <Link
-              href="/"
+              href="/#crawler-form"
               className="text-slate-600 hover:text-blue-600 font-medium transition-colors duration-200"
             >
               Basic Checker
             </Link>
             <Link
-              href="/docs"
+              href="/documentation"
               className="text-slate-600 hover:text-blue-600 font-medium transition-colors duration-200"
             >
               Documentation
@@ -110,7 +110,7 @@ export default function Header() {
                 Basic Checker
               </Link>
               <Link
-                href="/docs"
+                href="/documentation"
                 className="text-slate-600 hover:text-blue-600 font-medium transition-colors duration-200 py-2"
                 onClick={() => setIsMobileMenuOpen(false)}
               >

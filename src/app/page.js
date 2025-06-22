@@ -1,7 +1,7 @@
 // src/app/page.js - Simplified & Clean Homepage
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import LargeCrawlForm from '@/app/components/LargeCrawlForm';
 import Header from '@/app/components/Header';
@@ -19,6 +19,16 @@ export default function HomePage() {
     console.log('New job started:', jobResult);
     // Could add the new job to recent jobs list in the future
   };
+
+  // In your homepage component, add this useEffect:
+  useEffect(() => {
+    if (window.location.hash === '#crawler-form') {
+      const formSection = document.getElementById('crawler-form');
+      if (formSection) {
+        formSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">

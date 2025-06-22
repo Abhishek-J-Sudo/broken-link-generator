@@ -93,7 +93,10 @@ export default function Footer() {
             <h3 className="text-white font-semibold mb-4">Resources</h3>
             <ul className="space-y-3">
               <li>
-                <Link href="/docs" className="hover:text-white transition-colors duration-200">
+                <Link
+                  href="/documentation"
+                  className="hover:text-white transition-colors duration-200"
+                >
                   Documentation
                 </Link>
               </li>
@@ -102,11 +105,11 @@ export default function Footer() {
                   Help Center
                 </Link>
               </li> */}
-              <li>
+              {/* <li>
                 <Link href="/blog" className="hover:text-white transition-colors duration-200">
                   Blog
                 </Link>
-              </li>
+              </li> */}
               <li>
                 <Link href="/changelog" className="hover:text-white transition-colors duration-200">
                   Changelog
@@ -123,7 +126,7 @@ export default function Footer() {
               <p className="text-sm text-slate-400">Built with Next.js | Made with Claude AI</p>
             </div>
 
-            <div className="flex items-center space-x-6">
+            {/* <div className="flex items-center space-x-6">
               <Link
                 href="/privacy"
                 className="text-sm text-slate-400 hover:text-white transition-colors duration-200"
@@ -142,14 +145,17 @@ export default function Footer() {
               >
                 Legal Notice
               </Link>
-            </div>
-          </div>
-
-          <div className="text-center mt-6">
+            </div> */}
             <p className="text-sm text-slate-500">
               © {new Date().getFullYear()} Abhishek Jagtap - Broken Link Checker
             </p>
           </div>
+
+          {/* <div className="text-center mt-6">
+            <p className="text-sm text-slate-500">
+              © {new Date().getFullYear()} Abhishek Jagtap - Broken Link Checker
+            </p>
+          </div> */}
         </div>
       </div>
     </footer>
