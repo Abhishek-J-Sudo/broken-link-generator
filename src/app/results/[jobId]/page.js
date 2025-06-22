@@ -22,7 +22,10 @@ export default function ResultsPage() {
     errorType: 'all',
     search: '',
   });
-  const [isExporting, setIsExporting] = useState(false);
+
+  //isExporting with separate states:
+  const [isExportingCSV, setIsExportingCSV] = useState(false);
+  const [isExportingJSON, setIsExportingJSON] = useState(false);
 
   // Card-based view state
   const [selectedView, setSelectedView] = useState('broken');
@@ -204,7 +207,7 @@ export default function ResultsPage() {
     const currentData = getCurrentData();
     if (!currentData || !currentData.links) return;
 
-    setIsExporting(true);
+    setIsExportingCSV(true);
     try {
       // Get ALL results for export (not just current page)
       const exportParams = new URLSearchParams({
@@ -213,6 +216,255 @@ export default function ResultsPage() {
       });
 
       // Apply current view and filters to export
+      if (selectedView === 'working') {
+        exportParams.append('statusFilter', 'working');
+      } else if (selectedView === 'broken') {
+        exportParams.append('statusFilter', 'broken');
+      } else if (selectedView === 'all') {
+        exportParams.append('statusFilter', 'all');
+      } else if (selectedView === 'pages') {
+        exportParams.append('statusFilter', 'pages');
+      }
+
+      if (filters.statusCode) {
+        exportParams.append('statusCode', filters.statusCode);
+      }
+
+      if (filters.errorType && filters.errorType !== 'all') {
+        exportParams.append('errorType', filters.errorType);
+      }
+
+      if (filters.search) {
+        exportParams.append('search', filters.search);
+      }
+
+      if (filters.seoScore && filters.seoScore !== 'all') {
+        exportParams.append('seoScore', filters.seoScore);
+      }
+
+      const response = await fetch(`/api/results/${jobId}?${exportParams}`);
+      const allData = await response.json();
+
+      if (response.ok) {
+        // Helper function to validate actual URLs
+        const isValidActualUrl = (url) => {
+          if (!url || typeof url !== 'string') return false;
+          if (url.includes('javascript:')) return false;
+          if (url.includes('mailto:')) return false;
+          if (url.includes('tel:')) return false;
+          if (url.startsWith('#')) return false;
+          if (url.includes('{{') || url.includes('}}')) return false;
+          if (url.includes('<%') || url.includes('%>')) return false;
+          // Filter out Next.js image optimization URLs
+          if (url.includes('/_next/image?')) return false;
+
+          // Filter out direct asset URLs (images, CSS, JS, fonts, etc.)
+          if (
+            url.match(
+              /\.(jpg|jpeg|png|gif|webp|svg|ico|css|js|woff|woff2|ttf|otf|eot|pdf|zip|xml|txt)(\?|$)/i
+            )
+          )
+            return false;
+
+          try {
+            const urlObj = new URL(url);
+            return urlObj.protocol.startsWith('http') && urlObj.hostname.includes('.');
+          } catch {
+            return false;
+          }
+        };
+
+        // Sort data: High issues first, then low scores to high scores, then no score data
+        const sortedLinks = [...allData.links].sort((a, b) => {
+          // Get SEO issues count (prioritize high issues)
+          const aIssues = a.seo_issues_count || 0;
+          const bIssues = b.seo_issues_count || 0;
+
+          // Get SEO scores (handle null/undefined)
+          const aScore = a.seo_score;
+          const bScore = b.seo_score;
+
+          // Helper to check if score exists
+          const hasScore = (score) => score !== null && score !== undefined && !isNaN(score);
+
+          // 1. First priority: High issues count (descending)
+          if (aIssues !== bIssues) {
+            return bIssues - aIssues; // Higher issues first
+          }
+
+          // 2. Second priority: Handle scores
+          const aHasScore = hasScore(aScore);
+          const bHasScore = hasScore(bScore);
+
+          // If both have scores, sort by lowest score first
+          if (aHasScore && bHasScore) {
+            return aScore - bScore; // Lower scores first
+          }
+
+          // If only one has a score, prioritize the one with score
+          if (aHasScore && !bHasScore) return -1;
+          if (!aHasScore && bHasScore) return 1;
+
+          // 3. Third priority: For items with no scores, sort by working status
+          // Broken links first, then working links
+          if (a.is_working !== b.is_working) {
+            return a.is_working ? 1 : -1; // Broken (false) first
+          }
+
+          // 4. Final fallback: Sort by URL alphabetically
+          return (a.url || '').localeCompare(b.url || '');
+        });
+
+        // Enhanced CSV headers - organized logically per requirements
+        const csvHeaders = [
+          // Basic URL Information
+          'URL',
+          'URL Type',
+          'Internal/External',
+          'Status',
+          'HTTP Code',
+
+          // SEO Score & Grade
+          'SEO Score',
+          'SEO Grade',
+          'SEO Issues Count',
+
+          // Page Content (SEO)
+          'Page Title',
+          'Title Length',
+          'Meta Description',
+          'Description Length',
+          'Word Count',
+          'Content Length',
+
+          // Heading Structure (SEO)
+          'H1 Count',
+          'H2 Count',
+          'H3 Count',
+          'Has H1',
+
+          // Images (SEO)
+          'Total Images',
+          'Missing Alt',
+          'Alt Coverage %',
+
+          // Technical (SEO)
+          'Is HTTPS',
+          'Canonical URL',
+          'Status Code (SEO)',
+          'SEO Issues',
+
+          // Source & Performance
+          'Source Page',
+          'Response Time (ms)',
+        ];
+
+        const csvRows = sortedLinks.map((link) => [
+          // Basic URL Information
+          link.url || '',
+          isValidActualUrl(link.url) ? 'Valid URL' : 'Non-URL',
+          link.is_internal ? 'Internal' : 'External',
+          // Fix status text encoding issues
+          (link.status_label || 'Unknown').replace(/[^\x00-\x7F]/g, ''), // Remove non-ASCII characters
+          link.http_status_code || 'N/A',
+
+          // SEO Score & Grade
+          link.seo_score || 'N/A',
+          link.seo_grade || 'N/A',
+          link.seo_issues_count || 0,
+
+          // Page Content (SEO) - Fix title and description length calculation
+          link.seo_title?.text || link.title_text || 'N/A',
+          link.seo_title?.text
+            ? link.seo_title.text.length
+            : link.title_text
+            ? link.title_text.length
+            : 'N/A',
+          link.seo_metaDescription?.text || link.meta_description || 'N/A',
+          link.seo_metaDescription?.text
+            ? link.seo_metaDescription.text.length
+            : link.meta_description
+            ? link.meta_description.length
+            : 'N/A',
+          link.seo_content?.word_count || link.word_count || 'N/A',
+          link.seo_content?.content_length || link.content_length || 'N/A',
+
+          // Heading Structure (SEO)
+          link.seo_headings?.h1_count || link.h1_count || 'N/A',
+          link.seo_headings?.h2_count || link.h2_count || 'N/A',
+          link.seo_headings?.h3_count || link.h3_count || 'N/A',
+          link.seo_headings?.hasNoH1 ? 'No' : 'Yes',
+
+          // Images (SEO)
+          link.seo_images?.total_images || link.total_images || 'N/A',
+          link.seo_images?.missing_alt || link.missing_alt || 'N/A',
+          link.seo_images?.alt_coverage || link.alt_coverage || 'N/A',
+
+          // Technical (SEO)
+          link.seo_technical?.isHttps || link.is_https ? 'Yes' : 'No',
+          link.seo_technical?.canonical_url || link.canonical_url || 'N/A',
+          link.seo_technical?.status_code || link.status_code || 'N/A',
+          link.seo_issues && Array.isArray(link.seo_issues)
+            ? link.seo_issues.map((issue) => `${issue.type}: ${issue.message}`).join('; ')
+            : 'N/A',
+
+          // Source & Performance
+          link.source_url || 'Discovery',
+          link.response_time || 'N/A',
+        ]);
+
+        // Add UTF-8 BOM for better Excel compatibility with Arabic text
+        const BOM = '\uFEFF';
+        const csvContent =
+          BOM +
+          [
+            csvHeaders.join(','),
+            ...csvRows.map((row) =>
+              row.map((field) => `"${String(field).replace(/"/g, '""')}"`).join(',')
+            ),
+          ].join('\n');
+
+        // Create and download file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        if (link.download !== undefined) {
+          const url = URL.createObjectURL(blob);
+          link.setAttribute('href', url);
+          link.setAttribute(
+            'download',
+            `${selectedView}-links-comprehensive-${new URL(job.url).hostname}-${
+              new Date().toISOString().split('T')[0]
+            }.csv`
+          );
+          link.style.visibility = 'hidden';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      } else {
+        throw new Error('Failed to fetch all results for export');
+      }
+    } catch (err) {
+      setError('Failed to export data');
+      console.error('Export error:', err);
+    } finally {
+      setIsExportingCSV(false);
+    }
+  };
+
+  const exportToJSON = async () => {
+    const currentData = getCurrentData();
+    if (!currentData) return;
+
+    setIsExportingJSON(true);
+    try {
+      // Get ALL results for export
+      const exportParams = new URLSearchParams({
+        page: '1',
+        limit: '10000',
+      });
+
+      // Apply current view and filters
       if (selectedView === 'working') {
         exportParams.append('statusFilter', 'working');
       } else if (selectedView === 'broken') {
@@ -248,6 +500,16 @@ export default function ResultsPage() {
           if (url.startsWith('#')) return false;
           if (url.includes('{{') || url.includes('}}')) return false;
           if (url.includes('<%') || url.includes('%>')) return false;
+          // Filter out Next.js image optimization URLs
+          if (url.includes('/_next/image?')) return false;
+
+          // Filter out direct asset URLs (images, CSS, JS, fonts, etc.)
+          if (
+            url.match(
+              /\.(jpg|jpeg|png|gif|webp|svg|ico|css|js|woff|woff2|ttf|otf|eot|pdf|zip|xml|txt)(\?|$)/i
+            )
+          )
+            return false;
 
           try {
             const urlObj = new URL(url);
@@ -257,128 +519,47 @@ export default function ResultsPage() {
           }
         };
 
-        // Create CSV content with enhanced HTTP status information + URL Type
-        const csvHeaders = [
-          'URL',
-          'URL Type', // NEW COLUMN
-          'Status',
-          'HTTP Code',
-          'Response Time (ms)',
-          'Is Working',
-          'Error Type',
-          'Source Page',
-          'Link Text',
-          'Internal/External',
-          'Depth',
-          'Checked At',
-          'Error Message',
-          'SEO Score',
-          'SEO Grade',
-          'Page Title',
-          'Meta Description',
-          'Word Count',
-          'Has H1',
-          'Is HTTPS',
-          'SEO Issues Count',
-        ];
+        // Sort data: High issues first, then low scores to high scores, then no score data
+        const sortedLinks = [...allData.links].sort((a, b) => {
+          // Get SEO issues count (prioritize high issues)
+          const aIssues = a.seo_issues_count || 0;
+          const bIssues = b.seo_issues_count || 0;
 
-        const csvRows = allData.links.map((link) => [
-          link.url,
-          isValidActualUrl(link.url) ? 'Valid URL' : 'Non-URL', // NEW COLUMN
-          link.status_label || 'Unknown',
-          link.http_status_code || 'N/A',
-          link.response_time || 'N/A',
-          link.is_working ? 'Yes' : 'No',
-          link.error_type || 'N/A',
-          link.source_url || 'Discovery',
-          link.link_text || 'No text',
-          link.is_internal ? 'Internal' : 'External',
-          link.depth || 0,
-          link.checked_at ? new Date(link.checked_at).toLocaleString() : 'N/A',
-          link.error_message || 'N/A',
-          link.seo_score || 'N/A',
-          link.seo_grade || 'N/A',
-          link.seo_title?.text || 'N/A',
-          link.seo_metaDescription?.text || 'N/A',
-          link.seo_headings?.hasNoH1 ? 'No' : 'Yes',
-          link.seo_technical?.isHttps ? 'Yes' : 'No',
-          link.seo_issues_count || 0,
-        ]);
+          // Get SEO scores (handle null/undefined)
+          const aScore = a.seo_score;
+          const bScore = b.seo_score;
 
-        const csvContent = [
-          csvHeaders.join(','),
-          ...csvRows.map((row) =>
-            row.map((field) => `"${String(field).replace(/"/g, '""')}"`).join(',')
-          ),
-        ].join('\n');
+          // Helper to check if score exists
+          const hasScore = (score) => score !== null && score !== undefined && !isNaN(score);
 
-        // Create and download file
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        if (link.download !== undefined) {
-          const url = URL.createObjectURL(blob);
-          link.setAttribute('href', url);
-          link.setAttribute(
-            'download',
-            `${selectedView}-links-with-url-type-${new URL(job.url).hostname}-${
-              new Date().toISOString().split('T')[0]
-            }.csv`
-          );
-          link.style.visibility = 'hidden';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }
-      } else {
-        throw new Error('Failed to fetch all results for export');
-      }
-    } catch (err) {
-      setError('Failed to export data');
-      console.error('Export error:', err);
-    } finally {
-      setIsExporting(false);
-    }
-  };
+          // 1. First priority: High issues count (descending)
+          if (aIssues !== bIssues) {
+            return bIssues - aIssues; // Higher issues first
+          }
 
-  const exportToJSON = async () => {
-    const currentData = getCurrentData();
-    if (!currentData) return;
+          // 2. Second priority: Handle scores
+          const aHasScore = hasScore(aScore);
+          const bHasScore = hasScore(bScore);
 
-    setIsExporting(true);
-    try {
-      // Get ALL results for export
-      const exportParams = new URLSearchParams({
-        page: '1',
-        limit: '10000',
-      });
+          // If both have scores, sort by lowest score first
+          if (aHasScore && bHasScore) {
+            return aScore - bScore; // Lower scores first
+          }
 
-      // Apply current view and filters
-      if (selectedView === 'working') {
-        exportParams.append('statusFilter', 'working');
-      } else if (selectedView === 'broken') {
-        exportParams.append('statusFilter', 'broken');
-      } else if (selectedView === 'all') {
-        exportParams.append('statusFilter', 'all');
-      } else if (selectedView === 'pages') {
-        exportParams.append('statusFilter', 'pages');
-      }
+          // If only one has a score, prioritize the one with score
+          if (aHasScore && !bHasScore) return -1;
+          if (!aHasScore && bHasScore) return 1;
 
-      if (filters.statusCode) {
-        exportParams.append('statusCode', filters.statusCode);
-      }
+          // 3. Third priority: For items with no scores, sort by working status
+          // Broken links first, then working links
+          if (a.is_working !== b.is_working) {
+            return a.is_working ? 1 : -1; // Broken (false) first
+          }
 
-      if (filters.errorType && filters.errorType !== 'all') {
-        exportParams.append('errorType', filters.errorType);
-      }
+          // 4. Final fallback: Sort by URL alphabetically
+          return (a.url || '').localeCompare(b.url || '');
+        });
 
-      if (filters.search) {
-        exportParams.append('search', filters.search);
-      }
-
-      const response = await fetch(`/api/results/${jobId}?${exportParams}`);
-      const allData = await response.json();
-
-      if (response.ok) {
         // Create comprehensive JSON export with HTTP status data
         const exportData = {
           exportInfo: {
@@ -406,17 +587,60 @@ export default function ResultsPage() {
             statusCodes: allData.summary?.statusCodes || {},
             errorTypes: allData.summary?.errorTypes || {},
           },
-          links: allData.links.map((link) => ({
+          links: sortedLinks.map((link) => ({
+            // Basic URL Information
             url: link.url,
+            urlType: isValidActualUrl(link.url) ? 'Valid URL' : 'Non-URL',
+            isInternal: link.is_internal,
             httpStatusCode: link.http_status_code,
             responseTime: link.response_time,
             isWorking: link.is_working,
-            statusLabel: link.status_label,
-            errorMessage: link.error_message,
+            statusLabel: (link.status_label || 'Unknown').replace(/[^\x00-\x7F]/g, ''),
+
+            // SEO Data
+            seoScore: link.seo_score,
+            seoGrade: link.seo_grade,
+            seoIssuesCount: link.seo_issues_count || 0,
+            seoIssues: link.seo_issues,
+
+            // Page Content
+            pageTitle: link.seo_title?.text || link.title_text,
+            titleLength: link.seo_title?.text
+              ? link.seo_title.text.length
+              : link.title_text
+              ? link.title_text.length
+              : null,
+            metaDescription: link.seo_metaDescription?.text || link.meta_description,
+            descriptionLength: link.seo_metaDescription?.text
+              ? link.seo_metaDescription.text.length
+              : link.meta_description
+              ? link.meta_description.length
+              : null,
+            wordCount: link.seo_content?.word_count || link.word_count,
+            contentLength: link.seo_content?.content_length || link.content_length,
+
+            // Heading Structure
+            h1Count: link.seo_headings?.h1_count || link.h1_count,
+            h2Count: link.seo_headings?.h2_count || link.h2_count,
+            h3Count: link.seo_headings?.h3_count || link.h3_count,
+            hasH1: link.seo_headings?.hasNoH1 ? false : true,
+
+            // Images
+            totalImages: link.seo_images?.total_images || link.total_images,
+            missingAlt: link.seo_images?.missing_alt || link.missing_alt,
+            altCoverage: link.seo_images?.alt_coverage || link.alt_coverage,
+
+            // Technical
+            isHttps: link.seo_technical?.isHttps || link.is_https,
+            canonicalUrl: link.seo_technical?.canonical_url || link.canonical_url,
+
+            // Source & Performance
             sourceUrl: link.source_url,
+
+            // Legacy fields (for compatibility)
+            errorMessage: link.error_message,
             linkText: link.link_text,
             errorType: link.error_type,
-            isInternal: link.is_internal,
             depth: link.depth,
             checkedAt: link.checked_at,
           })),
@@ -447,7 +671,7 @@ export default function ResultsPage() {
       setError('Failed to export JSON data');
       console.error('JSON export error:', err);
     } finally {
-      setIsExporting(false);
+      setIsExportingJSON(false);
     }
   };
 
@@ -621,25 +845,25 @@ export default function ResultsPage() {
                   <div className="flex space-x-2">
                     <button
                       onClick={exportToCSV}
-                      disabled={isExporting}
+                      disabled={isExportingCSV}
                       className={`px-4 py-2 text-sm rounded-xl font-medium transition-all ${
-                        isExporting
+                        isExportingCSV
                           ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                           : 'bg-green-600 text-white hover:bg-green-700 shadow-lg'
                       }`}
                     >
-                      {isExporting ? '⏳' : '📊'} Export CSV
+                      {isExportingCSV ? '⏳' : '📊'} Export CSV
                     </button>
                     <button
                       onClick={exportToJSON}
-                      disabled={isExporting}
+                      disabled={isExportingJSON}
                       className={`px-4 py-2 text-sm rounded-xl font-medium transition-all ${
-                        isExporting
+                        isExportingJSON
                           ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                           : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
                       }`}
                     >
-                      {isExporting ? '⏳' : '📁'} Export JSON
+                      {isExportingJSON ? '⏳' : '📁'} Export JSON
                     </button>
                   </div>
                 )}
@@ -890,32 +1114,33 @@ export default function ResultsPage() {
         )}
 
         {/* Export Success Message */}
-        {isExporting && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
-            <div className="flex items-center">
-              <svg
-                className="animate-spin -ml-1 mr-3 h-6 w-6 text-blue-600"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-              <span className="text-blue-800 font-medium">Preparing export file...</span>
+        {isExportingCSV ||
+          (isExportingJSON && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
+              <div className="flex items-center">
+                <svg
+                  className="animate-spin -ml-1 mr-3 h-6 w-6 text-blue-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                <span className="text-blue-800 font-medium">Preparing export file...</span>
+              </div>
             </div>
-          </div>
-        )}
+          ))}
 
         {/* Enhanced Results Table with HTTP Status Support */}
         {job?.status === 'completed' && getCurrentData()?.links && (
@@ -926,6 +1151,7 @@ export default function ResultsPage() {
             pagination={getCurrentData().pagination}
             onPageChange={handlePageChange}
             onFilter={handleFilter}
+            job={job}
           />
         )}
 
@@ -976,14 +1202,14 @@ export default function ResultsPage() {
             <div className="flex justify-center space-x-4">
               <button
                 onClick={exportToCSV}
-                disabled={isExporting}
+                disabled={isExportingCSV}
                 className="bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 font-medium transition-all shadow-lg"
               >
                 📊 Export CSV
               </button>
               <button
                 onClick={exportToJSON}
-                disabled={isExporting}
+                disabled={isExportingJSON}
                 className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-medium transition-all shadow-lg"
               >
                 📁 Export JSON

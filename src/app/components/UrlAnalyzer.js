@@ -33,6 +33,9 @@ export default function UrlAnalyzer({
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [currentJobId, setCurrentJobId] = useState(null);
 
+  const [currentPhase, setCurrentPhase] = useState(null);
+  const [crawlMode, setCrawlMode] = useState('content_pages');
+
   //seo settings
   const [seoSettings, setSeoSettings] = useState({
     enableSEO: false,
@@ -47,6 +50,35 @@ export default function UrlAnalyzer({
       }, 100);
     }
   }, [crawlLog]);
+
+  // Phase detection useEffect
+  useEffect(() => {
+    if (crawlProgress && crawlProgress.total > 0 && analysis) {
+      const current = crawlProgress.current || 0;
+      const total = crawlProgress.total || 0;
+      const contentPagesCount = analysis?.summary?.categories?.pages || 0;
+
+      let newPhase = null;
+
+      if (crawlMode === 'content_pages') {
+        // Phase 1: Pages Processed
+        if (total <= contentPagesCount * 1.5 && current <= contentPagesCount) {
+          newPhase = 'Pages Processed';
+        }
+        // Phase 2: Links Processed
+        else if (total > contentPagesCount * 2) {
+          newPhase = 'Links Processed';
+        }
+      } else if (crawlMode === 'discovered_links') {
+        // Only one phase: Links Processed
+        newPhase = 'Links Processed';
+      }
+
+      if (newPhase !== currentPhase) {
+        setCurrentPhase(newPhase);
+      }
+    }
+  }, [crawlProgress, analysis, crawlMode, currentPhase]);
 
   // Auto-scroll useEffect for analysis log
   useEffect(() => {
@@ -225,7 +257,7 @@ export default function UrlAnalyzer({
       }
       setTimeout(() => {
         if (resultsRef.current) {
-          resultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          resultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }, 1000);
     } catch (err) {
@@ -246,6 +278,7 @@ export default function UrlAnalyzer({
     setCrawlProgress(null);
     setCrawlStats(null);
     setError('');
+    setCrawlMode(crawlMode);
 
     try {
       // 🔥 NEW: Determine URLs and mode based on crawl type
@@ -360,7 +393,7 @@ export default function UrlAnalyzer({
                 // Detect phase based on progress patterns
                 const current = statusData.progress.current || 0;
                 const total = statusData.progress.total || 0;
-                const contentPagesCount = analysis?.summary?.categories?.pages || 139; // Use the analysis data
+                const contentPagesCount = analysis?.summary?.categories?.pages || 0; // Use the analysis data
 
                 // Phase 1: If we're processing a small number that matches content pages count
                 if (total <= contentPagesCount * 1.5 && current <= contentPagesCount) {
@@ -1299,12 +1332,13 @@ export default function UrlAnalyzer({
                           {crawlStats.pagesProcessed || 0}
                         </div>
                         <div className="text-sm text-blue-800">
-                          {crawlStats.pagesScanDescription ||
+                          {currentPhase || 'Processing...'}
+                          {/* {crawlStats.pagesScanDescription ||
                             (crawlStats.crawlMode === 'discovered_links'
                               ? 'Links Processed'
                               : crawlStats.crawlMode === 'content_pages'
                               ? 'Pages Scanned'
-                              : 'Links Processed')}
+                              : 'Links Processed')} */}
                         </div>
                       </div>
                     </div>

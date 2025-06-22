@@ -7,7 +7,7 @@ export default function SecurityNotice({ variant = 'compact' }) {
 
   if (variant === 'compact') {
     return (
-      <div className="mt-8 p-4 bg-amber-50 rounded-xl border border-slate-200">
+      <div className="mt-8 bg-amber-50 rounded-xl border border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -32,13 +32,14 @@ export default function SecurityNotice({ variant = 'compact' }) {
                   test. Internal networks and unauthorized scanning are automatically blocked.
                 </p>
               </div>
+
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="text-gray-600 hover:text-gray-800 text-sm font-medium transition-colors duration-200"
+              >
+                {isExpanded ? 'Less info' : 'More info'}
+              </button>
             </div>
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="text-gray-600 hover:text-gray-800 text-sm font-medium transition-colors duration-200"
-            >
-              {isExpanded ? 'Less info' : 'More info'}
-            </button>
           </div>
 
           {isExpanded && (

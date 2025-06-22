@@ -38,6 +38,9 @@ export async function GET(request, { params }) {
     const search = searchParams.get('search'); // Search in URLs or link text
     const seoScore = searchParams.get('seoScore') || 'all';
 
+    // NEW: Add sorting parameters
+    const sortBy = searchParams.get('sortBy'); // 'response_time' or 'seo_score'
+    const sortOrder = searchParams.get('sortOrder') || 'desc'; // 'asc' or 'desc'
     // Check if job exists
     const job = await db.getJob(jobId);
     if (!job) {

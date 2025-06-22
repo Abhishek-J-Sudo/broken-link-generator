@@ -75,7 +75,7 @@ export default function Footer() {
                   Basic Checker
                 </Link>
               </li>
-              <li>
+              {/* <li>
                 <Link href="/batch" className="hover:text-white transition-colors duration-200">
                   Batch Processing
                 </Link>
@@ -84,7 +84,7 @@ export default function Footer() {
                 <Link href="/api" className="hover:text-white transition-colors duration-200">
                   API Access
                 </Link>
-              </li>
+              </li> */}
             </ul>
           </div>
 
@@ -97,11 +97,11 @@ export default function Footer() {
                   Documentation
                 </Link>
               </li>
-              <li>
+              {/* <li>
                 <Link href="/help" className="hover:text-white transition-colors duration-200">
                   Help Center
                 </Link>
-              </li>
+              </li> */}
               <li>
                 <Link href="/blog" className="hover:text-white transition-colors duration-200">
                   Blog

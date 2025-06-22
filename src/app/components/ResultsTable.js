@@ -12,6 +12,7 @@ import {
   Clock,
   TrendingUp,
 } from 'lucide-react';
+import ToolTip from './ToolTip';
 
 export default function ResultsTable({
   jobId,
@@ -29,6 +30,8 @@ export default function ResultsTable({
   const isNewFormat = !!links; // New format has 'links' prop, old format has 'brokenLinks'
   const [sortDirection, setSortDirection] = useState(null); // null, 'asc', 'desc'
   const [seoSortDirection, setSeoSortDirection] = useState(null); // null, 'asc', 'desc'
+
+  let isSEOEnabled = job?.settings?.enableSEO;
 
   // NEW: Expandable rows state
   const [expandedRows, setExpandedRows] = useState(new Set());
@@ -120,7 +123,7 @@ export default function ResultsTable({
     let mode = 'Link Check';
     // Check for content pages mode from either source
     if (crawlMode === 'content_pages' || job?.settings?.crawlMode === 'content_pages') {
-      mode = 'Content Page Crawl';
+      mode = 'Content Mode';
     } else if (crawlMode === 'discovered_links' || job?.settings?.crawlMode === 'discovered_links')
       mode = 'Discovered Links';
 
@@ -129,7 +132,7 @@ export default function ResultsTable({
     const hasSeoData = seoEnabled && crawlHasSeoData;
 
     if (hasSeoData) {
-      return `${mode} : SEO Analysis`;
+      return `${mode} Results (SEO)`;
     } else {
       return `${mode} Results`;
     }
@@ -364,9 +367,9 @@ export default function ResultsTable({
 
   const getResponseTimeColor = (responseTime) => {
     if (!responseTime) return 'text-gray-500';
-    if (responseTime < 1000) return 'text-green-600';
-    if (responseTime < 3000) return 'text-yellow-600';
-    return 'text-red-600';
+    if (responseTime < 800) return 'text-green-600'; // Green for < 800ms (good)
+    if (responseTime < 1800) return 'text-amber-600'; // Amber for 800-1800ms (needs improvement)
+    return 'text-red-600'; // Red for > 1800ms (poor)
   };
 
   const formatErrorMessage = (errorType, statusCode) => {
@@ -419,7 +422,7 @@ export default function ResultsTable({
             </div>
 
             {/* SEO Filter - only show if crawl has SEO data */}
-            {isNewFormat && (
+            {isNewFormat && isSEOEnabled && (
               <select
                 value={currentFilter.seoScore}
                 onChange={(e) => handleFilterChange('seoScore', e.target.value)}
@@ -502,7 +505,7 @@ export default function ResultsTable({
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
                     Status
                   </th>
-                  {isNewFormat && selectedView !== 'pages' && (
+                  {isNewFormat && selectedView !== 'pages' && isSEOEnabled && (
                     <th
                       className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer"
                       onClick={toggleSeoSort}
@@ -517,7 +520,7 @@ export default function ResultsTable({
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
                     Issues
                   </th>
-                  {isNewFormat && selectedView !== 'pages' && (
+                  {isNewFormat && (
                     <th
                       className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer"
                       onClick={toggleSort}
@@ -526,6 +529,11 @@ export default function ResultsTable({
                       Response
                       {sortDirection === 'asc' && <ChevronUp className="w-3 h-3 inline ml-1" />}
                       {sortDirection === 'desc' && <ChevronDown className="w-3 h-3 inline ml-1" />}
+                    </th>
+                  )}
+                  {isNewFormat && selectedView === 'pages' && (
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      Source Page
                     </th>
                   )}
                 </tr>
@@ -592,7 +600,7 @@ export default function ResultsTable({
                       </td>
 
                       {/* SEO Score */}
-                      {isNewFormat && selectedView !== 'pages' && (
+                      {isNewFormat && selectedView !== 'pages' && isSEOEnabled && (
                         <td className="px-6 py-4">
                           {hasSeoData(item) ? (
                             <div className="flex items-center gap-3">
@@ -632,6 +640,7 @@ export default function ResultsTable({
                       {/* Issues Count */}
                       <td className="px-6 py-4">
                         {item.seo_issues && item.seo_issues.length > 0 ? (
+                          // Case 1: Has SEO issues
                           <div className="flex items-center gap-2">
                             <span
                               className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -647,30 +656,48 @@ export default function ResultsTable({
                             </span>
                           </div>
                         ) : item.is_working === false ? (
+                          // Case 2: Link is broken
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                             1 issue
                           </span>
-                        ) : (
+                        ) : hasSeoData(item) ? (
+                          // Case 3: Has SEO data but no issues
                           <span className="text-xs text-emerald-600">No issues</span>
+                        ) : (
+                          // Case 4: No SEO data available
+                          <span className="text-xs text-slate-500">No SEO data</span>
                         )}
                       </td>
 
                       {/* Response Time */}
-                      {isNewFormat && selectedView !== 'pages' && (
+                      {isNewFormat && (
                         <td className="px-6 py-4">
                           <span
-                            className={`text-sm font-medium ${
-                              !item.response_time
-                                ? 'text-slate-500'
-                                : item.response_time < 1000
-                                ? 'text-emerald-600'
-                                : item.response_time < 3000
-                                ? 'text-amber-600'
-                                : 'text-red-600'
-                            }`}
+                            className={`text-sm font-medium ${getResponseTimeColor(
+                              item.response_time
+                            )}`}
                           >
                             {formatResponseTime(item.response_time)}
                           </span>
+                        </td>
+                      )}
+                      {/* Source page */}
+                      {isNewFormat && selectedView === 'pages' && (
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-slate-600">
+                            {item.source_url ? (
+                              <ToolTip content={item.source_url} position="top">
+                                <div className="flex items-center gap-2 cursor-help">
+                                  <ExternalLink className="w-3 h-3 text-slate-400" />
+                                  <span className="truncate max-w-[200px]">
+                                    {truncateUrl(item.source_url, 30)}
+                                  </span>
+                                </div>
+                              </ToolTip>
+                            ) : (
+                              <span className="text-slate-400 italic">Discovery</span>
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -783,7 +810,23 @@ export default function ResultsTable({
                                     <h5 className="font-medium text-slate-900 mb-3">
                                       Technical Details
                                     </h5>
+
                                     <div className="space-y-2 text-sm">
+                                      <div className="flex justify-between text-sm text-slate-600">
+                                        <span className="text-gray-400">Source:</span>
+                                        {item.source_url ? (
+                                          <ToolTip content={item.source_url} position="top">
+                                            <div className="flex items-center gap-2 cursor-help">
+                                              <ExternalLink className="w-3 h-3 text-slate-400" />
+                                              <span className="truncate max-w-[200px]">
+                                                {truncateUrl(item.source_url, 30)}
+                                              </span>
+                                            </div>
+                                          </ToolTip>
+                                        ) : (
+                                          <span className="text-slate-400 italic">Discovery</span>
+                                        )}
+                                      </div>
                                       <div className="flex justify-between">
                                         <span className="text-gray-400">HTTPS:</span>
                                         <span
