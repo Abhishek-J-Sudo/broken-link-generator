@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -35,6 +35,7 @@ export default function ResultsTable({
 
   // NEW: Expandable rows state
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const tableRef = useRef(null);
 
   const [currentFilter, setCurrentFilter] = useState(
     isNewFormat
@@ -138,6 +139,19 @@ export default function ResultsTable({
     }
   };
 
+  const handlePageChangeWithScroll = (newPage) => {
+    if (onPageChange) {
+      onPageChange(newPage);
+    }
+
+    if (tableRef.current) {
+      tableRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }
+  };
+
   // Check if this crawl has any SEO data
   const crawlHasSeoData = useMemo(() => {
     const result = displayData.some((item) => hasSeoData(item));
@@ -204,6 +218,32 @@ export default function ResultsTable({
 
     return data || [];
   }, [displayData, sortDirection, seoSortDirection]);
+
+  // Calculate correct pagination info for client-side pagination
+  const clientPagination = useMemo(() => {
+    const totalItems = sortedData.length;
+    const itemsPerPage = 50;
+    const currentPage = pagination?.currentPage || 1;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+    return {
+      ...pagination,
+      totalCount: totalItems,
+      totalPages: totalPages,
+      hasNextPage: currentPage < totalPages,
+      hasPrevPage: currentPage > 1,
+      currentPage: currentPage,
+    };
+  }, [sortedData, pagination?.currentPage]);
+
+  // Apply client-side pagination to sorted data
+  const paginatedData = useMemo(() => {
+    const itemsPerPage = 50;
+    const currentPage = pagination?.currentPage || 1;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return sortedData.slice(startIndex, endIndex);
+  }, [sortedData, pagination?.currentPage]);
 
   // NEW: Helper functions for the enhanced UI
   const getStatusIcon = (isWorking) => {
@@ -377,7 +417,10 @@ export default function ResultsTable({
     return statusCode ? `${label} (${statusCode})` : label;
   };
   return (
-    <div className="bg-white rounded-xl mb-8 shadow-sm border border-slate-200 overflow-hidden">
+    <div
+      ref={tableRef}
+      className="bg-white rounded-xl mb-8 shadow-sm border border-slate-200 overflow-hidden"
+    >
       {/* Enhanced Header */}
       <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-5 border-b border-slate-200">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -539,7 +582,7 @@ export default function ResultsTable({
                 </tr>
               </thead>
               <tbody className="bg-white">
-                {sortedData.map((item, index) => (
+                {paginatedData.map((item, index) => (
                   <React.Fragment key={item.url || index}>
                     {/* Main Row */}
                     <tr
@@ -948,20 +991,20 @@ export default function ResultsTable({
           </div>
 
           {/* Pagination */}
-          {pagination && pagination.totalPages > 1 && (
+          {clientPagination && clientPagination.totalPages > 1 && (
             <div className="px-6 py-4 border-t border-gray-200">
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-700">
-                  Showing page {pagination.currentPage} of {pagination.totalPages} (
-                  {pagination.totalCount} total results)
+                  Showing page {clientPagination.currentPage} of {clientPagination.totalPages} (
+                  {clientPagination.totalCount} total results)
                 </div>
 
                 <div className="flex space-x-2">
                   <button
-                    onClick={() => onPageChange && onPageChange(pagination.prevPage)}
-                    disabled={!pagination.hasPrevPage}
+                    onClick={() => handlePageChangeWithScroll(clientPagination.currentPage - 1)}
+                    disabled={!clientPagination.hasPrevPage}
                     className={`px-3 py-2 border border-gray-300 rounded-md text-sm font-medium ${
-                      pagination.hasPrevPage
+                      clientPagination.hasPrevPage
                         ? 'text-gray-700 bg-white hover:bg-gray-50'
                         : 'text-gray-400 bg-gray-100 cursor-not-allowed'
                     }`}
@@ -969,17 +1012,17 @@ export default function ResultsTable({
                     Previous
                   </button>
 
-                  {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                    const startPage = Math.max(1, pagination.currentPage - 2);
+                  {Array.from({ length: Math.min(5, clientPagination.totalPages) }, (_, i) => {
+                    const startPage = Math.max(1, clientPagination.currentPage - 2);
                     const pageNum = startPage + i;
-                    if (pageNum > pagination.totalPages) return null;
+                    if (pageNum > clientPagination.totalPages) return null;
 
                     return (
                       <button
                         key={pageNum}
-                        onClick={() => onPageChange && onPageChange(pageNum)}
+                        onClick={() => handlePageChangeWithScroll(pageNum)}
                         className={`px-3 py-2 border rounded-md text-sm font-medium ${
-                          pageNum === pagination.currentPage
+                          pageNum === clientPagination.currentPage
                             ? 'bg-blue-600 text-white border-blue-600'
                             : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'
                         }`}
@@ -990,10 +1033,10 @@ export default function ResultsTable({
                   })}
 
                   <button
-                    onClick={() => onPageChange && onPageChange(pagination.nextPage)}
-                    disabled={!pagination.hasNextPage}
+                    onClick={() => handlePageChangeWithScroll(clientPagination.currentPage + 1)}
+                    disabled={!clientPagination.hasNextPage}
                     className={`px-3 py-2 border border-gray-300 rounded-md text-sm font-medium ${
-                      pagination.hasNextPage
+                      clientPagination.hasNextPage
                         ? 'text-gray-700 bg-white hover:bg-gray-50'
                         : 'text-gray-400 bg-gray-100 cursor-not-allowed'
                     }`}

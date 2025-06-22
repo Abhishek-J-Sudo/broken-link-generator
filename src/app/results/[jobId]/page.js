@@ -85,7 +85,7 @@ export default function ResultsPage() {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: '50',
+        limit: '1000',
       });
 
       // Apply modern filtering based on view type
@@ -195,7 +195,33 @@ export default function ResultsPage() {
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
-    loadResults(newPage, filters, selectedView);
+
+    // Update the pagination in the current data
+    const currentData = getCurrentData();
+    if (currentData && currentData.pagination) {
+      const updatedData = {
+        ...currentData,
+        pagination: {
+          ...currentData.pagination,
+          currentPage: newPage,
+        },
+      };
+
+      // Update the correct state based on selectedView
+      switch (selectedView) {
+        case 'all':
+          setAllLinksData(updatedData);
+          break;
+        case 'working':
+          setWorkingLinksData(updatedData);
+          break;
+        case 'pages':
+          setPagesData(updatedData);
+          break;
+        default: // 'broken'
+          setResults(updatedData);
+      }
+    }
   };
 
   const handleFilter = (newFilters) => {
