@@ -372,12 +372,14 @@ const Documentation = () => {
 
                   <div>
                     <div className="flex items-center gap-3 mb-2">
-                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm font-mono">
-                        GET
+                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm font-mono">
+                        CLIENT
                       </span>
-                      <code className="text-sm text-gray-500">/api/results/export/[jobId]</code>
+                      <code className="text-sm text-gray-600">Export Functionality</code>
                     </div>
-                    <p className="text-gray-600">Export results in CSV or JSON format</p>
+                    <p className="text-gray-600">
+                      Export results in CSV or JSON format via client-side processing
+                    </p>
                   </div>
                 </div>
               </div>
@@ -902,8 +904,8 @@ const Documentation = () => {
                 <div className="space-y-4">
                   <div>
                     <h4 className="font-medium text-gray-900">Crawl job fails to start</h4>
-                    <p className="text-gray-500 mb-2">Check the following:</p>
-                    <ul className="text-gray-500 space-y-1 ml-4">
+                    <p className="text-gray-600 mb-2">Check the following:</p>
+                    <ul className="text-gray-400 space-y-1 ml-4">
                       <li>• Ensure URL is valid and accessible</li>
                       <li>• Check rate limiting restrictions</li>
                       <li>• Verify Supabase connection</li>
@@ -913,8 +915,8 @@ const Documentation = () => {
 
                   <div>
                     <h4 className="font-medium text-gray-900">Slow crawl performance</h4>
-                    <p className="text-gray-500 mb-2">Optimize with these steps:</p>
-                    <ul className="text-gray-500 space-y-1 ml-4">
+                    <p className="text-gray-600 mb-2">Optimize with these steps:</p>
+                    <ul className="text-gray-400 space-y-1 ml-4">
                       <li>• Use Quick Analysis mode for faster results</li>
                       <li>• Reduce crawl depth for large sites</li>
                       <li>• Disable SEO analysis if not needed</li>
@@ -924,8 +926,8 @@ const Documentation = () => {
 
                   <div>
                     <h4 className="font-medium text-gray-900">Memory or timeout errors</h4>
-                    <p className="text-gray-500 mb-2">For large websites:</p>
-                    <ul className="text-gray-500 space-y-1 ml-4">
+                    <p className="text-gray-600 mb-2">For large websites:</p>
+                    <ul className="text-gray-400 space-y-1 ml-4">
                       <li>• Use the smart analyzer first</li>
                       <li>• Enable URL filtering</li>
                       <li>• Break large sites into sections</li>

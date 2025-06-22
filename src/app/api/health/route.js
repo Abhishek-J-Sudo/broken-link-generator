@@ -26,7 +26,7 @@ export async function GET() {
         connected: true,
         responseTime: `${responseTime}ms`,
       },
-      version: '1.0.0',
+      version: packageJson.version,
       environment: process.env.NODE_ENV || 'development',
     });
   } catch (error) {
@@ -40,6 +40,7 @@ export async function GET() {
         database: {
           connected: false,
         },
+        version: packageJson.version,
       },
       { status: 500 }
     );

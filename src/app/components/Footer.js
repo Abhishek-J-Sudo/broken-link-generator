@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import packageJson from '../../../package.json';
 
 export default function Footer() {
   return (
@@ -147,7 +148,8 @@ export default function Footer() {
               </Link>
             </div> */}
             <p className="text-sm text-slate-500">
-              © {new Date().getFullYear()} Abhishek Jagtap - Broken Link Checker
+              ©{new Date().getFullYear()} Abhishek Jagtap - Broken Link Checker v
+              {packageJson.version}
             </p>
           </div>
 
