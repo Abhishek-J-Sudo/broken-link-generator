@@ -81,12 +81,32 @@ These are fast wins and directly back the security work.
 
 ---
 
+## G. SEO analysis depth
+
+The SEO analyzer (`seoDetector.js`) currently covers titles, descriptions, headings,
+alt text, canonicals, and a 0–100 score. These items deepen it toward a "site health"
+product — the strongest candidates for a paid tier alongside B1–B3.
+
+| Item | Description | Effort | Depends on |
+|------|-------------|--------|-----------|
+| **G1. Duplicate title / meta description detection** | Titles and descriptions per page are already stored in the SEO analysis table; a GROUP BY surfaces sitewide duplicates. Query + UI only, no new crawling. | S | — |
+| **G2. noindex / X-Robots-Tag findings** | Flag accidentally noindexed pages as a critical issue (distinct from C3, which is crawl *politeness*). Regex on the already-fetched HTML + one response header, in the existing `seoDetector` extraction pattern. | S | — |
+| **G3. Open Graph / Twitter card checks** | Same regex approach as the existing meta extraction; flags pages that render broken previews when shared. | S | — |
+| **G4. Orphan page detection** | Diff sitemap URLs against the crawled link graph: pages in the sitemap that nothing links to, and linked pages missing from the sitemap. | M | B4 |
+| **G5. Internal link analysis** | Inlink counts per page, click depth from the homepage, anchor text; flag important pages that are buried or under-linked. The link graph is already built during the crawl. | M | — |
+| **G6. Broken-link fix suggestions** | Fuzzy-match dead internal URLs against live URLs from the same crawl and suggest the likely replacement ("`/blog/old-post` is dead — did you mean `/blog/old-post-updated`?"). Turns findings into fixes; no competitor's free tier does this. | M | — |
+| **G7. Core Web Vitals (PageSpeed Insights API)** | Google's PSI API is free; call it for key pages and show performance scores next to the SEO grade. No extra crawl cost. | S–M | — |
+
+---
+
 ## Recommended sequencing
 
 1. **A1–A4** (tests, monitoring, logging, CI) — in parallel with the P0/P1 work; they make
    everything else safe to change.
-2. **B4, B6, B7, B8, C2, C4, E1–E5** — high-value, low-effort quick wins.
+2. **B4, B6, B7, B8, C2, C4, E1–E5, G1–G3** — high-value, low-effort quick wins.
 3. **B1 → B2 → B3** (scheduling → alerts → history) — the feature that turns a one-shot
    tool into something people rely on. Gated on the job queue from Doc 03 A1.
-4. **B5, D1** — heavier bets (headless rendering, live progress) once the worker exists.
+   **G4–G6** slot in here as the SEO differentiators for a paid tier.
+4. **B5, D1, G7** — heavier bets (headless rendering, live progress, external APIs)
+   once the worker exists.
 5. **F*** — only if the audience/scale changes.
