@@ -1,26 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
+
+  // Produce a self-contained server build (.next/standalone/server.js)
+  // for a small, reproducible Docker image on Coolify.
+  output: 'standalone',
 
   eslint: {
     ignoreDuringBuilds: true,
-  },
-
-  // API routes configuration
-  api: {
-    // Increase body size limit for large crawl results
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-    // Extend timeout for long-running crawl operations
-    responseLimit: false,
-  },
-
-  // Environment variables that should be available to the client
-  env: {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   },
 
   // 🔒 SECURITY HEADERS - CRITICAL FOR PRODUCTION
@@ -64,7 +51,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: https:",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+              "connect-src 'self'",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
@@ -86,7 +73,7 @@ const nextConfig = {
             key: 'Access-Control-Allow-Origin',
             value:
               process.env.NODE_ENV === 'production'
-                ? 'https://yourdomain.com' // ⚠️ REPLACE WITH YOUR ACTUAL DOMAIN
+                ? process.env.ALLOWED_ORIGIN || 'https://yourdomain.com' // set ALLOWED_ORIGIN in Coolify
                 : '*', // Allow all origins in development only
           },
           { key: 'Access-Control-Allow-Methods', value: 'GET, POST, OPTIONS' },

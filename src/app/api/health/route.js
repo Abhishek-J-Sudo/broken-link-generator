@@ -5,6 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabase';
+import { APP_VERSION } from '@/lib/version';
 
 export async function GET() {
   try {
@@ -26,7 +27,7 @@ export async function GET() {
         connected: true,
         responseTime: `${responseTime}ms`,
       },
-      version: packageJson.version,
+      version: APP_VERSION,
       environment: process.env.NODE_ENV || 'development',
     });
   } catch (error) {
@@ -40,7 +41,7 @@ export async function GET() {
         database: {
           connected: false,
         },
-        version: packageJson.version,
+        version: APP_VERSION,
       },
       { status: 500 }
     );

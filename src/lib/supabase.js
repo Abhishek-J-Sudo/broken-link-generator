@@ -1,36 +1,13 @@
-import { createClient } from '@supabase/supabase-js';
+// NOTE: This module was originally built on @supabase/supabase-js. The database
+// is now plain PostgreSQL, accessed through a small compatibility layer in
+// ./pg.js that implements the query-builder subset this app uses. The exports
+// below keep the historical `supabase` / `db` names so route code is unchanged.
+import { pgClient } from './pg.js';
 
-// Environment variables
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-// Validate environment variables
-if (!supabaseUrl) {
-  throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_URL');
-}
-
-if (!supabaseAnonKey) {
-  throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY');
-}
-
-// Client-side Supabase client (with anon key)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false, // We're not using auth for this app
-    autoRefreshToken: false,
-  },
-});
-
-// Server-side Supabase client (with service role key for admin operations)
-export const supabaseAdmin = supabaseServiceKey
-  ? createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    })
-  : null;
+// `supabase` / `supabaseAdmin` are the same plain-Postgres client. There is no
+// anon/service split anymore — the app is server-only and owns the database.
+export const supabase = pgClient;
+export const supabaseAdmin = pgClient;
 
 // Database helper functions
 export const db = {
