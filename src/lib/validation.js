@@ -2,7 +2,7 @@
 import { z } from 'zod';
 import { securityUtils } from './security.js';
 import { logRateLimitViolation } from './securityLogger.js';
-import { checkAndRecord, getStats, resetIp } from './redisRateLimit.js';
+import { checkAndRecord } from './redisRateLimit.js';
 
 // URL validation schema
 const urlSchema = z
@@ -195,17 +195,6 @@ export async function validateStatusRateLimit(ip, jobContext = null) {
       'X-RateLimit-Level': `dynamic-${jobContext?.crawlLevel || 'unknown'}`,
     },
   };
-}
-
-/** Async stats from Redis (for monitoring). */
-export async function getRateLimitStats() {
-  return getStats();
-}
-
-/** Reset all rate-limit state for an IP (admin use). */
-export async function resetRateLimitForIP(ip) {
-  await resetIp(ip);
-  console.log(`Rate limits reset for IP: ${ip}`);
 }
 
 // ========================================

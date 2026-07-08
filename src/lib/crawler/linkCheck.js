@@ -80,19 +80,14 @@ export async function checkLinks(
 
         try {
           if (preInserted) {
-            await db.supabase
-              .from('discovered_links')
-              .update({
-                status: 'checked',
-                http_status_code: result.http_status_code,
-                response_time: result.response_time,
-                checked_at: result.checked_at,
-                is_working: result.is_working,
-                error_message: result.error_message,
-                has_seo_data: result.seo_data && !result.seo_data.error,
-              })
-              .eq('job_id', jobId)
-              .eq('url', result.url);
+            await db.updateDiscoveredLinkStatus(jobId, result.url, {
+              http_status_code: result.http_status_code,
+              response_time: result.response_time,
+              checked_at: result.checked_at,
+              is_working: result.is_working,
+              error_message: result.error_message,
+              has_seo_data: result.seo_data && !result.seo_data.error,
+            });
           } else {
             await db.addDiscoveredLinks(jobId, [
               {
