@@ -8,16 +8,15 @@ concrete reorganization plan.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| A1 — Job queue + worker + heartbeat/reaper | ⬜ Pending | The big one; unlocks scheduling, alerts, history |
+| A1 — Job queue + worker + heartbeat/reaper | ✅ Done | BullMQ + Redis. `src/lib/queue/`, `worker/index.ts`. Reaper on boot, heartbeat per batch, concurrency cap, graceful shutdown. Smoke-tested. |
 | A2 — Extract service layer | ✅ Done | `src/lib/crawler/` — index, linkCheck, 4 mode files. `crawl/start/route.js` 1110 → 130 lines. 3 `checkLinksStatus*` variants merged into one parameterised `checkLinks()`. Stop-detection bug in traditional crawl also fixed. |
-| A3 — Consolidate 3 crawl endpoints | ⬜ Pending | Blocked on A1 (unified path through queue) |
+| A3 — Consolidate 3 crawl endpoints | ⬜ Pending | A1 done — now unblocked. |
 | A4 — One rate-limit path | ⬜ Pending | |
 | A5 — TypeScript consistency | ⬜ Pending | Incremental; low priority |
 | A6 — Keep DB boundary clean | ⬜ In progress | One raw `db.supabase.from(...)` call remains in `linkCheck.js` (the `preInserted` UPDATE path); needs a proper `db.updateDiscoveredLinkStatus()` method |
 | A7 — Correctness bugs | ✅ Done | `SecureHttpChecker` deleted (was unused, had `ReferenceError` on `startTime`); divide-by-zero in `updateJobProgress` guarded |
 
-**Next:** A1 (job queue + worker). Everything else — scheduling, alerts, history — gates on this. The app *works*, but a few structural choices will bite as
-it grows or runs under load. The single biggest one is how background crawl jobs run.
+**Next:** C3/C4/C5 (SSRF hardening) or Doc 02 (Basic Auth on `/api/*`). A3 (consolidate crawl endpoints) is now unblocked but lower priority than security.
 
 ---
 

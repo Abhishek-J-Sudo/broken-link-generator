@@ -42,7 +42,7 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | No response-size cap; full bodies read into memory (`response.data` / `.text()`) | `httpChecker.js`, `analyze/route.js` | 01 C5 | ⬜ Pending |
 | `CSRF_SECRET` falls back to a hardcoded default | `src/app/api/csrf-token/route.js` | 01 C8 | ✅ Fixed — fails closed in production |
 | Health endpoint leaks raw error/DB messages, unauthenticated | `src/app/api/health/route.js` | 01 C8 | ✅ Fixed — error.message no longer returned |
-| Background jobs are fire-and-forget promises → lost on restart, stuck "running" | `crawl/start/route.js` | 03 A1 | ⬜ Pending — next major item |
+| Background jobs are fire-and-forget promises → lost on restart, stuck "running" | `crawl/start/route.js` | 03 A1 | ✅ Fixed — BullMQ queue + `worker/index.ts`; reaper + heartbeat |
 | ~1,100-line route file mixes HTTP handling + crawl orchestration; 3 near-dup crawl routes | `crawl/{start,large,chunk}` | 03 A2 | ✅ Fixed — `src/lib/crawler/` service layer extracted; route now 130 lines |
 
 ## Progress log
@@ -51,3 +51,15 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 |------|--------|-------------|
 | 2026-07-08 | `phase2-a7-security-cleanup` | A7 dead code + bug fixes; C1 clientIp; C8 secrets/leaks/timing; C9 CORS centralised |
 | 2026-07-08 | `phase2-a2-service-layer` | A2 crawler service layer extracted; 3 checkLinksStatus variants merged |
+| 2026-07-08 | main (no branch — fix next time) | A1 BullMQ job queue + worker + heartbeat/reaper; docker-compose.yml; Dockerfile.worker |
+
+## What to pick up next (new chat)
+
+Priority order:
+
+1. **Doc 02 — Basic Auth on `/api/*` routes** (P0 security gap — every API route is unauthenticated right now; `middleware.ts` matcher skips `/api/*`)
+2. **C3/C4/C5 — SSRF hardening** (redirect-hop validation, IPv6/encoding gaps, response-size cap)
+3. **C2 — Shared rate-limit store** (Redis is now available via `REDIS_URL`; replace in-memory `validateAdvancedRateLimit` with a Redis-backed store)
+4. **A3 — Consolidate 3 crawl endpoints** (now unblocked by A1)
+
+Start with Doc 02 — it's the most dangerous open gap (unauthenticated crawl API).
