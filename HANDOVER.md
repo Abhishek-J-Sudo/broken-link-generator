@@ -2,6 +2,25 @@
 
 ---
 
+## 2026-07-08 — C3/C4/C5: SSRF hardening
+
+### Branch: `phase2-doc02-basic-auth` (continued)
+
+- **`src/lib/safeFetch.js`** (new) — safe HTTP wrapper for all outbound requests:
+  - `redirect:'manual'`; validates each hop's URL + DNS before following
+  - DNS resolution pre-flight: all returned IPs checked via `isPrivateAddress`
+  - Response body capped at 5 MB via streaming reader (configurable)
+  - Used by: httpChecker, analyze route (page + sitemap fetch), contentPages crawler, traditional crawler, checkRobotsTxt
+  - TOCTOU gap documented inline: TCP connection pinning to resolved IP not implemented
+- **`src/lib/security.js`** — IP check overhaul:
+  - New `isPrivateAddress(addr)` covers: RFC-1918, loopback (127/8, ::1), link-local (169.254/16, fe80::/10), ULA (fc00::/7), CGNAT (100.64/10), 0.0.0.0/8, IPv4-mapped IPv6 (::ffff:x)
+  - WHATWG URL `.hostname` wraps IPv6 in brackets (`[::1]`) — stripped before `net.isIP()` check in both `isSafeUrl` and `safeFetch`
+  - Decimal/hex/octal IPv4 encoding (2130706433, 0x7f000001) normalised by WHATWG URL parser; caught by `isPrivateAddress`
+- **`src/lib/httpChecker.js`** — axios replaced with safeFetch throughout; link-only checks pass `readBody:false` to avoid buffering
+- 17/17 SSRF test cases verified inline
+
+---
+
 ## 2026-07-08 — Doc 02: Basic Auth gating /api/* routes
 
 ### Branch: `phase2-doc02-basic-auth`
@@ -47,10 +66,10 @@ See `docs/handoff/` for full specs. Critical path:
 ### Remaining work (priority order)
 See `docs/handoff/` for full specs. Critical path:
 1. ~~**A1** — job queue + worker + heartbeat/reaper~~ ✅ Done (2026-07-08)
-2. **C3/C4/C5** — SSRF hardening (redirect-hop validation, IPv6/encoding gaps, response-size cap).
-3. **A3** — consolidate 3 crawl endpoints into one (after A1). ← now unblocked
-4. **C2** — shared rate-limit store — Redis is now available (use `REDIS_URL`).
-5. **Doc 02** — Basic Auth on `/api/*` routes.
+2. ~~**Doc 02** — Basic Auth on `/api/*` routes~~ ✅ Done (2026-07-08)
+3. ~~**C3/C4/C5** — SSRF hardening~~ ✅ Done (2026-07-08)
+4. **C2** — shared rate-limit store — Redis is now available (use `REDIS_URL`). Also upgrades the in-memory brute-force counter in middleware.
+5. **A3** — consolidate 3 crawl endpoints into one (after A1). ← unblocked
 
 ---
 
