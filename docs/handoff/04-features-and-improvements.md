@@ -45,6 +45,8 @@ These are fast wins and directly back the security work.
 | **C2. Distinguish "broken" vs "blocked-by-target"** | Many sites return 403/429 to bots. Currently these count as broken. Flag them separately (the summary already tracks `blocked`) so reports aren't noisy. | S |
 | **C3. Respect `nofollow` / meta robots** | For politeness and accuracy when following internal links. | S |
 | **C4. Configurable identity** | `security.js` and several fetches hardcode `yourapp.com` / `Broken Link Checker Bot/1.0`. Drive User-Agent + contact from `CRAWLER_USER_AGENT` / `CRAWLER_CONTACT_EMAIL` (already in `.env.example`) everywhere. | S |
+| **C5. Smarter fetch strategy when SEO is enabled** | `checkUrlWithSEO` switches *every* request to GET when SEO is on — full bodies of external links, PDFs, and images get downloaded, then discarded by the content-type/URL filters. Use HEAD first and GET only for internal `text/html` pages. Also make `seoDetector.isContentPage()` check the domain, not just the path, so external pages aren't SEO-analyzed at all. Removes the need to throttle concurrency/batch sizes when SEO is enabled. | S–M |
+| **C6. Eliminate the traditional-crawl double fetch** | `processTraditionalCrawlBackground` fetches each internal page twice: once via `checkUrlsWithSEO` (status + SEO), then again for link extraction. Reuse the first response body for extraction — halves requests on discovery crawls. Falls out naturally from the Doc 03 A2 refactor if the link-check step returns page content. | S |
 
 ---
 
@@ -85,13 +87,16 @@ These are fast wins and directly back the security work.
 
 The SEO analyzer (`seoDetector.js`) currently covers titles, descriptions, headings,
 alt text, canonicals, and a 0–100 score. These items deepen it toward a "site health"
-product — the strongest candidates for a paid tier alongside B1–B3.
+product — the strongest candidates for a paid tier alongside B1–B3. **G0 is the
+exception: it's a correctness fix, not a feature, and gates G2/G3** (which would
+otherwise build more extraction on a fragile foundation).
 
 | Item | Description | Effort | Depends on |
 |------|-------------|--------|-----------|
+| **G0. Fix the extraction layer** | The regex extraction in `seoDetector.js` has correctness bugs: meta tags written as `<meta content="..." name="description">` report as "missing" (attribute-order dependency — also affects keywords and canonical); multi-line `<title>` doesn't match (`.` doesn't cross newlines); inline SVG `<title>` elements false-positive as the page title; `estimateWordCount` strips tags but not `<script>`/`<style>` *contents*, so JS/CSS counts as words and the "low word count" deduction fires ~randomly on script-heavy pages. Replace the regexes with a tolerant parser (e.g. `node-html-parser`) over the existing 50KB slice — cheap enough for the memory budget. While there: drop the dated multiple-H1 penalty (fine in HTML5, per current Google guidance) and the image `title`-attribute check (no SEO relevance), and label content metrics (headings, word count, images) as "first 50KB" since they ignore everything past the truncation point. | S–M | — |
 | **G1. Duplicate title / meta description detection** | Titles and descriptions per page are already stored in the SEO analysis table; a GROUP BY surfaces sitewide duplicates. Query + UI only, no new crawling. | S | — |
-| **G2. noindex / X-Robots-Tag findings** | Flag accidentally noindexed pages as a critical issue (distinct from C3, which is crawl *politeness*). Regex on the already-fetched HTML + one response header, in the existing `seoDetector` extraction pattern. | S | — |
-| **G3. Open Graph / Twitter card checks** | Same regex approach as the existing meta extraction; flags pages that render broken previews when shared. | S | — |
+| **G2. noindex / X-Robots-Tag findings** | Flag accidentally noindexed pages as a critical issue (distinct from C3, which is crawl *politeness*). Extract from the already-fetched HTML + one response header. | S | G0 |
+| **G3. Open Graph / Twitter card checks** | Same extraction pattern as the existing meta checks; flags pages that render broken previews when shared. | S | G0 |
 | **G4. Orphan page detection** | Diff sitemap URLs against the crawled link graph: pages in the sitemap that nothing links to, and linked pages missing from the sitemap. | M | B4 |
 | **G5. Internal link analysis** | Inlink counts per page, click depth from the homepage, anchor text; flag important pages that are buried or under-linked. The link graph is already built during the crawl. | M | — |
 | **G6. Broken-link fix suggestions** | Fuzzy-match dead internal URLs against live URLs from the same crawl and suggest the likely replacement ("`/blog/old-post` is dead — did you mean `/blog/old-post-updated`?"). Turns findings into fixes; no competitor's free tier does this. | M | — |
@@ -103,7 +108,8 @@ product — the strongest candidates for a paid tier alongside B1–B3.
 
 1. **A1–A4** (tests, monitoring, logging, CI) — in parallel with the P0/P1 work; they make
    everything else safe to change.
-2. **B4, B6, B7, B8, C2, C4, E1–E5, G1–G3** — high-value, low-effort quick wins.
+2. **B4, B6, B7, B8, C2, C4–C6, E1–E5, G0–G3** — high-value, low-effort quick wins.
+   Do **G0 before G2/G3** — it fixes extraction bugs the later items would inherit.
 3. **B1 → B2 → B3** (scheduling → alerts → history) — the feature that turns a one-shot
    tool into something people rely on. Gated on the job queue from Doc 03 A1.
    **G4–G6** slot in here as the SEO differentiators for a paid tier.

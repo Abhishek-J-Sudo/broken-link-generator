@@ -113,10 +113,19 @@ Route handlers then do only: validate → security → enqueue. The worker calls
 keep that boundary; see A6). This is a **move, not a rewrite** — the functions already
 exist and are self-contained enough to lift.
 
+One exception to "move, not rewrite": the three `checkLinksStatus*` variants are
+near-copies that differ only in batch size, concurrency, and SEO handling, and they have
+already drifted — the stop-by-user check runs inside `checkLinksStatus`'s batch loop but
+not inside `checkLinksStatusForTraditional`, so stopping a traditional SEO crawl takes
+effect more slowly. Merge them into one parameterized function in `linkCheck.js` while
+lifting them.
+
 ### Acceptance
 
 - No route file exceeds ~150 lines.
 - `runCrawl()` can be invoked from a test/worker with no `Request` object.
+- One link-check implementation; batch size, concurrency, and SEO are parameters,
+  not copies.
 
 ---
 
