@@ -13,6 +13,11 @@ export const supabaseAdmin = pgClient;
 export const db = {
   supabase,
 
+  async ping() {
+    const { error } = await supabase.from('crawl_jobs').select('id').limit(1);
+    if (error) throw new Error(`Database connection failed: ${error.message}`);
+  },
+
   // Job operations
   async createJob(url, settings = {}) {
     const defaultSettings = {
@@ -171,6 +176,23 @@ export const db = {
     return data;
   },
 
+  async updateDiscoveredLinkStatus(jobId, url, statusData) {
+    const { error } = await supabase
+      .from('discovered_links')
+      .update({
+        status: 'checked',
+        http_status_code: statusData.http_status_code,
+        response_time: statusData.response_time,
+        checked_at: statusData.checked_at,
+        is_working: statusData.is_working,
+        error_message: statusData.error_message,
+        has_seo_data: statusData.has_seo_data ?? false,
+      })
+      .eq('job_id', jobId)
+      .eq('url', url);
+    if (error) throw error;
+  },
+
   async getPendingLinks(jobId, limit = 50) {
     const { data, error } = await supabase
       .from('discovered_links')
@@ -234,6 +256,14 @@ export const db = {
       hasNextPage: page < Math.ceil(count / limit),
       hasPrevPage: page > 1,
     };
+  },
+
+  async getBrokenLinksAll(jobId, { errorType } = {}) {
+    let q = supabase.from('broken_links').select('*').eq('job_id', jobId);
+    if (errorType && errorType !== 'all') q = q.eq('error_type', errorType);
+    const { data, error } = await q;
+    if (error) throw error;
+    return data;
   },
 
   // Analytics and summary

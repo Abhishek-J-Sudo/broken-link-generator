@@ -191,14 +191,7 @@ export async function GET(request, { params }) {
     // });
 
     // Get broken links with additional context (for error types and link text)
-    let brokenLinksQuery = db.supabase.from('broken_links').select('*').eq('job_id', jobId);
-
-    // Apply error type filter if specified
-    if (errorType && errorType !== 'all') {
-      brokenLinksQuery = brokenLinksQuery.eq('error_type', errorType);
-    }
-
-    const { data: brokenLinks } = await brokenLinksQuery;
+    const brokenLinks = await db.getBrokenLinksAll(jobId, { errorType });
 
     // Create a map of broken links for easy lookup (for additional metadata like link_text)
     const brokenLinksMap = new Map();

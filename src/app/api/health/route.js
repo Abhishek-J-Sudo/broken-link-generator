@@ -12,11 +12,7 @@ export async function GET() {
     const startTime = Date.now();
 
     // Test database connection
-    const { data, error } = await db.supabase.from('crawl_jobs').select('count(*)').limit(1);
-
-    if (error) {
-      throw new Error(`Database connection failed: ${error.message}`);
-    }
+    await db.ping();
 
     const responseTime = Date.now() - startTime;
 
