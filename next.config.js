@@ -6,6 +6,7 @@ const nextConfig = {
   // for a small, reproducible Docker image on Coolify.
   output: 'standalone',
 
+
   eslint: {
     ignoreDuringBuilds: true,
   },

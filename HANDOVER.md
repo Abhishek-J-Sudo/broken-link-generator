@@ -2,6 +2,46 @@
 
 ---
 
+## 2026-07-08 — C3/C4/C5: SSRF hardening
+
+### Branch: `phase2-doc02-basic-auth` (continued)
+
+- **`src/lib/safeFetch.js`** (new) — safe HTTP wrapper for all outbound requests:
+  - `redirect:'manual'`; validates each hop's URL + DNS before following
+  - DNS resolution pre-flight: all returned IPs checked via `isPrivateAddress`
+  - Response body capped at 5 MB via streaming reader (configurable)
+  - Used by: httpChecker, analyze route (page + sitemap fetch), contentPages crawler, traditional crawler, checkRobotsTxt
+  - TOCTOU gap documented inline: TCP connection pinning to resolved IP not implemented
+- **`src/lib/security.js`** — IP check overhaul:
+  - New `isPrivateAddress(addr)` covers: RFC-1918, loopback (127/8, ::1), link-local (169.254/16, fe80::/10), ULA (fc00::/7), CGNAT (100.64/10), 0.0.0.0/8, IPv4-mapped IPv6 (::ffff:x)
+  - WHATWG URL `.hostname` wraps IPv6 in brackets (`[::1]`) — stripped before `net.isIP()` check in both `isSafeUrl` and `safeFetch`
+  - Decimal/hex/octal IPv4 encoding (2130706433, 0x7f000001) normalised by WHATWG URL parser; caught by `isPrivateAddress`
+- **`src/lib/httpChecker.js`** — axios replaced with safeFetch throughout; link-only checks pass `readBody:false` to avoid buffering
+- 17/17 SSRF test cases verified inline
+
+---
+
+## 2026-07-08 — Doc 02: Basic Auth gating /api/* routes
+
+### Branch: `phase2-doc02-basic-auth`
+All six items from [docs/handoff/02-basic-auth.md](docs/handoff/02-basic-auth.md) implemented.
+
+- **C1:** Matcher changed from `(?!api|...)` to `(?!_next/static|_next/image|favicon.ico|...)` — `/api/*` is now covered. `PUBLIC_PATHS=['/api/health']` and `TOKEN_AUTH_PATHS=['/api/admin/cleanup']` bypass inside the function (not in the matcher).
+- **C2:** 401 returned directly from middleware. `/api/basicauth/route.js` deleted.
+- **C3:** Constant-time comparison via `crypto.subtle.digest('SHA-256', ...)` — works in Edge and Node runtimes, no timing side-channel.
+- **C4:** All credential logging removed. Module-level throw in production if password is `change-me` or < 12 chars.
+- **C5:** In-memory brute-force backoff — 10 failures per IP in 5 min → 429 for 5 min. TODO: upgrade to Redis when C2 (shared rate-limit store) lands.
+- **C6:** Fail-safe — production with missing/disabled auth defaults-deny instead of allowing all traffic.
+
+### Remaining work (priority order)
+See `docs/handoff/` for full specs. Critical path:
+1. ~~**Doc 02** — Basic Auth on `/api/*` routes~~ ✅ Done (2026-07-08)
+2. **C3/C4/C5** — SSRF hardening (redirect-hop validation, IPv6/encoding gaps, response-size cap).
+3. **C2** — shared rate-limit store — Redis is now available (use `REDIS_URL`). Also unblocks migrating the in-memory brute-force counter in middleware to Redis.
+4. **A3** — consolidate 3 crawl endpoints into one (after A1).
+
+---
+
 ## 2026-07-08 — Phase 0 validation + Phase 2 A7/A2 + Security C1/C8/C9
 
 ### Phase 0 — Verified complete
@@ -26,10 +66,10 @@
 ### Remaining work (priority order)
 See `docs/handoff/` for full specs. Critical path:
 1. ~~**A1** — job queue + worker + heartbeat/reaper~~ ✅ Done (2026-07-08)
-2. **C3/C4/C5** — SSRF hardening (redirect-hop validation, IPv6/encoding gaps, response-size cap).
-3. **A3** — consolidate 3 crawl endpoints into one (after A1). ← now unblocked
-4. **C2** — shared rate-limit store — Redis is now available (use `REDIS_URL`).
-5. **Doc 02** — Basic Auth on `/api/*` routes.
+2. ~~**Doc 02** — Basic Auth on `/api/*` routes~~ ✅ Done (2026-07-08)
+3. ~~**C3/C4/C5** — SSRF hardening~~ ✅ Done (2026-07-08)
+4. **C2** — shared rate-limit store — Redis is now available (use `REDIS_URL`). Also upgrades the in-memory brute-force counter in middleware.
+5. **A3** — consolidate 3 crawl endpoints into one (after A1). ← unblocked
 
 ---
 

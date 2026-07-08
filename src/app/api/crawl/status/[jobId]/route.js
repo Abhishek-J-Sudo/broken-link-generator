@@ -66,7 +66,7 @@ export async function GET(request, { params }) {
     };
 
     // 🔧 FIXED: Use the new validateStatusRateLimit function with job context
-    const rateLimit = validateStatusRateLimit(clientIP, jobContext);
+    const rateLimit = await validateStatusRateLimit(clientIP, jobContext);
 
     // 🔧 ADDITIONAL OVERRIDE: For Level 5 jobs, be even more lenient
     if (!rateLimit.allowed && crawlLevel >= 5) {

@@ -15,7 +15,7 @@ export async function GET(request) {
   try {
     // Rate limiting for security endpoint
     const clientIP = getClientIp(request);
-    const rateLimit = validateAdvancedRateLimit(clientIP, 'results'); // Use results limit
+    const rateLimit = await validateAdvancedRateLimit(clientIP, 'results');
 
     if (!rateLimit.allowed) {
       return NextResponse.json(

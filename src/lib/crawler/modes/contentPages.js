@@ -2,6 +2,7 @@ import { LinkExtractor } from '@/lib/linkExtractor';
 import { batchUtils } from '@/lib/utils';
 import { db } from '@/lib/supabase';
 import { checkLinks } from '../linkCheck';
+import { safeFetch } from '@/lib/safeFetch';
 
 export async function processContentPagesMode(jobId, baseUrl, contentPages, settings) {
   console.log(
@@ -24,12 +25,13 @@ export async function processContentPagesMode(jobId, baseUrl, contentPages, sett
       batch.map(async (pageData) => {
         const pageUrl = pageData.url;
         try {
-          const response = await fetch(pageUrl, {
+          const response = await safeFetch(pageUrl, {
             timeout: settings.timeout || 10000,
             headers: {
               'User-Agent': 'Broken Link Checker Bot/1.0',
               Accept: 'text/html,application/xhtml+xml',
             },
+            readBody: true,
           });
 
           if (response.ok) {

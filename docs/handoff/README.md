@@ -18,28 +18,29 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 ## Context the implementer must know
 
 - **Stack:** Next.js 15 (App Router, `output: 'standalone'`), React 19, deployed via
-  Docker on Coolify. Crawling happens in Next API route handlers as fire-and-forget
-  background promises.
-- **DB migration in progress:** the app is being migrated **off Supabase onto a
-  self-hosted Postgres** accessed via `DATABASE_URL` (a `pg`-based `src/lib/db` module
-  replacing `src/lib/supabase.js`). Do not add new hard dependencies on Supabase
-  client APIs. Where these docs say "persist to the DB," target the new `pg` module.
-  The Supabase-specific CSP `connect-src` and `NEXT_PUBLIC_SUPABASE_*` env are being
-  removed as part of that migration.
-- **Single-tenant / private:** this is an internal tool for a small trusted group,
-  not a public multi-tenant SaaS. Prefer simple, robust solutions (Basic Auth, a
-  single shared worker) over heavyweight identity/multi-tenant systems.
+  Docker on Coolify. Worker process (`worker/index.ts`) runs as a separate container
+  powered by BullMQ + Redis. Crawl jobs are enqueued via the API and processed by the worker.
+- **DB:** Supabase migration is **complete** — app uses plain Postgres via `src/lib/pg.js`.
+  `src/lib/supabase.js` is now a thin facade over it; keep using `db.*` helpers.
+  Do not add new Supabase client dependencies.
+- **Auth:** The whole app (pages + API) is gated by Basic Auth in `middleware.ts`.
+  `/api/health` is public; `/api/admin/cleanup` uses its own `CLEANUP_SECRET_TOKEN`.
+- **Outbound HTTP:** All crawler/checker fetches go through `src/lib/safeFetch.js`
+  (SSRF-safe wrapper with per-hop redirect validation, DNS check, 5 MB body cap).
+  Do not add new raw `fetch()`/axios calls without going through safeFetch.
+- **Single-tenant / private:** internal tool for a small trusted group.
+  Prefer simple, robust solutions over heavyweight multi-tenant systems.
 
 ## Severity summary (why these docs exist)
 
 | Finding | Where | Doc | Status |
 |---------|-------|-----|--------|
-| Basic Auth **skips every `/api/*` route** — crawl/analyze are unauthenticated | `middleware.ts` matcher | 02 | ⬜ Pending |
-| Rate limiting is in-memory only → resets on deploy, not shared across replicas | `src/lib/validation.js` | 01 C2 | ⬜ Pending |
+| Basic Auth **skips every `/api/*` route** — crawl/analyze are unauthenticated | `middleware.ts` matcher | 02 | ✅ Fixed — matcher covers `/api/*`; direct 401; constant-time compare; brute-force backoff; production fail-safe |
+| Rate limiting is in-memory only → resets on deploy, not shared across replicas | `src/lib/validation.js` | 01 C2 | ✅ Fixed — `src/lib/redisRateLimit.js`: Lua sliding-window + progressive penalty; `validateAdvancedRateLimit` / `validateStatusRateLimit` now async; brute-force counter stays in-memory (Edge runtime can't use ioredis) |
 | Client IP is read from spoofable `x-forwarded-for` with no trusted-proxy check | all routes + `rateLimit.js` | 01 C1 | ✅ Fixed — `src/lib/clientIp.js` |
-| SSRF checks run only on the *initial* URL; redirects are followed unvalidated | `src/lib/security.js`, `httpChecker.js` | 01 C3 | ⬜ Pending |
-| SSRF host allowlist misses DNS-rebind, IPv6, and octal/hex/decimal IP encodings | `src/lib/security.js` | 01 C4 | ⬜ Pending |
-| No response-size cap; full bodies read into memory (`response.data` / `.text()`) | `httpChecker.js`, `analyze/route.js` | 01 C5 | ⬜ Pending |
+| SSRF checks run only on the *initial* URL; redirects are followed unvalidated | `src/lib/security.js`, `httpChecker.js` | 01 C3 | ✅ Fixed — `safeFetch.js`: redirect:'manual', per-hop DNS+IP validation |
+| SSRF host allowlist misses DNS-rebind, IPv6, and octal/hex/decimal IP encodings | `src/lib/security.js` | 01 C4 | ✅ Fixed — `isPrivateAddress()` covers IPv6 (ULA/link-local/mapped), CGNAT, 0.0.0.0/8; WHATWG bracket stripping; DNS pre-flight |
+| No response-size cap; full bodies read into memory (`response.data` / `.text()`) | `httpChecker.js`, `analyze/route.js` | 01 C5 | ✅ Fixed — `safeFetch.js` streams and caps at 5 MB; link-only checks use `readBody:false` |
 | `CSRF_SECRET` falls back to a hardcoded default | `src/app/api/csrf-token/route.js` | 01 C8 | ✅ Fixed — fails closed in production |
 | Health endpoint leaks raw error/DB messages, unauthenticated | `src/app/api/health/route.js` | 01 C8 | ✅ Fixed — error.message no longer returned |
 | Background jobs are fire-and-forget promises → lost on restart, stuck "running" | `crawl/start/route.js` | 03 A1 | ✅ Fixed — BullMQ queue + `worker/index.ts`; reaper + heartbeat |
@@ -52,14 +53,17 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | 2026-07-08 | `phase2-a7-security-cleanup` | A7 dead code + bug fixes; C1 clientIp; C8 secrets/leaks/timing; C9 CORS centralised |
 | 2026-07-08 | `phase2-a2-service-layer` | A2 crawler service layer extracted; 3 checkLinksStatus variants merged |
 | 2026-07-08 | main (no branch — fix next time) | A1 BullMQ job queue + worker + heartbeat/reaper; docker-compose.yml; Dockerfile.worker |
+| 2026-07-08 | `phase2-doc02-basic-auth` | Doc 02 all items: matcher fix (C1), direct 401 (C2), timing-safe compare (C3), no cred logging + weak-password startup throw (C4), in-memory brute-force backoff (C5), production fail-safe (C6) |
+| 2026-07-08 | `phase2-doc02-basic-auth` | C3/C4/C5: `safeFetch.js` (redirect validation + DNS pre-flight + 5 MB cap); `security.js` `isPrivateAddress()` (IPv6, CGNAT, encodings); axios removed from httpChecker |
+| 2026-07-08 | `phase2-doc02-basic-auth` | C2: `src/lib/redisRateLimit.js` (Lua sliding-window + brute-force scripts); `validateAdvancedRateLimit`/`validateStatusRateLimit` now async Redis-backed; dead placeholder functions removed from `rateLimit.js`; brute-force in middleware stays in-memory (Next.js 15 stable Edge runtime blocks ioredis) |
 
 ## What to pick up next (new chat)
 
 Priority order:
 
-1. **Doc 02 — Basic Auth on `/api/*` routes** (P0 security gap — every API route is unauthenticated right now; `middleware.ts` matcher skips `/api/*`)
-2. **C3/C4/C5 — SSRF hardening** (redirect-hop validation, IPv6/encoding gaps, response-size cap)
-3. **C2 — Shared rate-limit store** (Redis is now available via `REDIS_URL`; replace in-memory `validateAdvancedRateLimit` with a Redis-backed store)
-4. **A3 — Consolidate 3 crawl endpoints** (now unblocked by A1)
+1. ~~**Doc 02 — Basic Auth on `/api/*` routes**~~ ✅ Done (2026-07-08)
+2. ~~**C3/C4/C5 — SSRF hardening**~~ ✅ Done (2026-07-08)
+3. ~~**C2 — Shared rate-limit store**~~ ✅ Done (2026-07-08) — API route rate limits now Redis-backed; brute-force counter in middleware remains in-memory until `experimental.nodeMiddleware` stabilises in Next.js.
+4. **A3 — Consolidate 3 crawl endpoints** (`/api/crawl/start`, `/api/crawl/large`, `/api/crawl/chunk` → one endpoint). Now fully unblocked by A1+A2. See `docs/handoff/03-architecture-review.md`.
 
-Start with Doc 02 — it's the most dangerous open gap (unauthenticated crawl API).
+Start with A3 — it's the last P1 architectural item and simplifies the codebase significantly.

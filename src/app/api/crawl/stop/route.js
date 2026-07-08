@@ -19,7 +19,7 @@ const securityHeaders = {
 export async function POST(request) {
   try {
     const clientIP = getClientIp(request);
-    const rateLimit = validateAdvancedRateLimit(clientIP, 'crawl');
+    const rateLimit = await validateAdvancedRateLimit(clientIP, 'crawl');
 
     if (!rateLimit.allowed) {
       return NextResponse.json(

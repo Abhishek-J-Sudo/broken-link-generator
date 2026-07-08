@@ -1,5 +1,6 @@
 import { LinkExtractor } from '@/lib/linkExtractor';
 import { urlUtils, batchUtils } from '@/lib/utils';
+import { safeFetch } from '@/lib/safeFetch';
 import { db } from '@/lib/supabase';
 import { checkLinks } from '../linkCheck';
 
@@ -74,9 +75,10 @@ export async function runTraditionalCrawl(jobId, startUrl, settings) {
       for (const linkData of linksToCheck) {
         if (linkData.depth < maxDepth && urlUtils.isInternalUrl(linkData.url, startUrl)) {
           try {
-            const pageResponse = await fetch(linkData.url, {
+            const pageResponse = await safeFetch(linkData.url, {
               timeout: settings.timeout || 10000,
               headers: { 'User-Agent': 'Broken Link Checker Bot/1.0' },
+              readBody: true,
             });
 
             if (pageResponse.status < 500) {
