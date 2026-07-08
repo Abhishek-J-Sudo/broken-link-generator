@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/supabase';
 import { validateUtils } from '@/lib/utils';
 import { errorHandler, handleValidationError } from '@/lib/errorHandler';
+import { corsOrigin } from '@/lib/cors';
 
 export async function GET(request, { params }) {
   // Declared outside try so the catch-block error handler can reference them
@@ -554,7 +555,7 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': corsOrigin,
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },

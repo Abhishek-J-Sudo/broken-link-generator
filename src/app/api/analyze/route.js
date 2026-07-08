@@ -8,6 +8,7 @@ import { urlUtils, batchUtils } from '@/lib/utils';
 import { securityUtils } from '@/lib/security';
 import { validateAnalysisRequest, validateAdvancedRateLimit } from '@/lib/validation';
 import { errorHandler, handleValidationError, handleSecurityError } from '@/lib/errorHandler';
+import { getClientIp } from '@/lib/clientIp';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -18,7 +19,7 @@ const securityHeaders = {
 export async function POST(request) {
   try {
     // Rate limiting for analysis (more restrictive)
-    const clientIP = request.headers.get('x-forwarded-for') || 'unknown';
+    const clientIP = getClientIp(request);
     const rateLimit = validateAdvancedRateLimit(clientIP, 'analyze');
 
     if (!rateLimit.allowed) {

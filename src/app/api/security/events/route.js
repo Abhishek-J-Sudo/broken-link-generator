@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import { securityLogger, SECURITY_EVENTS, SEVERITY } from '@/lib/securityLogger';
 import { validateAdvancedRateLimit } from '@/lib/validation';
+import { getClientIp } from '@/lib/clientIp';
+import { corsOrigin } from '@/lib/cors';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -12,7 +14,7 @@ const securityHeaders = {
 export async function GET(request) {
   try {
     // Rate limiting for security endpoint
-    const clientIP = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const clientIP = getClientIp(request);
     const rateLimit = validateAdvancedRateLimit(clientIP, 'results'); // Use results limit
 
     if (!rateLimit.allowed) {
@@ -112,7 +114,7 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': corsOrigin,
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       ...securityHeaders,

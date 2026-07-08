@@ -8,6 +8,7 @@ import { LinkExtractor } from '@/lib/linkExtractor';
 import { HttpChecker } from '@/lib/httpChecker';
 import { urlUtils, validateUtils, batchUtils } from '@/lib/utils';
 import { db } from '@/lib/supabase';
+import { corsOrigin } from '@/lib/cors';
 
 export async function POST(request) {
   try {
@@ -309,7 +310,7 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': corsOrigin,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },

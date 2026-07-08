@@ -1,6 +1,12 @@
 // src/app/api/csrf-token/route.js - Endpoint to get CSRF tokens
 import { NextResponse } from 'next/server';
 import { createCsrfProtect } from '@edge-csrf/nextjs';
+import { corsOrigin } from '@/lib/cors';
+
+const csrfSecret = process.env.CSRF_SECRET;
+if (!csrfSecret && process.env.NODE_ENV === 'production') {
+  throw new Error('CSRF_SECRET environment variable is required in production');
+}
 
 const csrfProtect = createCsrfProtect({
   cookie: {
@@ -9,7 +15,7 @@ const csrfProtect = createCsrfProtect({
     sameSite: 'strict',
     path: '/',
   },
-  secret: process.env.CSRF_SECRET || 'default-dev-secret-change-in-production',
+  secret: csrfSecret || 'dev-only-not-for-production',
 });
 
 export async function GET(request) {
@@ -42,7 +48,7 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': corsOrigin,
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, X-CSRF-Token',
     },

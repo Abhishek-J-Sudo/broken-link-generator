@@ -7,11 +7,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/supabase';
 import { validateStatusRateLimit } from '@/lib/validation';
 import { errorHandler } from '@/lib/errorHandler';
+import { getClientIp } from '@/lib/clientIp';
+import { corsOrigin } from '@/lib/cors';
 
 export async function GET(request, { params }) {
   try {
     const { jobId } = await params;
-    const clientIP = request.headers.get('x-forwarded-for') || 'unknown';
+    const clientIP = getClientIp(request);
 
     // Validate jobId first
     if (!jobId) {
@@ -238,7 +240,7 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': corsOrigin,
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },

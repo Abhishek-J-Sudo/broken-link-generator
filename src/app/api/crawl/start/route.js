@@ -13,6 +13,8 @@ import { validateCrawlRequest, validateAdvancedRateLimit } from '@/lib/validatio
 import { logBlockedUrl, logInvalidInput, logRobotsBlocked } from '@/lib/securityLogger';
 import { errorHandler, handleValidationError, handleSecurityError } from '@/lib/errorHandler';
 import { seoDetector } from '@/lib/seoDetector';
+import { getClientIp } from '@/lib/clientIp';
+import { corsOrigin } from '@/lib/cors';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -39,7 +41,7 @@ export async function POST(request) {
     console.log(`🎯 CRAWL START: Crawl mode: ${body.settings?.crawlMode || 'auto'}`);
     console.log(`🎯 CRAWL START: SEO Enabled: ${body.settings?.enableSEO}`);
 
-    const clientIP = request.headers.get('x-forwarded-for') || 'unknown';
+    const clientIP = getClientIp(request);
     const rateLimit = validateAdvancedRateLimit(clientIP, 'crawl');
 
     if (!rateLimit.allowed) {
@@ -393,7 +395,9 @@ async function processContentPagesMode(jobId, baseUrl, contentPages, settings) {
     }
 
     // Update progress tracking to reflect the extracted links count
-    await db.updateJobProgress(jobId, 0, totalLinksExtracted);
+    if (totalLinksExtracted > 0) {
+      await db.updateJobProgress(jobId, 0, totalLinksExtracted);
+    }
 
     // Now check status of all extracted links
     await checkLinksStatus(jobId, linksToCheck, settings);
@@ -1098,7 +1102,7 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': corsOrigin,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },
