@@ -88,8 +88,8 @@ These are fast wins and directly back the security work.
 The SEO analyzer (`seoDetector.js`) currently covers titles, descriptions, headings,
 alt text, canonicals, and a 0–100 score. These items deepen it toward a "site health"
 product — the strongest candidates for a paid tier alongside B1–B3. **G0 is the
-exception: it's a correctness fix, not a feature, and gates G2/G3** (which would
-otherwise build more extraction on a fragile foundation).
+exception: it's a correctness fix, not a feature, and gates G2/G3/G8–G14** (which
+would otherwise build more extraction on a fragile foundation).
 
 | Item | Description | Effort | Depends on |
 |------|-------------|--------|-----------|
@@ -101,6 +101,14 @@ otherwise build more extraction on a fragile foundation).
 | **G5. Internal link analysis** | Inlink counts per page, click depth from the homepage, anchor text; flag important pages that are buried or under-linked. The link graph is already built during the crawl. | M | — |
 | **G6. Broken-link fix suggestions** | Fuzzy-match dead internal URLs against live URLs from the same crawl and suggest the likely replacement ("`/blog/old-post` is dead — did you mean `/blog/old-post-updated`?"). Turns findings into fixes; no competitor's free tier does this. | M | — |
 | **G7. Core Web Vitals (PageSpeed Insights API)** | Google's PSI API is free; call it for key pages and show performance scores next to the SEO grade. No extra crawl cost. | S–M | — |
+| **G8. Structured data / Schema.org detection** | Find `<script type="application/ld+json">` blocks in the already-fetched HTML, parse the JSON, and report which `@type` values are present (e.g. `Article`, `Product`, `BreadcrumbList`, `FAQPage`). Flag pages with no structured data as a minor issue. Managers care because schema is what drives Google rich results (star ratings, FAQs, product prices in SERPs) and errors surface in Search Console escalations. Detection is simpler than the existing meta extraction — a single regex find + `JSON.parse`. | S | G0 |
+| **G9. Heading hierarchy / outline** | Change heading output from raw counts to an ordered outline (e.g. `H1 → H2 → H2 → H3`) and flag structural problems: skipped levels (H1 directly to H3 with no H2), H2 appearing before any H1, no headings at all. This is what SEO extensions (Detailed SEO, SEO Minion) show and what a content editor acts on — raw counts are less useful. Drop the existing multiple-H1 penalty as part of G0; this replaces it with something meaningful. | S | G0 |
+| **G10. Page fundamentals: lang, viewport, URL** | Three lightweight checks on data already in the response: (1) `<html lang="...">` — missing or empty is a minor SEO and accessibility issue; (2) `<meta name="viewport">` — absence flags the page as potentially non-mobile-friendly, and Google uses mobile-first indexing; (3) URL length and slug quality — flag URLs over ~100 chars or containing underscores (Google prefers hyphens). All three are single-regex extractions. These are standard checks in every SEO Chrome extension. | S | G0 |
+| **G11. Fix character-limit thresholds** | Current thresholds are too lenient: title "too short" fires at <30 chars (should be <50 — Google's SERP display starts truncating below ~50); description "too short" fires at <120 chars (should be <150 — the accepted minimum for meaningful descriptions). Update the scoring deductions and issue messages to match current industry guidance. No new extraction needed — just constant changes in `calculateSEOScore`. | XS | — |
+| **G12. SERP preview** | Render a pixel-accurate mock of how the page's title and meta description will appear in a Google search result, including truncation at the correct character/pixel boundary. Every major SEO extension (SEO Minion, Ahrefs toolbar, Detailed SEO) includes this because it's the most tangible output for non-technical stakeholders — managers can see exactly what a searcher sees without opening Google. Implement as a UI component in the results view; no new crawling needed since title and description are already stored. | S | G0, G11 |
+| **G13. hreflang detection and validation** | Extract all `<link rel="alternate" hreflang="...">` tags from the fetched HTML. Check: (1) are hreflang tags present at all; (2) do return tags exist (every hreflang page must link back to all others — missing return tags are a common misconfiguration Google ignores the whole set for); (3) are the language/region codes valid BCP-47 values. Flag at critical level if hreflang is present but return tags are missing — this silently breaks international targeting. Only relevant when hreflang tags are detected, so it won't add noise to single-language sites. | S–M | G0 |
+| **G14. Published / modified date extraction** | Extract content freshness signals already present in the HTML: `article:published_time` and `article:modified_time` Open Graph tags, `datePublished` and `dateModified` from JSON-LD schema (falls out of G8), and the HTTP `Last-Modified` response header (already captured). Surface these per page and flag content that hasn't been updated in over 12 months as a minor issue — Google treats freshness as a ranking signal for news, blog, and product pages. Low extraction cost since the data comes from sources already being parsed. | S | G0, G8 |
+| **G15. robots.txt page-level check** | Fetch and parse the site's `robots.txt` once per crawl job, then check each crawled URL against the `Disallow` rules for `*` and `Googlebot` user agents. Flag any page that matches a disallow rule as a critical issue — these pages are invisible to Google regardless of how good their on-page SEO is. Distinct from C3 (which is about the crawler respecting nofollow for politeness) and G2 (which checks the meta robots tag in HTML). A page can have a perfect SEO score and still be blocked at the robots.txt level. | S–M | — |
 
 ---
 
@@ -108,8 +116,8 @@ otherwise build more extraction on a fragile foundation).
 
 1. **A1–A4** (tests, monitoring, logging, CI) — in parallel with the P0/P1 work; they make
    everything else safe to change.
-2. **B4, B6, B7, B8, C2, C4–C6, E1–E5, G0–G3** — high-value, low-effort quick wins.
-   Do **G0 before G2/G3** — it fixes extraction bugs the later items would inherit.
+2. **B4, B6, B7, B8, C2, C4–C6, E1–E5, G0–G3, G8–G15** — high-value, low-effort quick wins.
+   Do **G0 before G2/G3/G8–G14** — it fixes extraction bugs the later items would inherit. G11 (threshold fixes) and G15 (robots.txt check) can go in any time alongside G0 since they don't depend on the new parser.
 3. **B1 → B2 → B3** (scheduling → alerts → history) — the feature that turns a one-shot
    tool into something people rely on. Gated on the job queue from Doc 03 A1.
    **G4–G6** slot in here as the SEO differentiators for a paid tier.
