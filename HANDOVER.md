@@ -1,4 +1,39 @@
-# Handover — Coolify migration & Supabase → plain Postgres
+# Handover — Running log
+
+---
+
+## 2026-07-08 — Phase 0 validation + Phase 2 A7/A2 + Security C1/C8/C9
+
+### Phase 0 — Verified complete
+- Local Postgres 16 container (`blc-postgres`, port 5433) confirmed running with schema applied.
+- 3 completed crawl jobs in DB including a real 58-page crawl of a live site.
+- Docker image (`broken-link-generator:local`) builds clean and container health check passes (`database.connected: true`).
+- **VPS + Coolify wiring not yet done** — build is verified; deploy when ready.
+
+### Merged: A7 + C1/C8/C9 (`phase2-a7-security-cleanup`)
+- **A7:** Deleted unused `SecureHttpChecker` class (had `ReferenceError` on `startTime`; never imported). Guarded `updateJobProgress` against divide-by-zero when `totalLinksExtracted` is 0. Removed dead `batchSize=20` variable shadowed by inner declaration in traditional crawl.
+- **C1:** Created `src/lib/clientIp.js` — single trusted-IP source; only reads `x-forwarded-for` when `TRUST_PROXY=true` (must set this in Coolify behind Traefik). Replaced raw unsplit header reads across all routes.
+- **C8:** `CSRF_SECRET` now throws at startup in production instead of falling back to a weak default. Health endpoint no longer leaks `error.message`. Admin cleanup token compare uses `crypto.timingSafeEqual`. Middleware debug logs (including username logging per-request) removed.
+- **C9:** Created `src/lib/cors.js` — returns `ALLOWED_ORIGIN` in production, `*` in dev. All 8 OPTIONS handlers updated.
+
+### Merged: A2 — Crawler service layer (`phase2-a2-service-layer`)
+- Created `src/lib/crawler/` with `index.js`, `linkCheck.js`, and `modes/` (contentPages, discoveredLinks, originalSmart, traditional).
+- The three near-identical `checkLinksStatus*` variants merged into one parameterised `checkLinks()` in `linkCheck.js` (`preInserted`, `trackProgress`, `completeJob`, `enableStopCheck`).
+- Latent bug fixed: stop-by-user detection now applies inside the inner check loop for traditional crawls too (previously only at the outer loop level, so stopping a traditional SEO crawl was slow).
+- `crawl/start/route.js` reduced from 1,110 → 130 lines. Pure HTTP handler: validate → security → create job → fire-and-forget → 201.
+- Dead `seoDetector` import removed.
+
+### Remaining work (priority order)
+See `docs/handoff/` for full specs. Critical path:
+1. **A1** — job queue + worker + heartbeat/reaper (2–3 days). Unlocks everything.
+2. **C3/C4/C5** — SSRF hardening (redirect-hop validation, IPv6/encoding gaps, response-size cap).
+3. **A3** — consolidate 3 crawl endpoints into one (after A1).
+4. **C2** — shared rate-limit store (Redis or pg-backed; after A1 adds Redis).
+5. **Doc 02** — Basic Auth on `/api/*` routes.
+
+---
+
+## 2026-07-07 — Coolify migration & Supabase → plain Postgres
 
 **Date:** 2026-07-07
 **Branch:** `migrate/supabase-to-postgres`

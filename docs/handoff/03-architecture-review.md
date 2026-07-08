@@ -2,7 +2,21 @@
 
 **Priority:** P1
 **Goal:** Assess whether the current structure is right and, where it isn't, give a
-concrete reorganization plan. The app *works*, but a few structural choices will bite as
+concrete reorganization plan.
+
+## Implementation status (as of 2026-07-08)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| A1 — Job queue + worker + heartbeat/reaper | ⬜ Pending | The big one; unlocks scheduling, alerts, history |
+| A2 — Extract service layer | ✅ Done | `src/lib/crawler/` — index, linkCheck, 4 mode files. `crawl/start/route.js` 1110 → 130 lines. 3 `checkLinksStatus*` variants merged into one parameterised `checkLinks()`. Stop-detection bug in traditional crawl also fixed. |
+| A3 — Consolidate 3 crawl endpoints | ⬜ Pending | Blocked on A1 (unified path through queue) |
+| A4 — One rate-limit path | ⬜ Pending | |
+| A5 — TypeScript consistency | ⬜ Pending | Incremental; low priority |
+| A6 — Keep DB boundary clean | ⬜ In progress | One raw `db.supabase.from(...)` call remains in `linkCheck.js` (the `preInserted` UPDATE path); needs a proper `db.updateDiscoveredLinkStatus()` method |
+| A7 — Correctness bugs | ✅ Done | `SecureHttpChecker` deleted (was unused, had `ReferenceError` on `startTime`); divide-by-zero in `updateJobProgress` guarded |
+
+**Next:** A1 (job queue + worker). Everything else — scheduling, alerts, history — gates on this. The app *works*, but a few structural choices will bite as
 it grows or runs under load. The single biggest one is how background crawl jobs run.
 
 ---

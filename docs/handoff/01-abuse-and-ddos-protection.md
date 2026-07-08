@@ -1,7 +1,23 @@
 # 01 — Abuse, Bot & DDoS Protection
 
 **Priority:** P0
-**Goal:** Make the crawler safe to expose on the public internet. It is both a *target*
+**Goal:** Make the crawler safe to expose on the public internet.
+
+## Implementation status (as of 2026-07-08)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| C1 — Trusted client IP | ✅ Done | `src/lib/clientIp.js`; `TRUST_PROXY=true` env required in Coolify |
+| C2 — Shared rate-limit store | ⬜ Pending | Needs Redis or pg-backed store; blocked on A1 |
+| C3 — SSRF: validate every redirect hop | ⬜ Pending | |
+| C4 — IPv6 / encoding gaps in isSafeUrl | ⬜ Pending | |
+| C5 — Response size + content-type caps | ⬜ Pending | |
+| C6 — Per-target-domain politeness gate | ⬜ Pending | Needs shared store |
+| C7 — Edge / Cloudflare WAF | ⬜ Pending | Deployment task |
+| C8 — Secret defaults + info leaks | ✅ Done | CSRF fails closed in prod; health no longer leaks `error.message`; `timingSafeEqual` on cleanup token; middleware username logs removed |
+| C9 — CORS consistency | ✅ Done | `src/lib/cors.js`; all 8 OPTIONS handlers use `corsOrigin` |
+
+**Next:** C3 + C4 + C5 (SSRF hardening — the highest-severity remaining items). It is both a *target*
 (someone hammering our endpoints) and a *weapon* (someone using our crawler to attack a
 third party or our own cloud metadata). Both directions must be closed.
 

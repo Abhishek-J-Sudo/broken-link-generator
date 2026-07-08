@@ -32,15 +32,22 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 
 ## Severity summary (why these docs exist)
 
-| Finding | Where | Doc |
-|---------|-------|-----|
-| Basic Auth **skips every `/api/*` route** — crawl/analyze are unauthenticated | `middleware.ts` matcher | 02 |
-| Rate limiting is in-memory only → resets on deploy, not shared across replicas | `src/lib/validation.js` | 01 |
-| Client IP is read from spoofable `x-forwarded-for` with no trusted-proxy check | all routes + `rateLimit.js` | 01 |
-| SSRF checks run only on the *initial* URL; redirects are followed unvalidated | `src/lib/security.js`, `httpChecker.js` | 01 |
-| SSRF host allowlist misses DNS-rebind, IPv6, and octal/hex/decimal IP encodings | `src/lib/security.js` | 01 |
-| No response-size cap; full bodies read into memory (`response.data` / `.text()`) | `httpChecker.js`, `analyze/route.js` | 01 |
-| `CSRF_SECRET` falls back to a hardcoded default | `src/app/api/csrf-token/route.js` | 01 |
-| Health endpoint leaks raw error/DB messages, unauthenticated | `src/app/api/health/route.js` | 01 |
-| Background jobs are fire-and-forget promises → lost on restart, stuck "running" | `crawl/start/route.js` | 03 |
-| ~1,100-line route file mixes HTTP handling + crawl orchestration; 3 near-dup crawl routes | `crawl/{start,large,chunk}` | 03 |
+| Finding | Where | Doc | Status |
+|---------|-------|-----|--------|
+| Basic Auth **skips every `/api/*` route** — crawl/analyze are unauthenticated | `middleware.ts` matcher | 02 | ⬜ Pending |
+| Rate limiting is in-memory only → resets on deploy, not shared across replicas | `src/lib/validation.js` | 01 C2 | ⬜ Pending |
+| Client IP is read from spoofable `x-forwarded-for` with no trusted-proxy check | all routes + `rateLimit.js` | 01 C1 | ✅ Fixed — `src/lib/clientIp.js` |
+| SSRF checks run only on the *initial* URL; redirects are followed unvalidated | `src/lib/security.js`, `httpChecker.js` | 01 C3 | ⬜ Pending |
+| SSRF host allowlist misses DNS-rebind, IPv6, and octal/hex/decimal IP encodings | `src/lib/security.js` | 01 C4 | ⬜ Pending |
+| No response-size cap; full bodies read into memory (`response.data` / `.text()`) | `httpChecker.js`, `analyze/route.js` | 01 C5 | ⬜ Pending |
+| `CSRF_SECRET` falls back to a hardcoded default | `src/app/api/csrf-token/route.js` | 01 C8 | ✅ Fixed — fails closed in production |
+| Health endpoint leaks raw error/DB messages, unauthenticated | `src/app/api/health/route.js` | 01 C8 | ✅ Fixed — error.message no longer returned |
+| Background jobs are fire-and-forget promises → lost on restart, stuck "running" | `crawl/start/route.js` | 03 A1 | ⬜ Pending — next major item |
+| ~1,100-line route file mixes HTTP handling + crawl orchestration; 3 near-dup crawl routes | `crawl/{start,large,chunk}` | 03 A2 | ✅ Fixed — `src/lib/crawler/` service layer extracted; route now 130 lines |
+
+## Progress log
+
+| Date | Branch | What landed |
+|------|--------|-------------|
+| 2026-07-08 | `phase2-a7-security-cleanup` | A7 dead code + bug fixes; C1 clientIp; C8 secrets/leaks/timing; C9 CORS centralised |
+| 2026-07-08 | `phase2-a2-service-layer` | A2 crawler service layer extracted; 3 checkLinksStatus variants merged |
