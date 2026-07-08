@@ -34,7 +34,7 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 
 | Finding | Where | Doc | Status |
 |---------|-------|-----|--------|
-| Basic Auth **skips every `/api/*` route** — crawl/analyze are unauthenticated | `middleware.ts` matcher | 02 | ⬜ Pending |
+| Basic Auth **skips every `/api/*` route** — crawl/analyze are unauthenticated | `middleware.ts` matcher | 02 | ✅ Fixed — matcher covers `/api/*`; direct 401; constant-time compare; brute-force backoff; production fail-safe |
 | Rate limiting is in-memory only → resets on deploy, not shared across replicas | `src/lib/validation.js` | 01 C2 | ⬜ Pending |
 | Client IP is read from spoofable `x-forwarded-for` with no trusted-proxy check | all routes + `rateLimit.js` | 01 C1 | ✅ Fixed — `src/lib/clientIp.js` |
 | SSRF checks run only on the *initial* URL; redirects are followed unvalidated | `src/lib/security.js`, `httpChecker.js` | 01 C3 | ⬜ Pending |
@@ -52,14 +52,15 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | 2026-07-08 | `phase2-a7-security-cleanup` | A7 dead code + bug fixes; C1 clientIp; C8 secrets/leaks/timing; C9 CORS centralised |
 | 2026-07-08 | `phase2-a2-service-layer` | A2 crawler service layer extracted; 3 checkLinksStatus variants merged |
 | 2026-07-08 | main (no branch — fix next time) | A1 BullMQ job queue + worker + heartbeat/reaper; docker-compose.yml; Dockerfile.worker |
+| 2026-07-08 | `phase2-doc02-basic-auth` | Doc 02 all items: matcher fix (C1), direct 401 (C2), timing-safe compare (C3), no cred logging + weak-password startup throw (C4), in-memory brute-force backoff (C5), production fail-safe (C6) |
 
 ## What to pick up next (new chat)
 
 Priority order:
 
-1. **Doc 02 — Basic Auth on `/api/*` routes** (P0 security gap — every API route is unauthenticated right now; `middleware.ts` matcher skips `/api/*`)
-2. **C3/C4/C5 — SSRF hardening** (redirect-hop validation, IPv6/encoding gaps, response-size cap)
-3. **C2 — Shared rate-limit store** (Redis is now available via `REDIS_URL`; replace in-memory `validateAdvancedRateLimit` with a Redis-backed store)
+1. ~~**Doc 02 — Basic Auth on `/api/*` routes**~~ ✅ Done (2026-07-08)
+2. **C3/C4/C5 — SSRF hardening** (redirect-hop validation, IPv6/encoding gaps, response-size cap) — see `docs/handoff/01-abuse-and-ddos-protection.md`
+3. **C2 — Shared rate-limit store** (Redis available via `REDIS_URL`; replace in-memory `validateAdvancedRateLimit`; also migrate middleware brute-force counter from in-memory Map to Redis)
 4. **A3 — Consolidate 3 crawl endpoints** (now unblocked by A1)
 
-Start with Doc 02 — it's the most dangerous open gap (unauthenticated crawl API).
+Start with SSRF hardening (C3/C4/C5) — it's the next P0 gap.
