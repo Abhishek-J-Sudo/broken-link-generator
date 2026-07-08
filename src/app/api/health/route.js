@@ -28,7 +28,6 @@ export async function GET() {
         responseTime: `${responseTime}ms`,
       },
       version: APP_VERSION,
-      environment: process.env.NODE_ENV || 'development',
     });
   } catch (error) {
     console.error('Health check failed:', error);
