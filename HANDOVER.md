@@ -25,11 +25,41 @@
 
 ### Remaining work (priority order)
 See `docs/handoff/` for full specs. Critical path:
-1. **A1** — job queue + worker + heartbeat/reaper (2–3 days). Unlocks everything.
+1. ~~**A1** — job queue + worker + heartbeat/reaper~~ ✅ Done (2026-07-08)
 2. **C3/C4/C5** — SSRF hardening (redirect-hop validation, IPv6/encoding gaps, response-size cap).
-3. **A3** — consolidate 3 crawl endpoints into one (after A1).
-4. **C2** — shared rate-limit store (Redis or pg-backed; after A1 adds Redis).
+3. **A3** — consolidate 3 crawl endpoints into one (after A1). ← now unblocked
+4. **C2** — shared rate-limit store — Redis is now available (use `REDIS_URL`).
 5. **Doc 02** — Basic Auth on `/api/*` routes.
+
+---
+
+## 2026-07-08 — A1: BullMQ job queue + worker + heartbeat/reaper
+
+### What landed (`phase2-a1-job-queue`, merged to main)
+- **`src/lib/queue/`** — IORedis singleton + BullMQ Queue; `enqueueCrawl()` called from API route.
+- **`worker/index.ts`** — standalone long-running process; reaps stale jobs on boot (`running` + `heartbeat_at > 5min` → `failed`); BullMQ concurrency cap (`WORKER_CONCURRENCY`, default 3); SIGTERM/SIGINT graceful shutdown.
+- **`crawler/linkCheck.js`** — `db.updateHeartbeat(jobId)` each batch.
+- **`crawl/start/route.js`** — fire-and-forget removed; `await enqueueCrawl()`; initial status `'queued'`.
+- **`crawl/stop/route.js`** — accepts `queued` as well as `running`.
+- **`supabase.js`** — `db.updateHeartbeat()`, `db.reapStaleJobs()`, `updateJobStatus('completed')` clears `error_message`.
+- **`database/init.sql`** — `heartbeat_at TIMESTAMPTZ` column added.
+- **`docker-compose.yml`** — local dev infra: Postgres on 5433, Redis on 6380.
+- **`Dockerfile.worker`** — separate worker container (tsx + src/lib + tsconfig).
+- **`bullmq`, `ioredis`, `tsx`** added to dependencies.
+- Smoke-tested: `queued→running→completed`, heartbeat populated, reaper fires on restart, stop works on both queued and running jobs.
+
+### Local dev (after this change)
+```
+docker compose up -d            # Postgres on 5433, Redis on 6380
+npm run db:init                 # one-time schema apply (adds heartbeat_at)
+npm run worker:dev              # worker process (tsx --watch)
+npm run dev                     # Next.js web server
+```
+
+### Coolify deploy notes
+- Add a Redis service (Coolify one-click Redis).
+- Set `REDIS_URL` to the internal Redis connection string on both the web and worker services.
+- Worker service: set "Dockerfile path" to `Dockerfile.worker` in Coolify.
 
 ---
 
