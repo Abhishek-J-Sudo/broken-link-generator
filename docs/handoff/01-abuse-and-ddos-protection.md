@@ -8,18 +8,18 @@
 | Item | Status | Notes |
 |------|--------|-------|
 | C1 — Trusted client IP | ✅ Done | `src/lib/clientIp.js`; `TRUST_PROXY=true` env required in Coolify |
-| C2 — Shared rate-limit store | ⬜ Pending | Needs Redis or pg-backed store; blocked on A1 |
-| C3 — SSRF: validate every redirect hop | ⬜ Pending | |
-| C4 — IPv6 / encoding gaps in isSafeUrl | ⬜ Pending | |
-| C5 — Response size + content-type caps | ⬜ Pending | |
-| C6 — Per-target-domain politeness gate | ⬜ Pending | Needs shared store |
+| C2 — Shared rate-limit store | ⬜ Pending | Redis available via `REDIS_URL`; A1 blocker is gone — ready to implement |
+| C3 — SSRF: validate every redirect hop | ✅ Done | `src/lib/safeFetch.js`: `redirect:'manual'`, per-hop URL+DNS validation |
+| C4 — IPv6 / encoding gaps in isSafeUrl | ✅ Done | `isPrivateAddress()` in `security.js`: ULA, link-local, IPv4-mapped, CGNAT, 0.0.0.0/8; WHATWG bracket stripping; DNS pre-flight in safeFetch |
+| C5 — Response size + content-type caps | ✅ Done | safeFetch streams + caps at 5 MB; link-only checks use `readBody:false` |
+| C6 — Per-target-domain politeness gate | ⬜ Pending | Needs shared store (depends on C2) |
 | C7 — Edge / Cloudflare WAF | ⬜ Pending | Deployment task |
 | C8 — Secret defaults + info leaks | ✅ Done | CSRF fails closed in prod; health no longer leaks `error.message`; `timingSafeEqual` on cleanup token; middleware username logs removed |
 | C9 — CORS consistency | ✅ Done | `src/lib/cors.js`; all 8 OPTIONS handlers use `corsOrigin` |
 
-**Next:** C3 + C4 + C5 (SSRF hardening — the highest-severity remaining items). It is both a *target*
-(someone hammering our endpoints) and a *weapon* (someone using our crawler to attack a
-third party or our own cloud metadata). Both directions must be closed.
+**Next:** C2 — shared rate-limit store. Redis is running (A1 added it). Replace the in-memory
+`EnhancedRateLimitStore` in `src/lib/validation.js` with a Redis sliding-window, and migrate
+the middleware brute-force `Map` in `middleware.ts` to the same store.
 
 ---
 
