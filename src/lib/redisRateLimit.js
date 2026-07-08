@@ -185,34 +185,3 @@ export async function clearBruteForce(ip) {
     console.error('[rateLimit] Redis brute-force clear failed:', err.message);
   }
 }
-
-/** Reset all rate-limit state for a given IP (admin use). */
-export async function resetIp(ip) {
-  try {
-    const [reqKeys, violKeys, cntKeys] = await Promise.all([
-      getClient().keys(`rl:req:*:${ip}`),
-      getClient().keys(`rl:viol:*:${ip}`),
-      getClient().keys(`rl:cnt:*:${ip}`),
-    ]);
-    const all = [...reqKeys, ...violKeys, ...cntKeys, `rl:bf:${ip}`];
-    if (all.length > 0) await getClient().del(...all);
-  } catch (err) {
-    console.error('[rateLimit] Redis resetIp failed:', err.message);
-  }
-}
-
-/** Aggregate stats for monitoring endpoints. */
-export async function getStats() {
-  try {
-    const [reqKeys, violKeys] = await Promise.all([
-      getClient().keys('rl:req:*'),
-      getClient().keys('rl:viol:*'),
-    ]);
-    // Key format: rl:req:{endpoint}:{ip} — extract IP (parts after index 2)
-    const trackedIPs = new Set(reqKeys.map((k)  => k.split(':').slice(3).join(':'))).size;
-    const blockedIPs = new Set(violKeys.map((k) => k.split(':').slice(3).join(':'))).size;
-    return { totalIPs: trackedIPs, blockedIPs, store: 'redis' };
-  } catch {
-    return { totalIPs: 0, blockedIPs: 0, store: 'redis-unavailable' };
-  }
-}
