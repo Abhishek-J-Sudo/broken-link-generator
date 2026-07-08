@@ -44,7 +44,7 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | `CSRF_SECRET` falls back to a hardcoded default | `src/app/api/csrf-token/route.js` | 01 C8 | ✅ Fixed — fails closed in production |
 | Health endpoint leaks raw error/DB messages, unauthenticated | `src/app/api/health/route.js` | 01 C8 | ✅ Fixed — error.message no longer returned |
 | Background jobs are fire-and-forget promises → lost on restart, stuck "running" | `crawl/start/route.js` | 03 A1 | ✅ Fixed — BullMQ queue + `worker/index.ts`; reaper + heartbeat |
-| ~1,100-line route file mixes HTTP handling + crawl orchestration; 3 near-dup crawl routes | `crawl/{start,large,chunk}` | 03 A2 | ✅ Fixed — `src/lib/crawler/` service layer extracted; route now 130 lines |
+| ~1,100-line route file mixes HTTP handling + crawl orchestration; 3 near-dup crawl routes | `crawl/{start,large,chunk}` | 03 A2/A3 | ✅ Fixed — `src/lib/crawler/` service layer extracted; route now 130 lines; `crawl/large` and `crawl/chunk` deleted |
 
 ## Progress log
 
@@ -56,6 +56,7 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | 2026-07-08 | `phase2-doc02-basic-auth` | Doc 02 all items: matcher fix (C1), direct 401 (C2), timing-safe compare (C3), no cred logging + weak-password startup throw (C4), in-memory brute-force backoff (C5), production fail-safe (C6) |
 | 2026-07-08 | `phase2-doc02-basic-auth` | C3/C4/C5: `safeFetch.js` (redirect validation + DNS pre-flight + 5 MB cap); `security.js` `isPrivateAddress()` (IPv6, CGNAT, encodings); axios removed from httpChecker |
 | 2026-07-08 | `phase2-doc02-basic-auth` | C2: `src/lib/redisRateLimit.js` (Lua sliding-window + brute-force scripts); `validateAdvancedRateLimit`/`validateStatusRateLimit` now async Redis-backed; dead placeholder functions removed from `rateLimit.js`; brute-force in middleware stays in-memory (Next.js 15 stable Edge runtime blocks ioredis) |
+| 2026-07-08 | `phase2-a3-consolidate-crawl-routes` | A3: `crawl/large` and `crawl/chunk` deleted — both frontend forms already called `/api/crawl/start`; single security-validated+queued entry point |
 
 ## What to pick up next (new chat)
 
@@ -64,6 +65,7 @@ Priority order:
 1. ~~**Doc 02 — Basic Auth on `/api/*` routes**~~ ✅ Done (2026-07-08)
 2. ~~**C3/C4/C5 — SSRF hardening**~~ ✅ Done (2026-07-08)
 3. ~~**C2 — Shared rate-limit store**~~ ✅ Done (2026-07-08) — API route rate limits now Redis-backed; brute-force counter in middleware remains in-memory until `experimental.nodeMiddleware` stabilises in Next.js.
-4. **A3 — Consolidate 3 crawl endpoints** (`/api/crawl/start`, `/api/crawl/large`, `/api/crawl/chunk` → one endpoint). Now fully unblocked by A1+A2. See `docs/handoff/03-architecture-review.md`.
+4. ~~**A3 — Consolidate 3 crawl endpoints**~~ ✅ Done (2026-07-08) — `crawl/large` and `crawl/chunk` deleted; one entry point.
+5. **A4 — One rate-limit path** — `withRateLimit` HOF in `rateLimit.js` is unused dead code; inline `validateAdvancedRateLimit` is the real path. Pick one, delete the other. See `docs/handoff/03-architecture-review.md`.
 
-Start with A3 — it's the last P1 architectural item and simplifies the codebase significantly.
+Start with A4 — it's a small cleanup that clarifies the security surface.

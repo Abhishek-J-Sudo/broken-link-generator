@@ -10,13 +10,13 @@ concrete reorganization plan.
 |------|--------|-------|
 | A1 — Job queue + worker + heartbeat/reaper | ✅ Done | BullMQ + Redis. `src/lib/queue/`, `worker/index.ts`. Reaper on boot, heartbeat per batch, concurrency cap, graceful shutdown. Smoke-tested. |
 | A2 — Extract service layer | ✅ Done | `src/lib/crawler/` — index, linkCheck, 4 mode files. `crawl/start/route.js` 1110 → 130 lines. 3 `checkLinksStatus*` variants merged into one parameterised `checkLinks()`. Stop-detection bug in traditional crawl also fixed. |
-| A3 — Consolidate 3 crawl endpoints | ⬜ Pending | A1 done — now unblocked. |
+| A3 — Consolidate 3 crawl endpoints | ✅ Done | `crawl/large` and `crawl/chunk` deleted; both forms already called `/api/crawl/start`; single validated+queued entry point. |
 | A4 — One rate-limit path | ⬜ Pending | |
 | A5 — TypeScript consistency | ⬜ Pending | Incremental; low priority |
 | A6 — Keep DB boundary clean | ⬜ In progress | One raw `db.supabase.from(...)` call remains in `linkCheck.js` (the `preInserted` UPDATE path); needs a proper `db.updateDiscoveredLinkStatus()` method |
 | A7 — Correctness bugs | ✅ Done | `SecureHttpChecker` deleted (was unused, had `ReferenceError` on `startTime`); divide-by-zero in `updateJobProgress` guarded |
 
-**Next:** C3/C4/C5 (SSRF hardening) or Doc 02 (Basic Auth on `/api/*`). A3 (consolidate crawl endpoints) is now unblocked but lower priority than security.
+**Next:** A4 — consolidate the two rate-limit code paths and delete dead placeholder functions.
 
 ---
 
