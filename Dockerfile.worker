@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1
+# Worker container — long-running BullMQ job processor.
+# In Coolify: create a second service from this repo, set "Dockerfile path" to Dockerfile.worker.
+# Set the same DATABASE_URL, REDIS_URL, and other env vars as the web service.
+
+# ---------- Dependencies ----------
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# ---------- Runner ----------
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Only copy what the worker needs: deps, lib sources, tsconfig
+COPY --from=deps /app/node_modules ./node_modules
+COPY src/lib ./src/lib
+COPY worker ./worker
+COPY tsconfig.json package.json ./
+
+RUN addgroup -g 1001 -S nodejs && adduser -S worker -u 1001
+USER worker
+
+CMD ["node_modules/.bin/tsx", "worker/index.ts"]

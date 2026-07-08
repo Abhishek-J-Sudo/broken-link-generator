@@ -25,12 +25,13 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto; -- provides gen_random_uuid()
 CREATE TABLE IF NOT EXISTS crawl_jobs (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     url           TEXT NOT NULL,
-    status        TEXT DEFAULT 'pending',
+    status        TEXT DEFAULT 'queued',
     progress      JSONB DEFAULT '{"current": 0, "total": 0, "percentage": 0}',
     settings      JSONB DEFAULT '{"maxDepth": 3, "includeExternal": false, "timeout": 10000}',
     created_at    TIMESTAMPTZ DEFAULT NOW(),
     completed_at  TIMESTAMPTZ,
-    error_message TEXT
+    error_message TEXT,
+    heartbeat_at  TIMESTAMPTZ
 );
 
 -- ---------------------------------------------------------------------------

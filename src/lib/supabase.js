@@ -2,7 +2,7 @@
 // is now plain PostgreSQL, accessed through a small compatibility layer in
 // ./pg.js that implements the query-builder subset this app uses. The exports
 // below keep the historical `supabase` / `db` names so route code is unchanged.
-import { pgClient } from './pg.js';
+import { pgClient, query } from './pg.js';
 
 // `supabase` / `supabaseAdmin` are the same plain-Postgres client. There is no
 // anon/service split anymore — the app is server-only and owns the database.
@@ -26,7 +26,7 @@ export const db = {
       .insert({
         url,
         settings: { ...defaultSettings, ...settings },
-        status: 'pending',
+        status: 'queued',
       })
       .select()
       .single();
@@ -51,6 +51,8 @@ export const db = {
 
     if (errorMessage) {
       updates.error_message = errorMessage;
+    } else if (status === 'completed') {
+      updates.error_message = null;
     }
 
     const { data, error } = await supabase
@@ -64,7 +66,6 @@ export const db = {
     return data;
   },
 
-  // NEW: Stop job function
   async stopJob(jobId) {
     const { data, error } = await supabase
       .from('crawl_jobs')
@@ -79,6 +80,25 @@ export const db = {
 
     if (error) throw error;
     return data;
+  },
+
+  async updateHeartbeat(jobId) {
+    const { error } = await supabase
+      .from('crawl_jobs')
+      .update({ heartbeat_at: new Date().toISOString() })
+      .eq('id', jobId);
+    if (error) console.error('Heartbeat update failed:', error.message);
+  },
+
+  async reapStaleJobs() {
+    const { data: pool } = await query(
+      `UPDATE crawl_jobs SET status = 'failed', error_message = 'Job lost: worker restarted',
+         completed_at = NOW()
+       WHERE status = 'running'
+         AND (heartbeat_at IS NULL OR heartbeat_at < NOW() - INTERVAL '5 minutes')
+       RETURNING id`
+    );
+    return pool ?? [];
   },
 
   async updateJobProgress(jobId, current, total) {

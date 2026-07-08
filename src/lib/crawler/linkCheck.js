@@ -44,6 +44,8 @@ export async function checkLinks(
       }
     }
 
+    await db.updateHeartbeat(jobId);
+
     const batch = batches[i];
 
     try {

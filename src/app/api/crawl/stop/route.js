@@ -49,11 +49,11 @@ export async function POST(request) {
       );
     }
 
-    // Only allow stopping running jobs
-    if (job.status !== 'running') {
+    // Allow stopping queued or running jobs
+    if (job.status !== 'running' && job.status !== 'queued') {
       return NextResponse.json(
         {
-          error: 'Job is not running',
+          error: 'Job is not running or queued',
           currentStatus: job.status,
         },
         { status: 400, headers: securityHeaders }

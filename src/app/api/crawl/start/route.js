@@ -7,7 +7,7 @@ import { logBlockedUrl, logInvalidInput, logRobotsBlocked } from '@/lib/security
 import { errorHandler, handleValidationError } from '@/lib/errorHandler';
 import { getClientIp } from '@/lib/clientIp';
 import { corsOrigin } from '@/lib/cors';
-import { runSmartCrawl, runTraditionalCrawlWithErrorHandling } from '@/lib/crawler/index';
+import { enqueueCrawl } from '@/lib/queue/index';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -93,23 +93,23 @@ export async function POST(request) {
     const responseHeaders = { ...securityHeaders, ...(rateLimit.headers || {}) };
 
     if (validatedPreAnalyzedUrls?.length > 0) {
-      runSmartCrawl(jobId, normalizedUrl, validatedPreAnalyzedUrls, jobSettings).catch(() => {});
+      await enqueueCrawl(jobId, 'smart', normalizedUrl, validatedPreAnalyzedUrls, jobSettings);
 
       return NextResponse.json(
         {
           success: true,
           jobId,
-          status: 'started',
+          status: 'queued',
           url: normalizedUrl,
           settings: jobSettings,
           urlsToCheck: validatedPreAnalyzedUrls.length,
           crawlMode: jobSettings.crawlMode,
           message:
             jobSettings.crawlMode === 'content_pages'
-              ? `Content pages crawl started — will visit ${validatedPreAnalyzedUrls.length} pages to extract and check links`
+              ? `Content pages crawl queued — will visit ${validatedPreAnalyzedUrls.length} pages to extract and check links`
               : jobSettings.crawlMode === 'discovered_links'
-              ? `Discovered links crawl started — will check ${validatedPreAnalyzedUrls.length} pre-analyzed links directly`
-              : `Smart crawl started with ${validatedPreAnalyzedUrls.length} pre-analyzed URLs`,
+              ? `Discovered links crawl queued — will check ${validatedPreAnalyzedUrls.length} pre-analyzed links directly`
+              : `Smart crawl queued with ${validatedPreAnalyzedUrls.length} pre-analyzed URLs`,
           statusUrl: `/api/crawl/status/${jobId}`,
           resultsUrl: `/api/results/${jobId}`,
           crawlType: 'smart',
@@ -118,16 +118,16 @@ export async function POST(request) {
       );
     }
 
-    runTraditionalCrawlWithErrorHandling(jobId, normalizedUrl, jobSettings).catch(() => {});
+    await enqueueCrawl(jobId, 'traditional', normalizedUrl, null, jobSettings);
 
     return NextResponse.json(
       {
         success: true,
         jobId,
-        status: 'started',
+        status: 'queued',
         url: normalizedUrl,
         settings: jobSettings,
-        message: 'Traditional crawl started — discovering and checking links',
+        message: 'Traditional crawl queued — discovering and checking links',
         statusUrl: `/api/crawl/status/${jobId}`,
         resultsUrl: `/api/results/${jobId}`,
         crawlType: 'traditional',
