@@ -36,7 +36,7 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | Finding | Where | Doc | Status |
 |---------|-------|-----|--------|
 | Basic Auth **skips every `/api/*` route** — crawl/analyze are unauthenticated | `middleware.ts` matcher | 02 | ✅ Fixed — matcher covers `/api/*`; direct 401; constant-time compare; brute-force backoff; production fail-safe |
-| Rate limiting is in-memory only → resets on deploy, not shared across replicas | `src/lib/validation.js` | 01 C2 | ⬜ Pending |
+| Rate limiting is in-memory only → resets on deploy, not shared across replicas | `src/lib/validation.js` | 01 C2 | ✅ Fixed — `src/lib/redisRateLimit.js`: Lua sliding-window + progressive penalty; `validateAdvancedRateLimit` / `validateStatusRateLimit` now async; brute-force counter stays in-memory (Edge runtime can't use ioredis) |
 | Client IP is read from spoofable `x-forwarded-for` with no trusted-proxy check | all routes + `rateLimit.js` | 01 C1 | ✅ Fixed — `src/lib/clientIp.js` |
 | SSRF checks run only on the *initial* URL; redirects are followed unvalidated | `src/lib/security.js`, `httpChecker.js` | 01 C3 | ✅ Fixed — `safeFetch.js`: redirect:'manual', per-hop DNS+IP validation |
 | SSRF host allowlist misses DNS-rebind, IPv6, and octal/hex/decimal IP encodings | `src/lib/security.js` | 01 C4 | ✅ Fixed — `isPrivateAddress()` covers IPv6 (ULA/link-local/mapped), CGNAT, 0.0.0.0/8; WHATWG bracket stripping; DNS pre-flight |
@@ -55,6 +55,7 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | 2026-07-08 | main (no branch — fix next time) | A1 BullMQ job queue + worker + heartbeat/reaper; docker-compose.yml; Dockerfile.worker |
 | 2026-07-08 | `phase2-doc02-basic-auth` | Doc 02 all items: matcher fix (C1), direct 401 (C2), timing-safe compare (C3), no cred logging + weak-password startup throw (C4), in-memory brute-force backoff (C5), production fail-safe (C6) |
 | 2026-07-08 | `phase2-doc02-basic-auth` | C3/C4/C5: `safeFetch.js` (redirect validation + DNS pre-flight + 5 MB cap); `security.js` `isPrivateAddress()` (IPv6, CGNAT, encodings); axios removed from httpChecker |
+| 2026-07-08 | `phase2-doc02-basic-auth` | C2: `src/lib/redisRateLimit.js` (Lua sliding-window + brute-force scripts); `validateAdvancedRateLimit`/`validateStatusRateLimit` now async Redis-backed; dead placeholder functions removed from `rateLimit.js`; brute-force in middleware stays in-memory (Next.js 15 stable Edge runtime blocks ioredis) |
 
 ## What to pick up next (new chat)
 
@@ -62,7 +63,7 @@ Priority order:
 
 1. ~~**Doc 02 — Basic Auth on `/api/*` routes**~~ ✅ Done (2026-07-08)
 2. ~~**C3/C4/C5 — SSRF hardening**~~ ✅ Done (2026-07-08)
-3. **C2 — Shared rate-limit store** — Redis available via `REDIS_URL`; replace in-memory `validateAdvancedRateLimit` in `src/lib/validation.js` with Redis sliding-window; also migrate the in-memory brute-force Map in `middleware.ts` to Redis. See `docs/handoff/01-abuse-and-ddos-protection.md` §C2.
+3. ~~**C2 — Shared rate-limit store**~~ ✅ Done (2026-07-08) — API route rate limits now Redis-backed; brute-force counter in middleware remains in-memory until `experimental.nodeMiddleware` stabilises in Next.js.
 4. **A3 — Consolidate 3 crawl endpoints** (`/api/crawl/start`, `/api/crawl/large`, `/api/crawl/chunk` → one endpoint). Now fully unblocked by A1+A2. See `docs/handoff/03-architecture-review.md`.
 
-Start with C2 (shared rate-limit store) — completes the P0 security surface.
+Start with A3 — it's the last P1 architectural item and simplifies the codebase significantly.

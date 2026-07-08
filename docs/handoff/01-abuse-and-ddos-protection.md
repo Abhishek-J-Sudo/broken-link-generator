@@ -8,7 +8,7 @@
 | Item | Status | Notes |
 |------|--------|-------|
 | C1 — Trusted client IP | ✅ Done | `src/lib/clientIp.js`; `TRUST_PROXY=true` env required in Coolify |
-| C2 — Shared rate-limit store | ⬜ Pending | Redis available via `REDIS_URL`; A1 blocker is gone — ready to implement |
+| C2 — Shared rate-limit store | ✅ Done | `src/lib/redisRateLimit.js`: atomic Lua sliding-window + progressive penalty; `validateAdvancedRateLimit`/`validateStatusRateLimit` async; dead placeholder functions removed from `rateLimit.js`. Middleware brute-force stays in-memory (Edge runtime limitation) |
 | C3 — SSRF: validate every redirect hop | ✅ Done | `src/lib/safeFetch.js`: `redirect:'manual'`, per-hop URL+DNS validation |
 | C4 — IPv6 / encoding gaps in isSafeUrl | ✅ Done | `isPrivateAddress()` in `security.js`: ULA, link-local, IPv4-mapped, CGNAT, 0.0.0.0/8; WHATWG bracket stripping; DNS pre-flight in safeFetch |
 | C5 — Response size + content-type caps | ✅ Done | safeFetch streams + caps at 5 MB; link-only checks use `readBody:false` |
@@ -17,9 +17,7 @@
 | C8 — Secret defaults + info leaks | ✅ Done | CSRF fails closed in prod; health no longer leaks `error.message`; `timingSafeEqual` on cleanup token; middleware username logs removed |
 | C9 — CORS consistency | ✅ Done | `src/lib/cors.js`; all 8 OPTIONS handlers use `corsOrigin` |
 
-**Next:** C2 — shared rate-limit store. Redis is running (A1 added it). Replace the in-memory
-`EnhancedRateLimitStore` in `src/lib/validation.js` with a Redis sliding-window, and migrate
-the middleware brute-force `Map` in `middleware.ts` to the same store.
+**Next:** A3 — consolidate 3 crawl endpoints. All P0 security items are complete.
 
 ---
 

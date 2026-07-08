@@ -21,7 +21,7 @@ export async function POST(request) {
   try {
     // Rate limiting for analysis (more restrictive)
     const clientIP = getClientIp(request);
-    const rateLimit = validateAdvancedRateLimit(clientIP, 'analyze');
+    const rateLimit = await validateAdvancedRateLimit(clientIP, 'analyze');
 
     if (!rateLimit.allowed) {
       return NextResponse.json(

@@ -1,13 +1,13 @@
 import { NextResponse, NextRequest } from 'next/server';
+import { getClientIp } from '@/lib/clientIp';
 
-const BASIC_AUTH_USER = process.env.BASIC_AUTH_USER ?? '';
+const BASIC_AUTH_USER     = process.env.BASIC_AUTH_USER ?? '';
 const BASIC_AUTH_PASSWORD = process.env.BASIC_AUTH_PASSWORD ?? '';
-const ENABLE_BASIC_AUTH = process.env.ENABLE_BASIC_AUTH === 'true';
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const ENABLE_BASIC_AUTH   = process.env.ENABLE_BASIC_AUTH === 'true';
+const IS_PRODUCTION       = process.env.NODE_ENV === 'production';
 const MIN_PASSWORD_LENGTH = 12;
 
 // Fail loudly at module init if production credentials are dangerously weak.
-// This crashes the middleware worker (returns 500) rather than running with bad config.
 if (IS_PRODUCTION && ENABLE_BASIC_AUTH && BASIC_AUTH_PASSWORD) {
   if (BASIC_AUTH_PASSWORD === 'change-me' || BASIC_AUTH_PASSWORD.length < MIN_PASSWORD_LENGTH) {
     throw new Error(
@@ -23,10 +23,11 @@ const PUBLIC_PATHS = ['/api/health'];
 const TOKEN_AUTH_PATHS = ['/api/admin/cleanup'];
 
 // In-memory brute-force counter per client IP.
-// Single-instance only; replace with Redis when the shared rate-limit store (C2) lands.
+// Single-instance only; upgrading to Redis requires experimental.nodeMiddleware
+// (canary-only in Next.js 15.x) — deferred until that stabilises.
 const failedAttempts = new Map<string, { count: number; resetAt: number }>();
 const MAX_FAILURES = 10;
-const LOCKOUT_MS = 5 * 60 * 1000;
+const LOCKOUT_MS   = 5 * 60 * 1000;
 
 function unauthorized(): NextResponse {
   return new NextResponse('Authentication required', {
@@ -71,7 +72,7 @@ export async function middleware(request: NextRequest) {
   if (PUBLIC_PATHS.includes(pathname)) return NextResponse.next();
   if (TOKEN_AUTH_PATHS.some((p) => pathname.startsWith(p))) return NextResponse.next();
 
-  // C6: Fail-safe — in production, default-deny when auth is not properly configured.
+  // Fail-safe — in production, default-deny when auth is not properly configured.
   if (IS_PRODUCTION && (!ENABLE_BASIC_AUTH || !BASIC_AUTH_USER || !BASIC_AUTH_PASSWORD)) {
     console.error('[auth] Production request denied: ENABLE_BASIC_AUTH or credentials not set');
     return unauthorized();
@@ -82,15 +83,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // C5: Brute-force backoff — check before parsing credentials.
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
+  // Brute-force backoff — check before parsing credentials.
+  const ip  = getClientIp(request);
   const now = Date.now();
   const attempts = failedAttempts.get(ip);
   if (attempts && now < attempts.resetAt && attempts.count >= MAX_FAILURES) {
     return tooManyRequests();
   }
 
-  // C2: Return 401 directly (no rewrite dance).
+  // Return 401 directly (no rewrite dance).
   const authHeader = request.headers.get('authorization');
   if (!authHeader?.startsWith('Basic ')) {
     recordFailure(ip, now);
@@ -99,7 +100,7 @@ export async function middleware(request: NextRequest) {
 
   try {
     // atob is available in both Edge and Node runtimes.
-    const decoded = atob(authHeader.slice(6));
+    const decoded  = atob(authHeader.slice(6));
     const colonIdx = decoded.indexOf(':'); // first colon only — passwords may contain ':'
     if (colonIdx === -1) {
       recordFailure(ip, now);
@@ -108,7 +109,7 @@ export async function middleware(request: NextRequest) {
     const username = decoded.slice(0, colonIdx);
     const password = decoded.slice(colonIdx + 1);
 
-    // C3: Constant-time comparison — prevent timing side-channel.
+    // Constant-time comparison — prevent timing side-channel.
     const [userOk, passOk] = await Promise.all([
       timingSafeEqual(username, BASIC_AUTH_USER),
       timingSafeEqual(password, BASIC_AUTH_PASSWORD),
