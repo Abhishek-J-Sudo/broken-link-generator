@@ -684,6 +684,9 @@ function analyzeUrlPattern(url, baseUrl) {
   }
 }
 
+// TODO: Replace this with DeepSeek V4 Flash API call (OpenAI-compatible, ~$0.0004/call).
+// Send categories + patterns, get real AI analysis instead of these hardcoded thresholds.
+// Needs DEEPSEEK_API_KEY env var and base URL https://api.deepseek.com
 function generateRecommendations(categories, patterns) {
   const recommendations = [];
 
