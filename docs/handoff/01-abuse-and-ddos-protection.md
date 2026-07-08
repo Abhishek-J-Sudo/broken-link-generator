@@ -109,6 +109,23 @@ the dead placeholder functions in `rateLimit.js` rather than porting them.
 **Acceptance:** rate-limit counters survive a container restart; two replicas share one
 budget.
 
+**Implementation (2026-07-08, `phase2-doc02-basic-auth`):**
+- `src/lib/redisRateLimit.js` — new file; two atomic Lua scripts:
+  - `SLIDING_WINDOW_LUA`: sorted-set sliding window with unique per-request sequence
+    counter and progressive-penalty violation hash (up to 5×); fails open if Redis down
+  - `BRUTE_FORCE_LUA`: hash-based counter with self-resetting window
+- `validateAdvancedRateLimit` / `validateStatusRateLimit` in `validation.js` are now
+  `async` and call `checkAndRecord()` — state lives in Redis, survives restarts, shared
+  across replicas
+- Dead placeholder functions removed from `rateLimit.js`; all callers updated to `await`
+
+**Known limitation — middleware brute-force stays in-memory:**
+`experimental.nodeMiddleware` (which allows ioredis/TCP in middleware) is canary-only in
+Next.js 15.x stable. The `failedAttempts` Map in `middleware.ts` therefore remains
+single-instance. Impact is low for this private single-tenant app (10-failure lockout
+resets on restart, not shared across replicas), but worth revisiting once
+`nodeMiddleware` stabilises.
+
 ### C3 — Harden SSRF: validate every hop, not just the first (T3)
 
 This is the highest-severity outbound issue. Today `isSafeUrl()` runs once on the input,
@@ -215,10 +232,10 @@ handlers and let `next.config.js` own it.
 
 ## Definition of done
 
-- [ ] Spoofed `X-Forwarded-For` cannot bypass rate limits (C1).
-- [ ] Rate-limit state survives restart / is shared across replicas (C2).
-- [ ] SSRF test matrix in C4 all blocked, including as redirect targets and via DNS (C3/C4).
-- [ ] Outbound requests capped in size, time, and total count per job (C5/C6).
-- [ ] No hardcoded secret fallback; health/cleanup don't leak details; constant-time token compare (C8).
-- [ ] CORS behavior is consistent between `next.config.js` and route `OPTIONS` (C9).
-- [ ] Edge WAF/rate-limiting documented and enabled in the deploy runbook (C7).
+- [x] Spoofed `X-Forwarded-For` cannot bypass rate limits (C1). — `src/lib/clientIp.js`
+- [x] Rate-limit state survives restart / is shared across replicas (C2). ⚠️ Caveat: auth brute-force counter in `middleware.ts` remains in-memory (Edge runtime limitation; see C2 implementation note above).
+- [x] SSRF test matrix in C4 all blocked, including as redirect targets and via DNS (C3/C4). — `safeFetch.js` + `isPrivateAddress()`
+- [ ] Outbound requests capped in size, time, and total count per job (C5/C6). — C5 done (5 MB cap in safeFetch); C6 pending (needs shared store, depends on C2 ✅)
+- [x] No hardcoded secret fallback; health/cleanup don't leak details; constant-time token compare (C8).
+- [x] CORS behavior is consistent between `next.config.js` and route `OPTIONS` (C9). — `src/lib/cors.js`
+- [ ] Edge WAF/rate-limiting documented and enabled in the deploy runbook (C7). — deployment task, not yet done
