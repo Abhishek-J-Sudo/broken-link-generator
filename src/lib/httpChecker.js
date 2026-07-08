@@ -431,14 +431,17 @@ export class HttpChecker {
     const seoPages = options.seoPages || []; // Specific pages to SEO analyze
     const onProgress = options.onProgress;
 
-    const results = [];
+    // Filled by input index (not completion order) so callers can pair
+    // results[i] with urls[i] even though checks run concurrently.
+    const results = new Array(urls.length);
     const failed = [];
+    let completedCount = 0;
 
     console.log(
       `🔍 HTTP+SEO: Checking ${urls.length} URLs${enableSEO ? ' with SEO analysis' : ''}`
     );
 
-    const checkFunctions = urls.map((urlData) => {
+    const checkFunctions = urls.map((urlData, index) => {
       const url = typeof urlData === 'string' ? urlData : urlData.url;
       const sourceUrl = typeof urlData === 'object' ? urlData.sourceUrl : null;
 
@@ -455,11 +458,12 @@ export class HttpChecker {
             enableSEO: shouldAnalyzeSEO,
           });
 
-          results.push(result);
+          results[index] = result;
+          completedCount++;
 
           if (onProgress) {
             onProgress({
-              completed: results.length + failed.length,
+              completed: completedCount,
               total: urls.length,
               current: result,
               seoAnalyzed: result.seo_data ? 1 : 0,
@@ -486,11 +490,12 @@ export class HttpChecker {
           };
 
           failed.push(failedResult);
-          results.push(failedResult);
+          results[index] = failedResult;
+          completedCount++;
 
           if (onProgress) {
             onProgress({
-              completed: results.length + failed.length,
+              completed: completedCount,
               total: urls.length,
               current: failedResult,
               seoAnalyzed: 0,

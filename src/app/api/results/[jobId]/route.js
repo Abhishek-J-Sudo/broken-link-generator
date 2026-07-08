@@ -10,9 +10,11 @@ import { validateUtils } from '@/lib/utils';
 import { errorHandler, handleValidationError } from '@/lib/errorHandler';
 
 export async function GET(request, { params }) {
+  // Declared outside try so the catch-block error handler can reference them
+  let jobId, statusFilter, statusCode, errorType, search;
   try {
     // FIX 1: Await params for Next.js 15 compatibility
-    const { jobId } = await params;
+    ({ jobId } = await params);
     const { searchParams } = new URL(request.url);
 
     // Validate jobId
@@ -32,10 +34,10 @@ export async function GET(request, { params }) {
     const { page: validPage, limit: validLimit } = validateUtils.validatePagination(page, limit);
 
     // Parse filter parameters
-    const statusFilter = searchParams.get('statusFilter'); // 'working', 'broken', 'all'
-    const statusCode = searchParams.get('statusCode'); // Filter by specific HTTP status code
-    const errorType = searchParams.get('errorType'); // Filter by error type (from broken_links)
-    const search = searchParams.get('search'); // Search in URLs or link text
+    statusFilter = searchParams.get('statusFilter'); // 'working', 'broken', 'all'
+    statusCode = searchParams.get('statusCode'); // Filter by specific HTTP status code
+    errorType = searchParams.get('errorType'); // Filter by error type (from broken_links)
+    search = searchParams.get('search'); // Search in URLs or link text
     const seoScore = searchParams.get('seoScore') || 'all';
 
     // NEW: Add sorting parameters
@@ -80,8 +82,7 @@ export async function GET(request, { params }) {
         is_working,
         error_message,
         created_at
-      )
-    `,
+      `,
         { count: 'exact' }
       )
       .eq('job_id', jobId)
