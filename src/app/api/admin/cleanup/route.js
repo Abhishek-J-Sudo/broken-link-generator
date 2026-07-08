@@ -3,15 +3,19 @@
 
 import { supabase } from '@/lib/supabase';
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 
 export async function POST(request) {
   try {
     // Security: Verify the request is from our trusted GitHub Action
     const authHeader = request.headers.get('authorization');
     const expectedToken = `Bearer ${process.env.CLEANUP_SECRET_TOKEN}`;
+    const providedBuf = Buffer.from(authHeader || '');
+    const expectedBuf = Buffer.from(expectedToken);
+    const valid =
+      providedBuf.length === expectedBuf.length && timingSafeEqual(providedBuf, expectedBuf);
 
-    if (!authHeader || authHeader !== expectedToken) {
-      console.log('❌ Unauthorized cleanup attempt');
+    if (!authHeader || !valid) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
