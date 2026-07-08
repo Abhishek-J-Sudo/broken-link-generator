@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { urlUtils, batchUtils } from '@/lib/utils';
 import { securityUtils } from '@/lib/security';
+import { safeFetch } from '@/lib/safeFetch';
 import { validateAnalysisRequest, validateAdvancedRateLimit } from '@/lib/validation';
 import { errorHandler, handleValidationError, handleSecurityError } from '@/lib/errorHandler';
 import { getClientIp } from '@/lib/clientIp';
@@ -585,10 +586,11 @@ async function tryFindSitemap(baseUrl) {
 
   for (const sitemapUrl of sitemapUrls) {
     try {
-      const response = await fetch(sitemapUrl, {
-        method: 'GET',
+      const response = await safeFetch(sitemapUrl, {
         headers: { 'User-Agent': 'Mozilla/5.0 Broken Link Checker Bot' },
         timeout: 10000,
+        readBody: true,
+        maxBodyBytes: 5 * 1024 * 1024,
       });
 
       if (response.ok) {
@@ -741,18 +743,7 @@ function generateRecommendations(categories, patterns) {
 
 async function fetchPageWithTimeout(url, timeout = 15000) {
   try {
-    //Security validation before fetching
-    const validation = securityUtils.isSafeUrl(url);
-    if (!validation.safe) {
-      console.log(`🚫 BLOCKED fetch in analyzer: ${url} - ${validation.reason}`);
-      return null; // Return null instead of throwing to maintain existing flow
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    const response = await fetch(url, {
-      method: 'GET',
+    const response = await safeFetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -760,10 +751,9 @@ async function fetchPageWithTimeout(url, timeout = 15000) {
         Connection: 'keep-alive',
         'Cache-Control': 'no-cache',
       },
-      signal: controller.signal,
+      timeout,
+      readBody: true,
     });
-
-    clearTimeout(timeoutId);
 
     if (response.ok) {
       const contentType = response.headers.get('content-type') || '';
@@ -771,7 +761,6 @@ async function fetchPageWithTimeout(url, timeout = 15000) {
         return await response.text();
       }
     }
-
     return null;
   } catch (error) {
     console.error(`❌ PRODUCTION: Error fetching ${url}:`, error.message);
