@@ -111,15 +111,6 @@ const nextConfig = {
   compress: true, // Enable compression
   poweredByHeader: false, // Remove X-Powered-By header
 
-  // Webpack optimizations for security
-  webpack: (config, { dev, isServer }) => {
-    // Production optimizations
-    if (!dev) {
-      config.optimization.minimize = true;
-    }
-
-    return config;
-  },
 };
 
 module.exports = nextConfig;
