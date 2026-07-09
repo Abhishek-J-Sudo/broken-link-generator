@@ -17,6 +17,7 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | 06 | [UX, IA & Audit Reporting Redesign](./06-ux-ia-and-reporting.md) | Landing page, user flow, report-first results UX, wireframes | **P2** |
 | 07 | [UI Design System & Visual Theme](./07-ui-design-system.md) | Brand kit, colors, typography, component styles, page theme rules | **P2** |
 | 08 | [Design Tokens & Theming (Light/Dark)](./08-design-tokens-and-theming.md) | Token architecture (single source of truth), semantic light+dark tokens, theme mechanism, IA + component→token map, rebuild sequence | **P2** |
+| 09 | [Audit & SEO Report Specification](./09-audit-report-spec.md) | Professional report deliverable: 3-audience layering, health scoring, impact×effort quick wins, action-grouped remediation plan, PDF/white-label, SEO-growth matrix | **P2** |
 
 ## Context the implementer must know
 

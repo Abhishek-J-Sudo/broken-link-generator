@@ -471,6 +471,10 @@ This is optional but valuable for long-running scans.
 
 ## 9. Audit report page wireframe
 
+> **Expanded in [09 - Audit & SEO Report Specification](./09-audit-report-spec.md)** — this section
+> is the skeleton; doc 09 is the full deliverable spec (audience layering, health scoring,
+> quick wins, action-grouped remediation plan, PDF/white-label, SEO-growth matrix).
+
 ### Report structure
 
 The report page should read from summary to detail.
