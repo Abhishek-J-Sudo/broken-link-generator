@@ -41,7 +41,9 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | SSRF checks run only on the *initial* URL; redirects are followed unvalidated | `src/lib/security.js`, `httpChecker.js` | 01 C3 | ✅ Fixed — `safeFetch.js`: redirect:'manual', per-hop DNS+IP validation |
 | SSRF host allowlist misses DNS-rebind, IPv6, and octal/hex/decimal IP encodings | `src/lib/security.js` | 01 C4 | ✅ Fixed — `isPrivateAddress()` covers IPv6 (ULA/link-local/mapped), CGNAT, 0.0.0.0/8; WHATWG bracket stripping; DNS pre-flight |
 | No response-size cap; full bodies read into memory (`response.data` / `.text()`) | `httpChecker.js`, `analyze/route.js` | 01 C5 | ✅ Fixed — `safeFetch.js` streams and caps at 5 MB; link-only checks use `readBody:false` |
-| `CSRF_SECRET` falls back to a hardcoded default | `src/app/api/csrf-token/route.js` | 01 C8 | ✅ Fixed — fails closed in production |
+| `CSRF_SECRET` guard was a top-level throw — crashed the `next build` Docker step | `src/app/api/csrf-token/route.js` | 01 C8 | ✅ Fixed — guard moved inside handler; `export const dynamic = 'force-dynamic'` added |
+| CSRF protection layer was entirely non-functional — cookie never set, server never validated token, frontend never sent it | `csrf-token/route.js`, all POST routes, all frontend components | 01 C8 | ✅ Fixed — `src/lib/csrf.js` shared instance; token endpoint now sets `_csrfSecret` cookie via holder pattern; `crawl/start`, `crawl/stop`, `analyze` all validate; `CrawlForm`, `LargeCrawlForm`, `UrlAnalyzer`, `results/[jobId]` all send `X-CSRF-Token`; `src/lib/csrf-client.js` caches token client-side |
+| 2 critical + 6 high npm vulnerabilities (incl. Next.js middleware bypass that would let an attacker skip Basic Auth) | `package.json` | 01 | ✅ Fixed — `npm audit fix` + `next@15.5.20`; down to 4 moderate (transitive postcss inside Next.js, not fixable by us) |
 | Health endpoint leaks raw error/DB messages, unauthenticated | `src/app/api/health/route.js` | 01 C8 | ✅ Fixed — error.message no longer returned |
 | Background jobs are fire-and-forget promises → lost on restart, stuck "running" | `crawl/start/route.js` | 03 A1 | ✅ Fixed — BullMQ queue + `worker/index.ts`; reaper + heartbeat |
 | ~1,100-line route file mixes HTTP handling + crawl orchestration; 3 near-dup crawl routes | `crawl/{start,large,chunk}` | 03 A2/A3 | ✅ Fixed — `src/lib/crawler/` service layer extracted; route now 130 lines; `crawl/large` and `crawl/chunk` deleted |
@@ -56,16 +58,31 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | 2026-07-08 | `phase2-doc02-basic-auth` | Doc 02 all items: matcher fix (C1), direct 401 (C2), timing-safe compare (C3), no cred logging + weak-password startup throw (C4), in-memory brute-force backoff (C5), production fail-safe (C6) |
 | 2026-07-08 | `phase2-doc02-basic-auth` | C3/C4/C5: `safeFetch.js` (redirect validation + DNS pre-flight + 5 MB cap); `security.js` `isPrivateAddress()` (IPv6, CGNAT, encodings); axios removed from httpChecker |
 | 2026-07-08 | `phase2-doc02-basic-auth` | C2: `src/lib/redisRateLimit.js` (Lua sliding-window + brute-force scripts); `validateAdvancedRateLimit`/`validateStatusRateLimit` now async Redis-backed; dead placeholder functions removed from `rateLimit.js`; brute-force in middleware stays in-memory (Next.js 15 stable Edge runtime blocks ioredis) |
-| 2026-07-08 | `phase2-a3-consolidate-crawl-routes` | A3: `crawl/large` and `crawl/chunk` deleted — both frontend forms already called `/api/crawl/start`; single security-validated+queued entry point |
+| 2026-07-08 | `phase2-a3-consolidate-crawl-routes` | A3: `crawl/large` and `crawl/chunk` deleted — both frontend forms already called `/api/crawl/start`; single security-validated+queued entry point. Also landed: A4 dead `withRateLimit` HOF deleted; A6 raw `db.supabase.*` calls replaced with proper `db.*` methods |
+| 2026-07-09 | `phase2-docker-csrf-fix` | **Docker Step 2 PASSED.** Built `blc-web` and `blc-worker` images; both ran on compose network; full crawl end-to-end succeeded. Bug fixed: `CSRF_SECRET` top-level throw crashed `next build` — moved guard inside handler, added `force-dynamic` |
+| 2026-07-09 | `phase2-b1-csrf-and-deps` | **CSRF fully wired.** Cookie propagation fixed (holder pattern); `src/lib/csrf.js` shared instance; all 3 POST routes validate token; all 4 frontend components send `X-CSRF-Token`; `src/lib/csrf-client.js` caches token. **Deps patched:** 14 vulns → 4 moderate; `next@15.5.20` fixes critical middleware bypass (GHSA-267c-6grr-h53f) |
 
 ## What to pick up next (new chat)
 
-Priority order:
+All P0 security items, architecture cleanups (A1–A4, A6–A7), and pre-deploy validation
+(Docker Steps 1 & 2) are complete. The app is ready for production deployment.
 
-1. ~~**Doc 02 — Basic Auth on `/api/*` routes**~~ ✅ Done (2026-07-08)
-2. ~~**C3/C4/C5 — SSRF hardening**~~ ✅ Done (2026-07-08)
-3. ~~**C2 — Shared rate-limit store**~~ ✅ Done (2026-07-08) — API route rate limits now Redis-backed; brute-force counter in middleware remains in-memory until `experimental.nodeMiddleware` stabilises in Next.js.
-4. ~~**A3 — Consolidate 3 crawl endpoints**~~ ✅ Done (2026-07-08) — `crawl/large` and `crawl/chunk` deleted; one entry point.
-5. **A4 — One rate-limit path** — `withRateLimit` HOF in `rateLimit.js` is unused dead code; inline `validateAdvancedRateLimit` is the real path. Pick one, delete the other. See `docs/handoff/03-architecture-review.md`.
+**Deployment path (in order):**
 
-Start with A4 — it's a small cleanup that clarifies the security surface.
+1. **Step 3 — VPS + Coolify wiring** — provision a server, point Coolify at this repo,
+   create two services (`Dockerfile` for the web app, `Dockerfile.worker` for the worker).
+   Set all env vars from `.env.local` with production values (real `DATABASE_URL`,
+   `REDIS_URL`, strong `CSRF_SECRET`, correct `ALLOWED_ORIGIN`, `TRUST_PROXY=true`).
+2. **Step 4 — Smoke-test on the live URL** — trigger a crawl, confirm results, check `/api/health`.
+3. **Step 5 — Private access only** — keep `ENABLE_BASIC_AUTH=true`; optionally put behind
+   a VPN or Coolify's built-in IP allowlist before sharing with anyone outside the team.
+
+**Lower-priority backlog (non-blocking):**
+
+| Item | What | Priority |
+|------|------|----------|
+| C6 — Per-domain politeness | Throttle outbound requests per target domain | Low — single-tenant, unlikely to hammer anything |
+| C7 — WAF / edge protection | Cloudflare in front of Coolify | Only needed if the app becomes public-facing |
+| A5 — TypeScript | Incremental `.js` → `.ts` in `src/lib/` | Nice-to-have, no urgency |
+| Doc 04 — Features | Scheduling, alerts, exports, JS rendering | New feature work |
+| Doc 05 — Monetization | Strategy, pricing, competitors | Separate decision entirely |
