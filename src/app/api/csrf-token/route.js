@@ -1,48 +1,29 @@
-// src/app/api/csrf-token/route.js - Endpoint to get CSRF tokens
 import { NextResponse } from 'next/server';
-import { createCsrfProtect } from '@edge-csrf/nextjs';
+import { csrfProtect, CsrfError } from '@/lib/csrf';
 import { corsOrigin } from '@/lib/cors';
 
 export const dynamic = 'force-dynamic';
 
-const csrfSecret = process.env.CSRF_SECRET;
-
-const csrfProtect = createCsrfProtect({
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    sameSite: 'strict',
-    path: '/',
-  },
-  secret: csrfSecret || 'dev-only-not-for-production',
-});
-
 export async function GET(request) {
-  if (!csrfSecret && process.env.NODE_ENV === 'production') {
+  if (!process.env.CSRF_SECRET && process.env.NODE_ENV === 'production') {
     throw new Error('CSRF_SECRET environment variable is required in production');
   }
   try {
-    const response = NextResponse.json({ csrfToken: 'will-be-set-by-middleware' });
+    // Use a holder so csrfProtect can set the _csrfSecret cookie and write the token header.
+    // We then copy the cookie to the final response — without this the Set-Cookie is discarded.
+    const holder = new NextResponse();
+    await csrfProtect(request, holder);
+    const csrfToken = holder.headers.get('X-CSRF-Token');
 
-    // The middleware will set the actual token
-    await csrfProtect(request, response);
-
-    // Get the token from the response headers
-    const csrfToken = response.headers.get('X-CSRF-Token');
-
-    return NextResponse.json({
-      csrfToken,
-      success: true,
-    });
+    const response = NextResponse.json({ csrfToken, success: true });
+    holder.cookies.getAll().forEach((c) => response.cookies.set(c));
+    return response;
   } catch (error) {
+    if (error instanceof CsrfError) {
+      return NextResponse.json({ error: 'CSRF validation failed', success: false }, { status: 403 });
+    }
     console.error('Error generating CSRF token:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to generate CSRF token',
-        success: false,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to generate CSRF token', success: false }, { status: 500 });
   }
 }
 

@@ -9,6 +9,7 @@ import { validateAdvancedRateLimit } from '@/lib/validation';
 import { errorHandler } from '@/lib/errorHandler';
 import { getClientIp } from '@/lib/clientIp';
 import { corsOrigin } from '@/lib/cors';
+import { csrfProtect, CsrfError } from '@/lib/csrf';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -17,6 +18,15 @@ const securityHeaders = {
 };
 
 export async function POST(request) {
+  try {
+    await csrfProtect(request, new NextResponse());
+  } catch (e) {
+    if (e instanceof CsrfError) {
+      return NextResponse.json({ error: 'Invalid CSRF token' }, { status: 403, headers: securityHeaders });
+    }
+    throw e;
+  }
+
   try {
     const clientIP = getClientIp(request);
     const rateLimit = await validateAdvancedRateLimit(clientIP, 'crawl');

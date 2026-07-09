@@ -3,6 +3,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getCsrfToken } from '@/lib/csrf-client';
 
 export default function UrlAnalyzer({
   onAnalysisComplete,
@@ -148,7 +149,7 @@ export default function UrlAnalyzer({
 
       const response = await fetch('/api/crawl/stop', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': await getCsrfToken() },
         body: JSON.stringify({ jobId: currentJobId }),
       });
 
@@ -199,7 +200,7 @@ export default function UrlAnalyzer({
 
       const response = await fetch('/api/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': await getCsrfToken() },
         body: JSON.stringify({
           url,
           maxDepth: 3,
@@ -333,7 +334,7 @@ export default function UrlAnalyzer({
       // 🔥 UPDATED: Start crawl with enhanced settings and mode
       const response = await fetch('/api/crawl/start', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': await getCsrfToken() },
         body: JSON.stringify({
           url,
           settings: {

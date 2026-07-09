@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getCsrfToken } from '@/lib/csrf-client';
 
 export default function CrawlForm({ onJobStarted }) {
   const [formData, setFormData] = useState({
@@ -27,6 +28,7 @@ export default function CrawlForm({ onJobStarted }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRF-Token': await getCsrfToken(),
         },
         body: JSON.stringify({
           url: formData.url,
