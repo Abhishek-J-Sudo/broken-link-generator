@@ -376,18 +376,23 @@ one shared `Button` reading one set of tokens (doc 07 §14).
 ## 11. Rebuild sequence
 
 1. **Land the token layer** — write `globals.css` (Tiers 1–2 + bridge), no-flash script, `ThemeToggle`,
-   Inter font. Nothing visual changes yet, but tokens exist and dark mode toggles.
-2. **Tokenize the styleguide** (`/ui-drafts`) first — it's isolated and is the component reference.
-   Prove every component in both themes here before touching real pages.
-3. **Migrate shared components** — Button, input, card, badge, tabs, table → tokens. Delete
-   hardcoded hex as you go.
-4. **Landing page** (`/`) → tokens + new IA (doc 06 §6).
-5. **Audit setup** (`/analyze`) and **report** (`/results/[jobId]`) → tokens + report-first layout.
-6. **Docs/changelog** → tokens (mostly text/surface).
-7. **Add the lint guard** (§8) so no new literals creep back in.
+   Inter font. Nothing visual changes yet, but tokens exist and dark mode toggles. **(done)**
+2. **Restructure surface-by-surface, tokenizing in the same pass** — driven by
+   [doc 06](./06-ux-ia-and-reporting.md)'s IA and phases. For any surface that is *being redesigned*
+   (header, footer, and every page), do **not** tokenize the old structure first — rebuild the markup to
+   the new IA and consume token utilities as you write it. Order: **header/nav → landing (`/`) → audit
+   setup (`/analyze`) → audit report (`/results/[jobId]`, the headline deliverable) → footer/docs/
+   changelog.** Delete every hardcoded hex / Tailwind color as each surface is rebuilt.
+3. **Add the lint guard** (§8) once the surfaces are migrated, so no new literals creep back in.
 
-Each step is independently shippable and reversible. Follow the branch convention
-(`phase2-<id>-<slug>`).
+`/ui-drafts` is already tokenized and stays as a **living token/component reference** — a throwaway mock,
+not a deliverable; don't invest design effort in it. Each surface is independently shippable and
+reversible. Follow the branch convention (`phase2-<id>-<slug>`).
+
+> **Why not "tokenize components first, redesign pages later"?** Because the shared components and pages
+> are themselves being restructured — tokenizing the old structure is throwaway work you redo in the
+> redesign. Tokens are free when you write the new markup, so keep restructure + tokenization together.
+> (An attempt at the tokenize-first order produced a "recolored old header" that had to be thrown away.)
 
 ---
 

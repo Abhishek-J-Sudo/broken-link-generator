@@ -67,32 +67,70 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | 2026-07-09 | `phase2-b1-csrf-and-deps` | **CSRF fully wired.** Cookie propagation fixed (holder pattern); `src/lib/csrf.js` shared instance; all 3 POST routes validate token; all 4 frontend components send `X-CSRF-Token`; `src/lib/csrf-client.js` caches token. **Deps patched:** 14 vulns → 4 moderate; `next@15.5.20` fixes critical middleware bypass (GHSA-267c-6grr-h53f) |
 | 2026-07-09 | `phase2-design-tokens-theming` | **Design/UI restructure kicked off (docs only).** Added handoff docs 06 (UX/IA), 07 (UI design system), 08 (design tokens & theming: single-source-of-truth token architecture, light/dark, IA→route + component→token maps, rebuild sequence). Committed `/ui-drafts` styleguide (brand kit + component drafts). **No app pages migrated yet; `globals.css` still pristine.** Report layout/depth is the open design question (doc 06 §9). |
 | 2026-07-09 | `phase2-design-tokens-theming` | **Doc 08 §11 step 1 landed — token layer live.** `globals.css` rewritten: Tier 1 primitives + Tier 2 semantic light/dark tokens + full non-color scales (radius/space/type/motion/z) + `@theme inline` bridge (utilities `bg-surface`, `text-text`, `bg-action`, `text-danger`, `rounded-md`, `shadow-md`, etc. auto-swap on `data-theme`). `layout.tsx`: Geist→Inter (`--font-inter`), pre-hydration no-flash boot script in `<head>`, `suppressHydrationWarning`. New `components/ThemeToggle.js` (Sun/Moon, flips `data-theme`, persists to `localStorage`) mounted in `Header.js` (desktop + mobile; header colors NOT yet tokenized — that's step 3). Verified via `next build` — all 15 routes compile. **No app pages migrated yet.** |
+| 2026-07-09 | `phase2-design-tokens-theming` | **Token layer + `/ui-drafts` committed; Header/Footer recolored, then course-corrected.** Committed the token foundation and the tokenized `/ui-drafts` mock. Recolored `Header`/`Footer` to tokens + green brand + removed gradient icon/text — then realized recoloring the *old* header/footer in place is throwaway: they need a **doc-06 restructure, not a repaint**. Rewrote the plan below to go **surface-by-surface (restructure + tokenize in one pass)** and dropped the "tokenize mock / recolor shared components first" detour. Design rules captured: **no gradients on icons/text** (solid brand); **brand is green** (`--color-action-primary`; old blue/indigo retired). The uncommitted Header/Footer recolor can be kept as a starting point or discarded when those surfaces are rebuilt. |
 
 ## What to pick up next (new chat)
 
 All P0 security items, architecture cleanups (A1–A4, A6–A7), and pre-deploy validation
 (Docker Steps 1 & 2) are complete. There are now **two independent tracks** — pick one:
 
-### Track A — UI restructure (design tokens + theming + IA) — *current focus*
+### Track A — UI restructure (doc 06 IA + doc 07/08 visual system) — *current focus*
 
-Branch: `phase2-design-tokens-theming`. **Step 1 (token layer) is done** — `globals.css`
-tokens + `@theme inline` bridge, Inter, no-flash boot script, and `ThemeToggle` are all live and
-build-verified (see progress log). Next up is
-[doc 08](./08-design-tokens-and-theming.md) **§11 step 2**: tokenize the `/ui-drafts` styleguide
-first (it's isolated) — prove every component in **both** themes there before touching real pages,
-then step 3 migrates shared components (Button, input, card, badge, tabs, table) to tokens and
-deletes hardcoded hex. **Still don't touch landing/analyze/report pages until step 3 lands.** IA
-comes from [doc 06](./06-ux-ia-and-reporting.md); brand/visual from [doc 07](./07-ui-design-system.md).
-Open design decision before the report pages: **how deep/professional the audit + SEO report is**
-(doc 06 §9 is the skeleton; likely to be expanded into a dedicated report spec). Decide whether to
-*tokenize existing UI first, then redesign IA* (two passes, cleaner) or *do both per page* (coupled).
+Branch: `phase2-design-tokens-theming`.
+
+**Foundation (done).** The token layer is live and build-verified: `globals.css` (Tier-1 primitives +
+Tier-2 semantic light/dark tokens + `@theme inline` bridge), Inter, no-flash boot script, `ThemeToggle`.
+New markup can consume `bg-surface`, `text-text`, `bg-action`, `text-danger`, `rounded-md`, `shadow-md`,
+etc. and they auto-swap on `data-theme`. `/ui-drafts` is tokenized and serves as a **living token/component
+reference only — it is a throwaway mock; do not invest design effort in it.**
+
+**Read this first — the correction.** The earlier plan sequenced *"tokenize the mock → recolor shared
+components → then redesign the pages."* That was wrong. For any surface that is **being restructured**
+(header, footer, every page), tokenizing the **old** structure first is throwaway work — you rebuild it
+in the restructure anyway. Following it literally produced "recolored the old header," which is **not the
+job**. **Do NOT do a separate recolor pass on components you're about to rebuild.**
+
+**The approach.** Go **surface by surface**, and in each surface do the restructure **and** the
+tokenization in the **same pass**: rebuild the layout/markup to the new IA and consume token utilities
+as you write it (never raw hex, never hardcoded Tailwind colors like `bg-white`/`text-slate-600`). IA is
+the source of truth ([doc 06](./06-ux-ia-and-reporting.md)); brand/visual from
+[doc 07](./07-ui-design-system.md); token names + light/dark from
+[doc 08](./08-design-tokens-and-theming.md); report depth from [doc 09](./09-audit-report-spec.md).
+
+**Sequence** (doc 06 §14 phases / §16 tasks — each surface is independently shippable):
+
+1. **Header + global nav** → new IA: `Product · How It Works · Documentation · **Start Audit**` (primary
+   CTA, right-aligned) + `ThemeToggle`. Rename flows app-wide: **Full Audit** (was Smart Analyzer),
+   **Quick Check** (was Basic Checker), **Audit Report** (was Results). (doc 06 §4, §6.1)
+2. **Landing `/`** → doc 06 §6 wireframe: hero (outcome headline + `Start Audit`/`Quick Check`) →
+   output/report preview → how-it-works (Scan → Prioritize → Share) → choose-mode → who-it's-for → FAQ →
+   closing CTA. Rebuilds `page.js`, `HomeHeroSection`, `HomeSidebar`, `HomeFeaturesSection`.
+3. **Audit setup `/analyze`** → doc 06 §7: main column (URL, audit type, advanced, submit) + supporting
+   column (est. size/runtime, what you'll get). `UrlAnalyzer`, `LargeCrawlForm`, `CrawlForm`.
+4. **Audit report `/results/[jobId]`** → **the headline deliverable** — report-first per doc 06 §9 +
+   [doc 09](./09-audit-report-spec.md): header → executive summary → key takeaways → findings by priority
+   → affected pages → issue breakdown → detailed table (evidence appendix) → methodology. Reposition
+   `ResultsTable` as the appendix.
+5. **Footer, `/documentation`, `/changelog`** → lighter restructure + tokenize (mostly text/surface).
+
+**Non-negotiable design rules** (captured this session):
+- **No gradients on icons or text** — solid brand only (logo mark = solid `bg-action`; wordmark = solid
+  text). Gradient icon fills / `bg-clip-text` read as amateur.
+- **Brand is green** — everything routes through `--color-action-primary`; the old blue/indigo brand is
+  retired. A rebrand is a one-token edit.
+- **Color for meaning, not decoration** (doc 06 §12): summary before controls, findings before tables.
+
+**Open decision before step 4:** how deep/professional the audit + SEO report is —
+[doc 09](./09-audit-report-spec.md) is the full spec; confirm scope before building the report page.
 
 > **Local dev note:** Postgres + Redis run via `docker-compose.yml` (`seoscrub-postgres` on
 > host port **5433**, `seoscrub-redis` on **6380**). The compose password is `postgres`; `.env.local`
 > `DATABASE_URL` must match it (`postgres://postgres:postgres@localhost:5433/seoscrub`) — a stale
 > password there makes `db.ping()` fail and `/api/health` return `{"connected":false}` even though the
-> DB is up. `next build` EPERMs on `.next/trace` while `next dev` holds the `.next` lock — stop the dev
-> server before a production build.
+> DB is up. The **app itself runs on the host** via `npm run dev` on **:3000** (Docker only runs Postgres +
+> Redis), behind Basic Auth (`admin` / see `.env.local`). **Never run `next build` while `next dev` is up** —
+> they share `.next`, so the build corrupts the live dev server and 500s **every** route (and EPERMs on
+> `.next/trace`). Dev hot-reloads, so UI changes need no build — just refresh `localhost:3000`.
 
 ### Track B — Deployment
 
