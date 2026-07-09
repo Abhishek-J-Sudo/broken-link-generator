@@ -3,10 +3,9 @@ import { NextResponse } from 'next/server';
 import { createCsrfProtect } from '@edge-csrf/nextjs';
 import { corsOrigin } from '@/lib/cors';
 
+export const dynamic = 'force-dynamic';
+
 const csrfSecret = process.env.CSRF_SECRET;
-if (!csrfSecret && process.env.NODE_ENV === 'production') {
-  throw new Error('CSRF_SECRET environment variable is required in production');
-}
 
 const csrfProtect = createCsrfProtect({
   cookie: {
@@ -19,6 +18,9 @@ const csrfProtect = createCsrfProtect({
 });
 
 export async function GET(request) {
+  if (!csrfSecret && process.env.NODE_ENV === 'production') {
+    throw new Error('CSRF_SECRET environment variable is required in production');
+  }
   try {
     const response = NextResponse.json({ csrfToken: 'will-be-set-by-middleware' });
 
