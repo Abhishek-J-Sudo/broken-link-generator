@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SecurityNotice from '@/app/components/SecurityNotice';
 import Link from 'next/link';
+import { getCsrfToken } from '@/lib/csrf-client';
 
 export default function LargeCrawlForm({ onJobStarted }) {
   const [formData, setFormData] = useState({
@@ -102,6 +103,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRF-Token': await getCsrfToken(),
         },
         body: JSON.stringify(requestBody),
       });
@@ -150,7 +152,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
 
       const response = await fetch('/api/crawl/stop', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': await getCsrfToken() },
         body: JSON.stringify({ jobId: currentJobId }),
       });
 

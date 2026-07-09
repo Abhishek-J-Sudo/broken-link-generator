@@ -8,6 +8,7 @@ import { errorHandler, handleValidationError } from '@/lib/errorHandler';
 import { getClientIp } from '@/lib/clientIp';
 import { corsOrigin } from '@/lib/cors';
 import { enqueueCrawl } from '@/lib/queue/index';
+import { csrfProtect, CsrfError } from '@/lib/csrf';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -16,6 +17,15 @@ const securityHeaders = {
 };
 
 export async function POST(request) {
+  try {
+    await csrfProtect(request, new NextResponse());
+  } catch (e) {
+    if (e instanceof CsrfError) {
+      return NextResponse.json({ error: 'Invalid CSRF token' }, { status: 403, headers: securityHeaders });
+    }
+    throw e;
+  }
+
   let jobId = null;
   let body;
 

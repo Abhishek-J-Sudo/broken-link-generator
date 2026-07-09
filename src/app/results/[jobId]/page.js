@@ -7,6 +7,7 @@ import ResultsTable from '@/app/components/ResultsTable';
 import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
 import SecurityNotice from '@/app/components/SecurityNotice';
+import { getCsrfToken } from '@/lib/csrf-client';
 
 export default function ResultsPage() {
   const params = useParams();
@@ -711,7 +712,7 @@ export default function ResultsPage() {
     try {
       const response = await fetch('/api/crawl/stop', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': await getCsrfToken() },
         body: JSON.stringify({ jobId: jobId }),
       });
 

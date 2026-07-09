@@ -10,6 +10,7 @@ import { safeFetch } from '@/lib/safeFetch';
 import { validateAnalysisRequest, validateAdvancedRateLimit } from '@/lib/validation';
 import { errorHandler, handleValidationError, handleSecurityError } from '@/lib/errorHandler';
 import { getClientIp } from '@/lib/clientIp';
+import { csrfProtect, CsrfError } from '@/lib/csrf';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -18,6 +19,15 @@ const securityHeaders = {
 };
 
 export async function POST(request) {
+  try {
+    await csrfProtect(request, new NextResponse());
+  } catch (e) {
+    if (e instanceof CsrfError) {
+      return NextResponse.json({ error: 'Invalid CSRF token' }, { status: 403, headers: securityHeaders });
+    }
+    throw e;
+  }
+
   try {
     // Rate limiting for analysis (more restrictive)
     const clientIP = getClientIp(request);
