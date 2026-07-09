@@ -64,11 +64,27 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | 2026-07-08 | `phase2-a3-consolidate-crawl-routes` | A3: `crawl/large` and `crawl/chunk` deleted — both frontend forms already called `/api/crawl/start`; single security-validated+queued entry point. Also landed: A4 dead `withRateLimit` HOF deleted; A6 raw `db.supabase.*` calls replaced with proper `db.*` methods |
 | 2026-07-09 | `phase2-docker-csrf-fix` | **Docker Step 2 PASSED.** Built `blc-web` and `blc-worker` images; both ran on compose network; full crawl end-to-end succeeded. Bug fixed: `CSRF_SECRET` top-level throw crashed `next build` — moved guard inside handler, added `force-dynamic` |
 | 2026-07-09 | `phase2-b1-csrf-and-deps` | **CSRF fully wired.** Cookie propagation fixed (holder pattern); `src/lib/csrf.js` shared instance; all 3 POST routes validate token; all 4 frontend components send `X-CSRF-Token`; `src/lib/csrf-client.js` caches token. **Deps patched:** 14 vulns → 4 moderate; `next@15.5.20` fixes critical middleware bypass (GHSA-267c-6grr-h53f) |
+| 2026-07-09 | `phase2-design-tokens-theming` | **Design/UI restructure kicked off (docs only).** Added handoff docs 06 (UX/IA), 07 (UI design system), 08 (design tokens & theming: single-source-of-truth token architecture, light/dark, IA→route + component→token maps, rebuild sequence). Committed `/ui-drafts` styleguide (brand kit + component drafts). **No app pages migrated yet; `globals.css` still pristine.** Report layout/depth is the open design question (doc 06 §9). |
 
 ## What to pick up next (new chat)
 
 All P0 security items, architecture cleanups (A1–A4, A6–A7), and pre-deploy validation
-(Docker Steps 1 & 2) are complete. The app is ready for production deployment.
+(Docker Steps 1 & 2) are complete. There are now **two independent tracks** — pick one:
+
+### Track A — UI restructure (design tokens + theming + IA) — *current focus*
+
+Branch: `phase2-design-tokens-theming`. Start at
+[doc 08](./08-design-tokens-and-theming.md) **§11 step 1**: write the full `globals.css` token
+layer (primitives + semantic light/dark tokens + `@theme inline` bridge), the no-flash boot script
++ `ThemeToggle`, and Inter. **Don't touch app pages until tokens land.** IA comes from
+[doc 06](./06-ux-ia-and-reporting.md); brand/visual from [doc 07](./07-ui-design-system.md).
+Open design decision before the report pages: **how deep/professional the audit + SEO report is**
+(doc 06 §9 is the skeleton; likely to be expanded into a dedicated report spec). Decide whether to
+*tokenize existing UI first, then redesign IA* (two passes, cleaner) or *do both per page* (coupled).
+
+### Track B — Deployment
+
+The app is ready for production deployment.
 
 **Deployment path (in order):**
 
