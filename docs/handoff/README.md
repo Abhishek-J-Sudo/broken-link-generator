@@ -129,6 +129,25 @@ the source of truth ([doc 06](./06-ux-ia-and-reporting.md)); brand/visual from
   retired. A rebrand is a one-token edit.
 - **Color for meaning, not decoration** (doc 06 §12): summary before controls, findings before tables.
 
+**Landing v1 feedback — user observations (2026-07-09), address in the next UI pass:**
+
+1. **Section background rhythm.** Every landing section currently sits on the same background;
+   the page reads flat and the **Quick Check section has no visual weight** despite being a key
+   part of the page. Introduce a deliberate surface rhythm (e.g. alternate `bg-bg` / `bg-surface`
+   or `bg-surface-subtle` bands) and give Quick Check a distinct treatment — e.g. a full-width
+   emphasized band (subtle tinted or dark-navy panel) so it lands as the "do it now" moment.
+2. **Human/designed texture, not AI-flat.** Add design elements/patterns so the site feels
+   hand-designed. Stay inside the Typeset Audit language: ruled/ledger lines, dotted leaders
+   (form-label……value), section serial numbers, stamp/seal motifs, subtle paper-grain or
+   dot-grid backgrounds at very low contrast. **No** decorative gradients, blobs, or glows.
+3. **Footer copy = professional SaaS voice.** Remove the personal name and the
+   "Built with Next.js · Made with Claude AI" credits. Meta row should read like a product:
+   e.g. `© 2026 SeoScrub · v0.9.x` plus product/legal links. (Applies anywhere else personal
+   credits appear.)
+4. **`LegalTerms` + `SecurityNotice` restyle** is confirmed in-scope — the amber banners are
+   the last old-style elements on the landing; tokenize them into the new language (quiet
+   hairline notes, not yellow alert boxes).
+
 **Open decision before step 4:** how deep/professional the audit + SEO report is —
 [doc 09](./09-audit-report-spec.md) is the full spec; confirm scope before building the report page.
 
