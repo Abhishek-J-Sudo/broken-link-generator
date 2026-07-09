@@ -85,6 +85,8 @@ An audit and prioritized implementation plan live in [`docs/handoff/`](docs/hand
 2. [Access Control / Basic Auth](docs/handoff/02-basic-auth.md)
 3. [Architecture Review](docs/handoff/03-architecture-review.md)
 4. [Features & Improvements](docs/handoff/04-features-and-improvements.md)
+5. [UX, IA & Audit Reporting Redesign](docs/handoff/06-ux-ia-and-reporting.md)
+6. [UI Design System & Visual Theme](docs/handoff/07-ui-design-system.md)
 
 If you deploy this publicly, read docs 01 and 02 first — they cover making the API
 surface private and hardening the crawler against SSRF and abuse.

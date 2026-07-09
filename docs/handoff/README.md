@@ -14,6 +14,9 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | 03 | [Architecture Review](./03-architecture-review.md) | Job queue, service layer, dedup of crawl routes | **P1** |
 | 04 | [Features & Improvements](./04-features-and-improvements.md) | Roadmap: scheduling, alerts, exports, JS rendering, tests, SEO depth | **P2** |
 | 05 | [Monetization & Competitive Landscape](./05-monetization.md) | Strategy: freemium model, pricing, competitors (no code) | **P3** |
+| 06 | [UX, IA & Audit Reporting Redesign](./06-ux-ia-and-reporting.md) | Landing page, user flow, report-first results UX, wireframes | **P2** |
+| 07 | [UI Design System & Visual Theme](./07-ui-design-system.md) | Brand kit, colors, typography, component styles, page theme rules | **P2** |
+| 08 | [Design Tokens & Theming (Light/Dark)](./08-design-tokens-and-theming.md) | Token architecture (single source of truth), semantic light+dark tokens, theme mechanism, IA + component→token map, rebuild sequence | **P2** |
 
 ## Context the implementer must know
 
