@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Broken Link Checker - aiGen',
-  description: '',
+  title: 'SeoScrub — SEO & Link Health Monitor',
+  description: 'Crawl your site for broken links, redirect chains, and SEO issues.',
 };
 
 export default function RootLayout({

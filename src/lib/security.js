@@ -134,7 +134,7 @@ export const securityUtils = {
    */
   getCrawlHeaders(userContact = 'support@yourapp.com') {
     return {
-      'User-Agent': `Broken Link Checker Bot/1.0 (+https://yourapp.com/bot-info; ${userContact})`,
+      'User-Agent': `SeoScrub Bot/1.0 (+https://seoscrub.in/bot; ${userContact})`,
       Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.5',
       'Accept-Encoding': 'gzip, deflate',

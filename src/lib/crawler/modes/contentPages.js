@@ -28,7 +28,7 @@ export async function processContentPagesMode(jobId, baseUrl, contentPages, sett
           const response = await safeFetch(pageUrl, {
             timeout: settings.timeout || 10000,
             headers: {
-              'User-Agent': 'Broken Link Checker Bot/1.0',
+              'User-Agent': 'SeoScrub Bot/1.0',
               Accept: 'text/html,application/xhtml+xml',
             },
             readBody: true,

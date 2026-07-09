@@ -1,7 +1,7 @@
 {
-  "name": "broken-link-checker",
+  "name": "seoscrub",
   "version": "0.9.0",
-  "description": "A comprehensive broken link checker built with Next.js and Supabase",
+  "description": "SEO health monitoring and broken link detection — seoscrub.in",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",

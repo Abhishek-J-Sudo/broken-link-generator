@@ -57,7 +57,7 @@ const Documentation = () => {
         return (
           <div className="space-y-8">
             <div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Broken Link Checker</h2>
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">SeoScrub</h2>
               <p className="text-lg text-gray-600 mb-6">
                 A comprehensive, AI-powered broken link detection and SEO analysis platform built
                 with Next.js 15, Supabase, and modern web technologies.
@@ -1006,7 +1006,7 @@ const Documentation = () => {
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-gray-900 mb-4">Documentation</h1>
         <p className="text-xl text-gray-600">
-          Complete guide to using the Broken Link Checker platform
+          Complete guide to using the SeoScrub platform
         </p>
       </div>
 

@@ -1,4 +1,4 @@
-# Broken Link Checker — Hardening & Improvement Handoff
+# SeoScrub — Hardening & Improvement Handoff
 
 These docs are implementation specs written to be handed to another engineer (or an
 LLM like Opus/Sonnet) to execute. Each doc is self-contained: it states the current

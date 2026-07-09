@@ -25,14 +25,14 @@ import { Pool } from 'pg';
 // `next build` (which evaluates route modules) doesn't require a live
 // DATABASE_URL. Reused across HMR reloads in dev and across the process in prod.
 function getPool() {
-  if (globalThis.__blcPgPool) return globalThis.__blcPgPool;
+  if (globalThis.__seoscrubPgPool) return globalThis.__seoscrubPgPool;
 
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error('Missing environment variable: DATABASE_URL');
   }
 
-  globalThis.__blcPgPool = new Pool({
+  globalThis.__seoscrubPgPool = new Pool({
     connectionString,
     // Enable TLS only when explicitly requested (Coolify-internal Postgres
     // typically runs without it). Set DATABASE_SSL=true for external/managed DBs.
@@ -41,7 +41,7 @@ function getPool() {
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
   });
-  return globalThis.__blcPgPool;
+  return globalThis.__seoscrubPgPool;
 }
 
 export function query(text, params) {

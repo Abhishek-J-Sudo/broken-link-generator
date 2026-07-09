@@ -198,7 +198,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
               </svg>
             </div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              Broken Link Checker
+              SeoScrub
             </h1>
           </div>
           <p className="text-lg text-slate-600 max-w-2xl mx-auto">

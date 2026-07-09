@@ -1,5 +1,5 @@
 -- =============================================================================
---  Plain-Postgres schema for the Broken Link Checker (Coolify / self-hosted).
+--  Plain-Postgres schema for SeoScrub (Coolify / self-hosted).
 --  Consolidates database/schema.sql + migrations 001-004 into one idempotent
 --  script that runs on a vanilla PostgreSQL 13+ instance (no Supabase).
 --

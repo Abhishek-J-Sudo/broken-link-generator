@@ -1,8 +1,8 @@
-# Broken Link Checker
+# SeoScrub
 
 A web app that crawls a website, checks its links for breakage, and reports the results —
 with optional on-page SEO analysis. Built with Next.js (App Router) and deployed as a
-self-contained Docker image on Coolify.
+self-contained Docker image on Coolify. Live at [seoscrub.in](https://seoscrub.in).
 
 ## Features
 

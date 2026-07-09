@@ -447,7 +447,7 @@ const Changelog = () => {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Changelog</h1>
         <p className="text-gray-600">
-          Track the evolution of Broken Link Checker - From MVP to AI-Powered Platform
+          Track the evolution of SeoScrub — From MVP to AI-Powered Platform
         </p>
       </div>
 

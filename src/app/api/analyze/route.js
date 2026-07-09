@@ -597,7 +597,7 @@ async function tryFindSitemap(baseUrl) {
   for (const sitemapUrl of sitemapUrls) {
     try {
       const response = await safeFetch(sitemapUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 Broken Link Checker Bot' },
+        headers: { 'User-Agent': 'Mozilla/5.0 SeoScrub Bot/1.0' },
         timeout: 10000,
         readBody: true,
         maxBodyBytes: 5 * 1024 * 1024,
