@@ -1,5 +1,8 @@
+'use client';
+
 import React, { useState } from 'react';
 import Link from 'next/link';
+import ThemeToggle from './ThemeToggle';
 
 export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -62,6 +65,7 @@ export default function Header() {
               </svg>
               GitHub
             </Link>
+            <ThemeToggle />
           </nav>
 
           {/* Mobile menu button */}
@@ -127,6 +131,9 @@ export default function Header() {
                 </svg>
                 GitHub
               </Link>
+              <div className="pt-2">
+                <ThemeToggle />
+              </div>
             </div>
           </div>
         )}

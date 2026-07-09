@@ -1,29 +1,303 @@
 @import 'tailwindcss';
 
+/* ============================================================================
+   SeoScrub design tokens — single source of truth (see docs/handoff/08).
+   Tier 1  primitives   — raw palette, theme-agnostic (never used by components)
+   Tier 2  semantic      — role-based, theme-aware (this is what components read)
+   @theme  bridge        — surfaces the semantic tokens as Tailwind utilities
+   Rule: components reference Tier 2 utilities/vars only. No raw hex in JSX.
+   ========================================================================== */
+
+/* ----------------------------------------------------------------------------
+   Tier 1 — primitives (theme-agnostic)
+   -------------------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand green */
+  --green-50: #f0fdf4;
+  --green-100: #dcfce7;
+  --green-500: #22c55e; /* success-soft / dark-mode action */
+  --green-600: #16a34a; /* PRIMARY BRAND — CTAs, active states */
+  --green-700: #15803d;
+  --emerald-600: #059669; /* hover/pressed green */
+  --emerald-700: #047857;
+
+  /* Navy / slate neutrals */
+  --white: #ffffff;
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e5e7eb;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+  --navy-950: #0b1220;
+
+  /* Status */
+  --red-400: #f87171;
+  --red-500: #ef4444;
+  --amber-400: #fbbf24;
+  --amber-500: #f59e0b;
+  --blue-400: #60a5fa;
+  --blue-600: #2563eb;
+
+  /* --------------------------------------------------------------------------
+     Non-color scales — theme-independent (radius, spacing, type, motion, z)
+     ------------------------------------------------------------------------ */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 40px;
+  --space-8: 48px;
+  --space-9: 64px;
+
+  --font-sans: var(--font-inter), system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 36px;
+  --text-5xl: 48px;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.55;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-black: 800;
+
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 400ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --z-header: 50;
+  --z-dropdown: 100;
+  --z-modal: 1000;
+  --z-toast: 1100;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ----------------------------------------------------------------------------
+   Tier 2 — semantic tokens, LIGHT (default). Only this tier changes per theme.
+   -------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  /* Surfaces & structure */
+  --color-bg: var(--slate-50);
+  --color-surface: var(--white);
+  --color-surface-raised: var(--white);
+  --color-surface-subtle: var(--slate-100);
+  --color-border: var(--slate-200);
+  --color-border-strong: var(--slate-300);
+
+  /* Text */
+  --color-text: var(--slate-900);
+  --color-text-muted: var(--slate-500);
+  --color-text-subtle: var(--slate-400);
+  --color-text-inverse: var(--white);
+  --color-text-on-action: var(--white);
+
+  /* Brand / actions */
+  --color-action-primary: var(--green-600);
+  --color-action-primary-hover: var(--emerald-600);
+  --color-action-primary-active: var(--emerald-700);
+  --color-action-primary-subtle: var(--green-50);
+  --color-accent: var(--green-600);
+
+  /* Status (feedback) */
+  --color-success: var(--green-600);
+  --color-success-subtle: var(--green-50);
+  --color-warning: var(--amber-500);
+  --color-warning-subtle: #fef3c7;
+  --color-danger: var(--red-500);
+  --color-danger-subtle: #fee2e2;
+  --color-info: var(--blue-600);
+  --color-info-subtle: #dbeafe;
+  --color-focus: var(--green-600);
+
+  /* Elevation — theme-aware (light) */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 6px 16px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 14px 30px rgba(15, 23, 42, 0.1);
 }
 
+/* ----------------------------------------------------------------------------
+   Tier 2 — DARK overrides. Applied when the user explicitly picks dark, OR
+   (via the media query below) when they've made no choice and the OS is dark.
+   Keep the two blocks identical.
+   -------------------------------------------------------------------------- */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: var(--navy-950);
+  --color-surface: var(--slate-900);
+  --color-surface-raised: var(--slate-800);
+  --color-surface-subtle: #172033;
+  --color-border: #243044;
+  --color-border-strong: var(--slate-700);
+
+  --color-text: var(--slate-50);
+  --color-text-muted: var(--slate-400);
+  --color-text-subtle: var(--slate-500);
+  --color-text-inverse: var(--slate-900);
+  --color-text-on-action: var(--slate-900);
+
+  --color-action-primary: var(--green-500);
+  --color-action-primary-hover: var(--green-600);
+  --color-action-primary-active: var(--emerald-600);
+  --color-action-primary-subtle: rgba(34, 197, 94, 0.14);
+  --color-accent: var(--green-500);
+
+  --color-success: var(--green-500);
+  --color-success-subtle: rgba(34, 197, 94, 0.14);
+  --color-warning: var(--amber-400);
+  --color-warning-subtle: rgba(251, 191, 36, 0.14);
+  --color-danger: var(--red-400);
+  --color-danger-subtle: rgba(248, 113, 113, 0.14);
+  --color-info: var(--blue-400);
+  --color-info-subtle: rgba(96, 165, 250, 0.14);
+  --color-focus: var(--green-500);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 14px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* System default when the user hasn't chosen a theme (no data-theme set). */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme]) {
+    color-scheme: dark;
+
+    --color-bg: var(--navy-950);
+    --color-surface: var(--slate-900);
+    --color-surface-raised: var(--slate-800);
+    --color-surface-subtle: #172033;
+    --color-border: #243044;
+    --color-border-strong: var(--slate-700);
+
+    --color-text: var(--slate-50);
+    --color-text-muted: var(--slate-400);
+    --color-text-subtle: var(--slate-500);
+    --color-text-inverse: var(--slate-900);
+    --color-text-on-action: var(--slate-900);
+
+    --color-action-primary: var(--green-500);
+    --color-action-primary-hover: var(--green-600);
+    --color-action-primary-active: var(--emerald-600);
+    --color-action-primary-subtle: rgba(34, 197, 94, 0.14);
+    --color-accent: var(--green-500);
+
+    --color-success: var(--green-500);
+    --color-success-subtle: rgba(34, 197, 94, 0.14);
+    --color-warning: var(--amber-400);
+    --color-warning-subtle: rgba(251, 191, 36, 0.14);
+    --color-danger: var(--red-400);
+    --color-danger-subtle: rgba(248, 113, 113, 0.14);
+    --color-info: var(--blue-400);
+    --color-info-subtle: rgba(96, 165, 250, 0.14);
+    --color-focus: var(--green-500);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 14px 30px rgba(0, 0, 0, 0.5);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ----------------------------------------------------------------------------
+   Bridge: expose semantic tokens as Tailwind utilities. `inline` keeps the
+   var() reference in the generated utility, so bg-surface / text-danger /
+   rounded-md auto-swap when data-theme changes at runtime.
+   -------------------------------------------------------------------------- */
+@theme inline {
+  /* Surfaces */
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-surface-subtle: var(--color-surface-subtle);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+
+  /* Text */
+  --color-text: var(--color-text);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-subtle: var(--color-text-subtle);
+  --color-text-inverse: var(--color-text-inverse);
+  --color-text-on-action: var(--color-text-on-action);
+
+  /* Brand / actions */
+  --color-action: var(--color-action-primary);
+  --color-action-hover: var(--color-action-primary-hover);
+  --color-action-active: var(--color-action-primary-active);
+  --color-action-subtle: var(--color-action-primary-subtle);
+  --color-accent: var(--color-accent);
+
+  /* Status */
+  --color-success: var(--color-success);
+  --color-success-subtle: var(--color-success-subtle);
+  --color-warning: var(--color-warning);
+  --color-warning-subtle: var(--color-warning-subtle);
+  --color-danger: var(--color-danger);
+  --color-danger-subtle: var(--color-danger-subtle);
+  --color-info: var(--color-info);
+  --color-info-subtle: var(--color-info-subtle);
+  --color-focus: var(--color-focus);
+
+  /* Radius */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-full: var(--radius-full);
+
+  /* Elevation (theme-aware) */
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  /* Type */
+  --font-sans: var(--font-sans);
+
+  /* Z-index */
+  --z-header: var(--z-header);
+  --z-dropdown: var(--z-dropdown);
+  --z-modal: var(--z-modal);
+  --z-toast: var(--z-toast);
 }
+
+/* ----------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
 html {
   scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  transition: background-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }

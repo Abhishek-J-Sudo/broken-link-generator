@@ -66,6 +66,7 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | 2026-07-09 | `phase2-docker-csrf-fix` | **Docker Step 2 PASSED.** Built `blc-web` and `blc-worker` images; both ran on compose network; full crawl end-to-end succeeded. Bug fixed: `CSRF_SECRET` top-level throw crashed `next build` — moved guard inside handler, added `force-dynamic` |
 | 2026-07-09 | `phase2-b1-csrf-and-deps` | **CSRF fully wired.** Cookie propagation fixed (holder pattern); `src/lib/csrf.js` shared instance; all 3 POST routes validate token; all 4 frontend components send `X-CSRF-Token`; `src/lib/csrf-client.js` caches token. **Deps patched:** 14 vulns → 4 moderate; `next@15.5.20` fixes critical middleware bypass (GHSA-267c-6grr-h53f) |
 | 2026-07-09 | `phase2-design-tokens-theming` | **Design/UI restructure kicked off (docs only).** Added handoff docs 06 (UX/IA), 07 (UI design system), 08 (design tokens & theming: single-source-of-truth token architecture, light/dark, IA→route + component→token maps, rebuild sequence). Committed `/ui-drafts` styleguide (brand kit + component drafts). **No app pages migrated yet; `globals.css` still pristine.** Report layout/depth is the open design question (doc 06 §9). |
+| 2026-07-09 | `phase2-design-tokens-theming` | **Doc 08 §11 step 1 landed — token layer live.** `globals.css` rewritten: Tier 1 primitives + Tier 2 semantic light/dark tokens + full non-color scales (radius/space/type/motion/z) + `@theme inline` bridge (utilities `bg-surface`, `text-text`, `bg-action`, `text-danger`, `rounded-md`, `shadow-md`, etc. auto-swap on `data-theme`). `layout.tsx`: Geist→Inter (`--font-inter`), pre-hydration no-flash boot script in `<head>`, `suppressHydrationWarning`. New `components/ThemeToggle.js` (Sun/Moon, flips `data-theme`, persists to `localStorage`) mounted in `Header.js` (desktop + mobile; header colors NOT yet tokenized — that's step 3). Verified via `next build` — all 15 routes compile. **No app pages migrated yet.** |
 
 ## What to pick up next (new chat)
 
@@ -74,14 +75,24 @@ All P0 security items, architecture cleanups (A1–A4, A6–A7), and pre-deploy 
 
 ### Track A — UI restructure (design tokens + theming + IA) — *current focus*
 
-Branch: `phase2-design-tokens-theming`. Start at
-[doc 08](./08-design-tokens-and-theming.md) **§11 step 1**: write the full `globals.css` token
-layer (primitives + semantic light/dark tokens + `@theme inline` bridge), the no-flash boot script
-+ `ThemeToggle`, and Inter. **Don't touch app pages until tokens land.** IA comes from
-[doc 06](./06-ux-ia-and-reporting.md); brand/visual from [doc 07](./07-ui-design-system.md).
+Branch: `phase2-design-tokens-theming`. **Step 1 (token layer) is done** — `globals.css`
+tokens + `@theme inline` bridge, Inter, no-flash boot script, and `ThemeToggle` are all live and
+build-verified (see progress log). Next up is
+[doc 08](./08-design-tokens-and-theming.md) **§11 step 2**: tokenize the `/ui-drafts` styleguide
+first (it's isolated) — prove every component in **both** themes there before touching real pages,
+then step 3 migrates shared components (Button, input, card, badge, tabs, table) to tokens and
+deletes hardcoded hex. **Still don't touch landing/analyze/report pages until step 3 lands.** IA
+comes from [doc 06](./06-ux-ia-and-reporting.md); brand/visual from [doc 07](./07-ui-design-system.md).
 Open design decision before the report pages: **how deep/professional the audit + SEO report is**
 (doc 06 §9 is the skeleton; likely to be expanded into a dedicated report spec). Decide whether to
 *tokenize existing UI first, then redesign IA* (two passes, cleaner) or *do both per page* (coupled).
+
+> **Local dev note:** Postgres + Redis run via `docker-compose.yml` (`seoscrub-postgres` on
+> host port **5433**, `seoscrub-redis` on **6380**). The compose password is `postgres`; `.env.local`
+> `DATABASE_URL` must match it (`postgres://postgres:postgres@localhost:5433/seoscrub`) — a stale
+> password there makes `db.ping()` fail and `/api/health` return `{"connected":false}` even though the
+> DB is up. `next build` EPERMs on `.next/trace` while `next dev` holds the `.next` lock — stop the dev
+> server before a production build.
 
 ### Track B — Deployment
 
