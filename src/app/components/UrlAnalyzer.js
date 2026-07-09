@@ -828,7 +828,7 @@ export default function UrlAnalyzer({
                         <p className="font-semibold">Recommended next steps:</p>
                         <ul className="list-disc list-inside mt-2 space-y-1">
                           <li>
-                            Use the <strong>Full Broken Link Checker</strong> instead (may work
+                            Use the <strong>Full SeoScrub Crawler</strong> instead (may work
                             better with JavaScript sites)
                           </li>
                           <li>Check the sitemap.xml for site structure</li>

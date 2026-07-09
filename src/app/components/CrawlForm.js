@@ -74,7 +74,7 @@ export default function CrawlForm({ onJobStarted }) {
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Broken Link Checker</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">SeoScrub</h1>
         <p className="text-gray-600">
           Enter a website URL to scan for broken links. We'll crawl through the pages and check all
           links for you.

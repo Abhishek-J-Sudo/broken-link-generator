@@ -31,7 +31,7 @@ export class WebCrawler {
     this.httpChecker = new HttpChecker({
       timeout: this.options.timeout,
       maxConcurrent: this.options.maxConcurrent,
-      userAgent: 'Broken Link Checker Bot/1.0',
+      userAgent: 'SeoScrub Bot/1.0',
     });
 
     // Crawler state
@@ -246,7 +246,7 @@ export class WebCrawler {
         timeout: this.options.timeout,
         maxRedirects: 5,
         headers: {
-          'User-Agent': 'Broken Link Checker Bot/1.0',
+          'User-Agent': 'SeoScrub Bot/1.0',
           Accept: 'text/html,application/xhtml+xml',
         },
         validateStatus: () => true,

@@ -77,7 +77,7 @@ export async function runTraditionalCrawl(jobId, startUrl, settings) {
           try {
             const pageResponse = await safeFetch(linkData.url, {
               timeout: settings.timeout || 10000,
-              headers: { 'User-Agent': 'Broken Link Checker Bot/1.0' },
+              headers: { 'User-Agent': 'SeoScrub Bot/1.0' },
               readBody: true,
             });
 

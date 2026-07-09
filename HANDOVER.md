@@ -45,7 +45,7 @@ See `docs/handoff/` for full specs. Critical path:
 ## 2026-07-08 — Phase 0 validation + Phase 2 A7/A2 + Security C1/C8/C9
 
 ### Phase 0 — Verified complete
-- Local Postgres 16 container (`blc-postgres`, port 5433) confirmed running with schema applied.
+- Local Postgres 16 container (`seoscrub-postgres`, port 5433) confirmed running with schema applied.
 - 3 completed crawl jobs in DB including a real 58-page crawl of a live site.
 - Docker image (`broken-link-generator:local`) builds clean and container health check passes (`database.connected: true`).
 - **VPS + Coolify wiring not yet done** — build is verified; deploy when ready.

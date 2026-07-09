@@ -32,7 +32,7 @@ const LOCKOUT_MS   = 5 * 60 * 1000;
 function unauthorized(): NextResponse {
   return new NextResponse('Authentication required', {
     status: 401,
-    headers: { 'WWW-Authenticate': 'Basic realm="Broken Link Checker", charset="UTF-8"' },
+    headers: { 'WWW-Authenticate': 'Basic realm="SeoScrub", charset="UTF-8"' },
   });
 }
 

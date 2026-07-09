@@ -27,7 +27,7 @@ export default function Header() {
                 </svg>
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                Broken Link Checker
+                SeoScrub
               </span>
             </Link>
           </div>

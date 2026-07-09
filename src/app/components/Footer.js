@@ -25,10 +25,10 @@ export default function Footer() {
                   />
                 </svg>
               </div>
-              <span className="text-xl font-bold text-white">Broken Link Checker</span>
+              <span className="text-xl font-bold text-white">SeoScrub</span>
             </div>
             <p className="text-slate-400 mb-6 max-w-md">
-              Professional broken link detection and website health monitoring. Built with Next.js
+              SEO health monitoring and broken link detection for your website. Built with Next.js
               and powered by intelligent crawling algorithms.
             </p>
             <div className="flex space-x-4">
@@ -148,7 +148,7 @@ export default function Footer() {
               </Link>
             </div> */}
             <p className="text-sm text-slate-500">
-              ©{new Date().getFullYear()} Abhishek Jagtap - Broken Link Checker v
+              ©{new Date().getFullYear()} Abhishek Jagtap - SeoScrub v
               {packageJson.version}
             </p>
           </div>

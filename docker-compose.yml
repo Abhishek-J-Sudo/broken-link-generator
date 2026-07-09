@@ -1,15 +1,15 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: blc-postgres
+    container_name: seoscrub-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: broken_link_checker
+      POSTGRES_DB: seoscrub
     ports:
       - "5433:5432"
     volumes:
-      - blc-postgres-data:/var/lib/postgresql/data
+      - seoscrub-postgres-data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -19,11 +19,11 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: blc-redis
+    container_name: seoscrub-redis
     ports:
       - "6380:6379"
     volumes:
-      - blc-redis-data:/data
+      - seoscrub-redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -31,5 +31,5 @@ services:
       retries: 5
 
 volumes:
-  blc-postgres-data:
-  blc-redis-data:
+  seoscrub-postgres-data:
+  seoscrub-redis-data:

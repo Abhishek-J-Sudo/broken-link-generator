@@ -106,7 +106,7 @@ more correct: return the `401` straight from `checkBasicAuth`:
 function unauthorized() {
   return new NextResponse('Authentication required', {
     status: 401,
-    headers: { 'WWW-Authenticate': 'Basic realm="Broken Link Checker", charset="UTF-8"' },
+    headers: { 'WWW-Authenticate': 'Basic realm="SeoScrub", charset="UTF-8"' },
   });
 }
 ```

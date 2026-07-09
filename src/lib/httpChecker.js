@@ -13,7 +13,7 @@ export class HttpChecker {
     this.options = {
       timeout: 10000,
       maxRedirects: 3,
-      userAgent: 'Broken Link Checker Bot/1.0 (+https://your-domain.com/bot)',
+      userAgent: 'SeoScrub Bot/1.0 (+https://seoscrub.in/bot)',
       maxConcurrent: 3,
       retryAttempts: 2,
       retryDelay: 1000,
