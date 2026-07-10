@@ -69,6 +69,7 @@ Read them in order — later docs assume the auth and abuse-protection work is l
 | 2026-07-09 | `phase2-design-tokens-theming` | **Doc 08 §11 step 1 landed — token layer live.** `globals.css` rewritten: Tier 1 primitives + Tier 2 semantic light/dark tokens + full non-color scales (radius/space/type/motion/z) + `@theme inline` bridge (utilities `bg-surface`, `text-text`, `bg-action`, `text-danger`, `rounded-md`, `shadow-md`, etc. auto-swap on `data-theme`). `layout.tsx`: Geist→Inter (`--font-inter`), pre-hydration no-flash boot script in `<head>`, `suppressHydrationWarning`. New `components/ThemeToggle.js` (Sun/Moon, flips `data-theme`, persists to `localStorage`) mounted in `Header.js` (desktop + mobile; header colors NOT yet tokenized — that's step 3). Verified via `next build` — all 15 routes compile. **No app pages migrated yet.** |
 | 2026-07-09 | `phase2-ui-restructure` | **"Typeset Audit" direction chosen; sequence steps 1, 2 + footer landed.** Token retune (`globals.css`: 4–6px radii, `--font-display` Instrument Serif, `--font-mono` JetBrains Mono; fonts wired in `layout.tsx`). Header rebuilt (doc 06 nav: How It Works · Documentation · **Start Audit** CTA + ThemeToggle; serif wordmark). Landing rebuilt to doc 06 §6 wireframe (hero + report excerpt, numbered how-it-works, mode comparison, embedded Quick Check, FAQ, closing CTA); `HomeHeroSection`/`HomeSidebar`/`HomeFeaturesSection` deleted. Footer rebuilt as colophon (placeholder Twitter/LinkedIn removed). `LargeCrawlForm` rebuilt as an embeddable tokenized form (own page-wrapper/branding/Pro-Tips removed; submit renamed "Run Quick Check"; logic untouched). Screenshot-verified on dev. **Still old-style:** `/analyze`, `/results/[jobId]`, `/documentation`, `/changelog`, `SecurityNotice`, `LegalTerms` — next surfaces per sequence. |
 | 2026-07-09 | `phase2-design-tokens-theming` | **Token layer + `/ui-drafts` committed; Header/Footer recolored, then course-corrected.** Committed the token foundation and the tokenized `/ui-drafts` mock. Recolored `Header`/`Footer` to tokens + green brand + removed gradient icon/text — then realized recoloring the *old* header/footer in place is throwaway: they need a **doc-06 restructure, not a repaint**. Rewrote the plan below to go **surface-by-surface (restructure + tokenize in one pass)** and dropped the "tokenize mock / recolor shared components first" detour. Design rules captured: **no gradients on icons/text** (solid brand); **brand is green** (`--color-action-primary`; old blue/indigo retired). The uncommitted Header/Footer recolor can be kept as a starting point or discarded when those surfaces are rebuilt. |
+| 2026-07-10 | `phase2-ui-restructure` | **Landing v1 feedback pass — all 4 items landed.** (1) Section bg rhythm: bands alternate `bg-bg`/`bg-surface`; **Quick Check is a full-width dark panel** (`bg-surface-inverse`, new inverse token set: `surface-inverse` / `text-on-inverse(-muted)` / `border-inverse`, dark in BOTH themes) with the form on a light card inside. (2) Typeset texture: `.texture-dotgrid` + `.texture-rules` utilities (currentColor-driven) behind hero and closing CTA; mono section serials (№ 01–05) with hairline rules in `SectionHeading`; dotted leaders (label……value) in the report excerpt and the crawl-form estimate readout. (3) Footer meta row professionalized: `© 2026 SeoScrub · v0.9.x` + Documentation/Changelog links; personal credits removed everywhere (incl. dead commented blocks in `Changelog`/`Documentation`). (4) `LegalTerms` + `SecurityNotice` rebuilt as quiet hairline notes (micro-label + one-liner + expandable two-column terms; robots.txt snippet fixed to real two-line form). **Vetoed live: rotated "Audited" stamp badge — user: not professional; no stamp/seal/badge motifs ever.** Screenshot-verified light+dark. |
 
 ## What to pick up next (new chat)
 
@@ -129,24 +130,13 @@ the source of truth ([doc 06](./06-ux-ia-and-reporting.md)); brand/visual from
   retired. A rebrand is a one-token edit.
 - **Color for meaning, not decoration** (doc 06 §12): summary before controls, findings before tables.
 
-**Landing v1 feedback — user observations (2026-07-09), address in the next UI pass:**
-
-1. **Section background rhythm.** Every landing section currently sits on the same background;
-   the page reads flat and the **Quick Check section has no visual weight** despite being a key
-   part of the page. Introduce a deliberate surface rhythm (e.g. alternate `bg-bg` / `bg-surface`
-   or `bg-surface-subtle` bands) and give Quick Check a distinct treatment — e.g. a full-width
-   emphasized band (subtle tinted or dark-navy panel) so it lands as the "do it now" moment.
-2. **Human/designed texture, not AI-flat.** Add design elements/patterns so the site feels
-   hand-designed. Stay inside the Typeset Audit language: ruled/ledger lines, dotted leaders
-   (form-label……value), section serial numbers, stamp/seal motifs, subtle paper-grain or
-   dot-grid backgrounds at very low contrast. **No** decorative gradients, blobs, or glows.
-3. **Footer copy = professional SaaS voice.** Remove the personal name and the
-   "Built with Next.js · Made with Claude AI" credits. Meta row should read like a product:
-   e.g. `© 2026 SeoScrub · v0.9.x` plus product/legal links. (Applies anywhere else personal
-   credits appear.)
-4. **`LegalTerms` + `SecurityNotice` restyle** is confirmed in-scope — the amber banners are
-   the last old-style elements on the landing; tokenize them into the new language (quiet
-   hairline notes, not yellow alert boxes).
+**Landing v1 feedback (2026-07-09): ✅ all 4 items landed 2026-07-10** — section bg rhythm +
+dark Quick Check band, typeset textures (dot grid / ruled lines / leaders / serials), footer
+professionalized, `LegalTerms`/`SecurityNotice` restyled as hairline notes. See progress log.
+Additional rule from that pass: **no stamp/seal/badge motifs** (rotated "Audited" badge was
+vetoed as unprofessional) — texture vocabulary is hairlines, dot grids, ruled lines, dotted
+leaders, and mono serials only. **Open follow-up:** user asked (2026-07-10) for a "squishy
+liquid" white/black texture behind the primary buttons — exact treatment being clarified.
 
 **Open decision before step 4:** how deep/professional the audit + SEO report is —
 [doc 09](./09-audit-report-spec.md) is the full spec; confirm scope before building the report page.

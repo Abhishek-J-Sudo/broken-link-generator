@@ -102,12 +102,22 @@ export default function Footer() {
         {/* Meta row */}
         <div className="border-t border-border mt-12 pt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
           <p className="font-mono text-xs text-text-subtle">
-            &copy; {new Date().getFullYear()} Abhishek Jagtap &middot; SeoScrub v
-            {packageJson.version}
+            &copy; {new Date().getFullYear()} SeoScrub &middot; v{packageJson.version}
           </p>
-          <p className="font-mono text-xs text-text-subtle">
-            Built with Next.js &middot; Made with Claude AI
-          </p>
+          <div className="flex items-center gap-4 font-mono text-xs">
+            <Link
+              href="/documentation"
+              className="text-text-subtle hover:text-text transition-colors duration-200"
+            >
+              Documentation
+            </Link>
+            <Link
+              href="/changelog"
+              className="text-text-subtle hover:text-text transition-colors duration-200"
+            >
+              Changelog
+            </Link>
+          </div>
         </div>
       </div>
     </footer>

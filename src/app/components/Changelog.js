@@ -573,18 +573,6 @@ const Changelog = () => {
         </div>
       </div>
 
-      {/* Footer */}
-      {/* <div className="text-center text-gray-500 text-sm mt-12">
-        <p>Built with ❤️ by Abhishek J | Made with Claude.ai</p>
-        <p className="mt-1">
-          <a
-            href="https://github.com/Abhishek-J-Sudo/broken-link-generator"
-            className="text-indigo-600 hover:text-indigo-800 transition-colors"
-          >
-            View on GitHub →
-          </a>
-        </p>
-      </div> */}
     </div>
   );
 };

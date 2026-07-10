@@ -2,161 +2,112 @@
 
 import { useState } from 'react';
 
+const microLabel = 'font-mono text-[11px] uppercase tracking-[0.18em]';
+
+const ALLOWED = [
+  'Websites you own or manage',
+  'Sites with explicit permission',
+  'Public websites for legitimate testing',
+  'Respects robots.txt and rate limits',
+];
+
+const BLOCKED = [
+  'localhost and 127.0.0.1',
+  'Private networks (192.168.x.x, 10.x.x.x)',
+  'Cloud metadata services (AWS, Azure, GCP)',
+  'Internal domains (.internal, .local)',
+];
+
+function NoticeList({ items, marker = '—', markerTone = 'text-action' }) {
+  return (
+    <ul className="space-y-2 text-sm text-text-muted leading-relaxed">
+      {items.map((item) => (
+        <li key={item} className="flex gap-3">
+          <span className={`${markerTone} font-mono`} aria-hidden="true">
+            {marker}
+          </span>
+          {item}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function RobotsHint() {
+  return (
+    <div className="mt-6 border-t border-border pt-4 text-xs text-text-muted">
+      <span className={`${microLabel} text-text-subtle mr-3`}>For Website Owners</span>
+      This tool only checks link availability and doesn&rsquo;t store content. To block our scanner,
+      add to robots.txt:
+      <code className="mt-2 block w-fit rounded-sm bg-surface-subtle px-3 py-2 font-mono text-xs text-text">
+        User-agent: SeoScrub Bot
+        <br />
+        Disallow: /
+      </code>
+    </div>
+  );
+}
+
 export default function SecurityNotice({ variant = 'compact' }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (variant === 'compact') {
     return (
-      <div className="mt-8 bg-amber-50 rounded-xl border border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="flex-shrink-0">
-                <svg
-                  className="h-5 w-5 text-amber-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-                  />
-                </svg>
+      <div className="mt-8 border-t border-border pt-4">
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+          <p className={`${microLabel} shrink-0 text-text-subtle`}>Security Notice</p>
+          <p className="text-sm text-text-muted">
+            Only scan websites you own or have permission to test. Internal networks and
+            unauthorized scanning are automatically blocked.
+          </p>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="font-mono text-xs text-text underline decoration-border-strong underline-offset-4 hover:text-action hover:decoration-action transition-colors duration-200"
+          >
+            {isExpanded ? 'Less info' : 'More info'}
+          </button>
+        </div>
+
+        {isExpanded && (
+          <div className="mt-6 border-t border-border pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div>
+                <p className={`${microLabel} text-text-subtle mb-4`}>01 &middot; Allowed</p>
+                <NoticeList items={ALLOWED} marker="+" markerTone="text-success" />
               </div>
               <div>
-                <p className="text-sm text-gray-800">
-                  <strong>Security Notice:</strong> Only scan websites you own or have permission to
-                  test. Internal networks and unauthorized scanning are automatically blocked.
+                <p className={`${microLabel} text-text-subtle mb-4`}>
+                  02 &middot; Automatically Blocked
                 </p>
+                <NoticeList items={BLOCKED} marker="&times;" markerTone="text-danger" />
               </div>
-
-              <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="text-gray-600 hover:text-gray-800 text-sm font-medium transition-colors duration-200"
-              >
-                {isExpanded ? 'Less info' : 'More info'}
-              </button>
             </div>
+            <RobotsHint />
           </div>
-
-          {isExpanded && (
-            <div className="mt-3 border-t border-gray-200 pt-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-700">
-                <div>
-                  <h4 className="font-medium text-gray-800 mb-2">✅ What's Allowed:</h4>
-                  <ul className="space-y-1">
-                    <li>• Websites you own or manage</li>
-                    <li>• Sites with explicit permission</li>
-                    <li>• Public websites for legitimate testing</li>
-                    <li>• Respects robots.txt and rate limits</li>
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-800 mb-2">🚫 Automatically Blocked:</h4>
-                  <ul className="space-y-1">
-                    <li>• localhost and 127.0.0.1</li>
-                    <li>• Private networks (192.168.x.x, 10.x.x.x)</li>
-                    <li>• Cloud metadata services (AWS, Azure, GCP)</li>
-                    <li>• Internal domains (.internal, .local)</li>
-                  </ul>
-                </div>
-              </div>
-              <div className="mt-3 p-3 bg-slate-600 text-white rounded-xl text-xs">
-                <strong>For Website Owners:</strong> This tool only checks link availability and
-                doesn't store content. To block our scanner, add to robots.txt:
-                <code className="text-white/80 px-2 py-1 rounded font-mono ml-2">
-                  User-agent: SeoScrub Bot && Disallow: /
-                </code>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
     );
   }
 
   // Full variant for form pages
   return (
-    <div className="bg-slate-100 border border-slate-200 rounded-xl p-6 mb-6">
-      <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-          />
-        </svg>
-        Security & Usage Guidelines
-      </h3>
-      <ul className="text-sm text-gray-700 space-y-2 mb-4">
-        <li className="flex items-start gap-2">
-          <span className="w-1.5 h-1.5 bg-gray-600 rounded-full mt-2 flex-shrink-0"></span>
-          Only scan websites you own or have permission to test
-        </li>
-        <li className="flex items-start gap-2">
-          <span className="w-1.5 h-1.5 bg-gray-600 rounded-full mt-2 flex-shrink-0"></span>
-          Respects robots.txt and implements rate limiting
-        </li>
-        <li className="flex items-start gap-2">
-          <span className="w-1.5 h-1.5 bg-gray-600 rounded-full mt-2 flex-shrink-0"></span>
-          Internal networks (localhost, private IPs) are automatically blocked
-        </li>
-        <li className="flex items-start gap-2">
-          <span className="w-1.5 h-1.5 bg-gray-600 rounded-full mt-2 flex-shrink-0"></span>
-          Do not use for unauthorized scanning or competitive intelligence
-        </li>
-        <li className="flex items-start gap-2">
-          <span className="w-1.5 h-1.5 bg-gray-600 rounded-full mt-2 flex-shrink-0"></span>
-          Large scans may trigger security alerts on target websites
-        </li>
-      </ul>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
-        <div className="p-4 bg-green-50 rounded-xl border border-green-200">
-          <strong className="text-green-800 flex items-center gap-2 mb-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-            Allowed:
-          </strong>
-          <div className="text-green-700">
-            Your own websites, sites with permission, legitimate testing
-          </div>
+    <div className="mb-6 rounded-md border border-border bg-surface p-6">
+      <p className={`${microLabel} text-text-subtle mb-2`}>Security &amp; Usage Guidelines</p>
+      <p className="text-sm text-text-muted leading-relaxed mb-6">
+        Only scan websites you own or have permission to test. Requests respect robots.txt and run
+        rate-limited; large scans may still trigger security alerts on target websites.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-10 border-t border-border pt-6">
+        <div>
+          <p className={`${microLabel} text-text-subtle mb-4`}>01 &middot; Allowed</p>
+          <NoticeList items={ALLOWED} marker="+" markerTone="text-success" />
         </div>
-        <div className="p-4 bg-red-50 rounded-xl border border-red-200">
-          <strong className="text-red-800 flex items-center gap-2 mb-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-            Blocked:
-          </strong>
-          <div className="text-red-700">
-            localhost, private networks (192.168.x.x, 10.x.x.x), cloud metadata
-          </div>
+        <div>
+          <p className={`${microLabel} text-text-subtle mb-4`}>02 &middot; Automatically Blocked</p>
+          <NoticeList items={BLOCKED} marker="&times;" markerTone="text-danger" />
         </div>
       </div>
-
-      <div className="p-4 bg-gray-600 text-white rounded-xl text-sm">
-        <strong>For Website Owners:</strong> This tool only checks link availability and doesn't
-        store content. <br /> To block our scanner, add to robots.txt:{' '}
-        <code className="bg-white text-slate-600 px-2 py-1 rounded font-mono ml-1">
-          User-agent: SeoScrub Bot && Disallow: /
-        </code>
-      </div>
+      <RobotsHint />
     </div>
   );
 }

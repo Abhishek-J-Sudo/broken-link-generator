@@ -127,7 +127,10 @@ export default function LargeCrawlForm({ onJobStarted }) {
 
       const response = await fetch('/api/crawl/stop', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': await getCsrfToken() },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': await getCsrfToken(),
+        },
         body: JSON.stringify({ jobId: currentJobId }),
       });
 
@@ -204,13 +207,17 @@ export default function LargeCrawlForm({ onJobStarted }) {
                 <option value={5}>5 — Four levels deep (very large)</option>
               </select>
 
-              {/* Estimate readout */}
-              <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-3 font-mono text-xs">
-                <span>
+              {/* Estimate readout: label ……… value */}
+              <div className="mt-3 flex items-baseline gap-2 font-mono text-xs">
+                <span className="shrink-0">
                   <span className={`font-medium ${estimate.color}`}>{estimate.size} crawl</span>
                   <span className="text-text-muted"> · {estimate.pages}</span>
                 </span>
-                <span className="text-text-muted">est. {getEstimatedTime()}</span>
+                <span
+                  className="flex-1 border-b border-dotted border-border-strong"
+                  aria-hidden="true"
+                />
+                <span className="shrink-0 text-text-muted">est. {getEstimatedTime()}</span>
               </div>
             </div>
 

@@ -111,6 +111,13 @@
   --color-border: var(--slate-200);
   --color-border-strong: var(--slate-300);
 
+  /* Inverse band — a dark emphasized panel in BOTH themes (Quick Check band).
+     Text/border tokens here must stay readable on that dark surface. */
+  --color-surface-inverse: var(--navy-950);
+  --color-text-on-inverse: var(--slate-50);
+  --color-text-on-inverse-muted: var(--slate-400);
+  --color-border-inverse: rgba(255, 255, 255, 0.14);
+
   /* Text */
   --color-text: var(--slate-900);
   --color-text-muted: var(--slate-500);
@@ -163,6 +170,11 @@
   --color-text-inverse: var(--slate-900);
   --color-text-on-action: var(--slate-900);
 
+  --color-surface-inverse: #070d18;
+  --color-text-on-inverse: var(--slate-50);
+  --color-text-on-inverse-muted: var(--slate-400);
+  --color-border-inverse: rgba(255, 255, 255, 0.14);
+
   --color-action-primary: var(--green-500);
   --color-action-primary-hover: var(--green-600);
   --color-action-primary-active: var(--emerald-600);
@@ -202,6 +214,11 @@
     --color-text-inverse: var(--slate-900);
     --color-text-on-action: var(--slate-900);
 
+    --color-surface-inverse: #070d18;
+    --color-text-on-inverse: var(--slate-50);
+    --color-text-on-inverse-muted: var(--slate-400);
+    --color-border-inverse: rgba(255, 255, 255, 0.14);
+
     --color-action-primary: var(--green-500);
     --color-action-primary-hover: var(--green-600);
     --color-action-primary-active: var(--emerald-600);
@@ -237,6 +254,10 @@
   --color-surface-subtle: var(--color-surface-subtle);
   --color-border: var(--color-border);
   --color-border-strong: var(--color-border-strong);
+  --color-surface-inverse: var(--color-surface-inverse);
+  --color-text-on-inverse: var(--color-text-on-inverse);
+  --color-text-on-inverse-muted: var(--color-text-on-inverse-muted);
+  --color-border-inverse: var(--color-border-inverse);
 
   /* Text */
   --color-text: var(--color-text);
@@ -298,11 +319,32 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
-  transition: background-color var(--dur-base) var(--ease-out),
+  transition:
+    background-color var(--dur-base) var(--ease-out),
     color var(--dur-base) var(--ease-out);
 }
 
 :focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
+}
+
+/* ----------------------------------------------------------------------------
+   Typeset textures — hand-set background patterns (dot grid, ruled ledger
+   lines). Color comes from currentColor: set a text-* utility + opacity on
+   the element so the pattern adapts to any surface, light or dark.
+   -------------------------------------------------------------------------- */
+.texture-dotgrid {
+  background-image: radial-gradient(currentColor 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.texture-rules {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    currentColor 0,
+    currentColor 1px,
+    transparent 1px,
+    transparent 40px
+  );
 }
