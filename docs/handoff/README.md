@@ -79,7 +79,9 @@ All P0 security items, architecture cleanups (A1–A4, A6–A7), and pre-deploy 
 
 ### Track A — UI restructure (doc 06 IA + doc 07/08 visual system) — *current focus*
 
-Branch: `phase2-design-tokens-theming`.
+Branch: `phase2-ui-restructure` — the **entire** restructure (every remaining surface) continues
+on this one branch until it ships; it is one logical change. Do **not** create per-surface
+branches (user-confirmed 2026-07-10).
 
 **Foundation (done).** The token layer is live and build-verified: `globals.css` (Tier-1 primitives +
 Tier-2 semantic light/dark tokens + `@theme inline` bridge), Inter, no-flash boot script, `ThemeToggle`.
