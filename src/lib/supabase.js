@@ -300,6 +300,19 @@ export const db = {
     return data;
   },
 
+  async getRecentJobsWithCounts(limit = 8) {
+    const { rows } = await query(
+      `SELECT j.id, j.url, j.status, j.created_at, j.completed_at,
+              (SELECT COUNT(*)::int FROM broken_links b WHERE b.job_id = j.id) AS broken_count,
+              (SELECT COUNT(*)::int FROM discovered_links d WHERE d.job_id = j.id) AS total_links
+       FROM crawl_jobs j
+       ORDER BY j.created_at DESC
+       LIMIT $1`,
+      [limit]
+    );
+    return rows;
+  },
+
   /**
    * Save SEO analysis data for a URL
    */

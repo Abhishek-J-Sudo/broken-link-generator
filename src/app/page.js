@@ -86,7 +86,7 @@ export default function HomePage() {
 
             {/* Report excerpt — the output is the pitch (doc 06 §6.3) */}
             <div className="lg:col-span-5">
-              <div className="rounded-lg border border-border bg-surface p-6">
+              <div className="border border-border bg-surface p-6">
                 <div className="flex items-baseline justify-between mb-1">
                   <p className={`${microLabel} text-text-subtle`}>Audit Report</p>
                   <p className="font-mono text-xs text-text-subtle">09 JUL 2026</p>
@@ -193,7 +193,7 @@ export default function HomePage() {
             label="Choose Your Mode"
             title="Two ways in. One report out."
           />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-border border border-border rounded-lg overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-border border border-border">
             <div className="bg-surface p-8">
               <div className="flex items-center gap-3 mb-4">
                 <h3 className="font-display text-2xl text-text">Full Audit</h3>
@@ -291,7 +291,7 @@ export default function HomePage() {
             Point it at a site and go &mdash; live progress the whole way, results as a full
             evidence table you can export.
           </p>
-          <div className="rounded-lg border border-border-inverse bg-surface p-6 sm:p-8">
+          <div className="border border-border-inverse bg-surface p-6 sm:p-8">
             <LargeCrawlForm />
           </div>
         </div>

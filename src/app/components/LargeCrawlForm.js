@@ -170,7 +170,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
             onChange={handleInputChange}
             placeholder="https://example.com"
             required
-            className="w-full rounded-md border border-border bg-bg px-4 py-3.5 font-mono text-sm text-text placeholder:text-text-subtle focus:border-action focus:outline-none transition-colors"
+            className="w-full rounded-md border border-border bg-surface px-4 py-3.5 font-mono text-sm text-text placeholder:text-text-subtle focus:border-action focus:outline-none transition-colors"
           />
           <p className="mt-2 text-xs text-text-muted">
             Enter the complete URL, including http:// or https://
@@ -198,7 +198,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
                 name="maxDepth"
                 value={formData.maxDepth}
                 onChange={handleInputChange}
-                className="w-full rounded-md border border-border bg-bg px-4 py-3 text-sm text-text focus:border-action focus:outline-none"
+                className="w-full rounded-md border border-border bg-surface px-4 py-3 text-sm text-text focus:border-action focus:outline-none"
               >
                 <option value={1}>1 — Homepage only</option>
                 <option value={2}>2 — One level deep</option>
@@ -225,7 +225,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
             <div className="grid gap-4 md:grid-cols-2">
               <label
                 htmlFor="includeExternal"
-                className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-4 hover:border-border-strong transition-colors"
+                className="flex cursor-pointer items-start gap-3 border border-border p-4 hover:border-border-strong transition-colors"
               >
                 <input
                   id="includeExternal"
@@ -245,7 +245,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
 
               <label
                 htmlFor="enableSEO"
-                className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-4 hover:border-border-strong transition-colors"
+                className="flex cursor-pointer items-start gap-3 border border-border p-4 hover:border-border-strong transition-colors"
               >
                 <input
                   id="enableSEO"
@@ -268,7 +268,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
 
         {/* Error */}
         {error && (
-          <div className="mb-6 rounded-md border border-danger/40 bg-danger-subtle p-4">
+          <div className="mb-6 border border-danger/40 bg-danger-subtle p-4">
             <p className="text-sm font-medium text-danger">Error</p>
             <p className="mt-1 text-sm text-text-muted">{error}</p>
           </div>
@@ -276,7 +276,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
 
         {/* Loading / progress */}
         {isLoading && currentPhase && (
-          <div className="mb-6 flex items-center justify-between rounded-md border border-info/40 bg-info-subtle p-4">
+          <div className="mb-6 flex items-center justify-between border border-info/40 bg-info-subtle p-4">
             <div className="flex items-center gap-3">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-info border-t-transparent"></div>
               <span className="text-sm text-text">{currentPhase}</span>
@@ -328,7 +328,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
       {/* Stop confirmation dialog */}
       {showStopConfirm && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50">
-          <div className="mx-4 w-full max-w-md rounded-lg border border-border bg-surface p-6">
+          <div className="mx-4 w-full max-w-md border border-border bg-surface p-6">
             <h3 className="font-display text-2xl text-text mb-3">Stop this crawl?</h3>
             <p className="mb-6 text-sm text-text-muted">
               You&rsquo;ll be redirected to partial results for any links that have already been

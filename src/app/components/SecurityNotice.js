@@ -91,7 +91,7 @@ export default function SecurityNotice({ variant = 'compact' }) {
 
   // Full variant for form pages
   return (
-    <div className="mb-6 rounded-md border border-border bg-surface p-6">
+    <div className="mb-6 border border-border bg-surface p-6">
       <p className={`${microLabel} text-text-subtle mb-2`}>Security &amp; Usage Guidelines</p>
       <p className="text-sm text-text-muted leading-relaxed mb-6">
         Only scan websites you own or have permission to test. Requests respect robots.txt and run
