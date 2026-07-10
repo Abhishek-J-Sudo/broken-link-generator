@@ -169,4 +169,5 @@ docs/.docusaurus/
 /temp-data/
 /logs/
 crawl-results.json
-url-analysis.json.claude-screens/
+url-analysis.json
+.claude-screens/
