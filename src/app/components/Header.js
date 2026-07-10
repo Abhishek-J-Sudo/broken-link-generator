@@ -53,7 +53,7 @@ export default function Header() {
             <ThemeToggle />
             <Link
               href="/analyze"
-              className="inline-flex items-center gap-2 rounded-md bg-action px-4 py-2 text-sm font-medium text-text-on-action hover:bg-action-hover transition-colors duration-200"
+              className="btn-gel inline-flex items-center gap-2 rounded-lg bg-action px-4 py-2 text-sm font-medium text-text-on-action hover:bg-action-hover"
             >
               Start Audit
               <span aria-hidden="true">&rarr;</span>
@@ -105,7 +105,7 @@ export default function Header() {
               ))}
               <Link
                 href="/analyze"
-                className="mt-3 inline-flex w-fit items-center gap-2 rounded-md bg-action px-4 py-2 text-sm font-medium text-text-on-action hover:bg-action-hover transition-colors duration-200"
+                className="btn-gel mt-3 inline-flex w-fit items-center gap-2 rounded-lg bg-action px-4 py-2 text-sm font-medium text-text-on-action hover:bg-action-hover"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Start Audit

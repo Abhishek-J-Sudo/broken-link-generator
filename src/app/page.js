@@ -66,7 +66,7 @@ export default function HomePage() {
               <div className="flex flex-wrap items-center gap-5 mb-10">
                 <Link
                   href="/analyze"
-                  className="inline-flex items-center gap-2 rounded-md bg-action px-6 py-3 font-medium text-text-on-action hover:bg-action-hover transition-colors duration-200"
+                  className="btn-gel inline-flex items-center gap-2 rounded-lg bg-action px-6 py-3 font-medium text-text-on-action hover:bg-action-hover"
                 >
                   Start Full Audit
                   <span aria-hidden="true">&rarr;</span>
@@ -227,7 +227,7 @@ export default function HomePage() {
               </ul>
               <Link
                 href="/analyze"
-                className="inline-flex items-center gap-2 rounded-md bg-action px-5 py-2.5 text-sm font-medium text-text-on-action hover:bg-action-hover transition-colors duration-200"
+                className="btn-gel inline-flex items-center gap-2 rounded-lg bg-action px-5 py-2.5 text-sm font-medium text-text-on-action hover:bg-action-hover"
               >
                 Start Full Audit
                 <span aria-hidden="true">&rarr;</span>
@@ -351,7 +351,7 @@ export default function HomePage() {
           <div className="flex flex-wrap items-center gap-5">
             <Link
               href="/analyze"
-              className="inline-flex items-center gap-2 rounded-md bg-action px-6 py-3 font-medium text-text-on-action hover:bg-action-hover transition-colors duration-200"
+              className="btn-gel inline-flex items-center gap-2 rounded-lg bg-action px-6 py-3 font-medium text-text-on-action hover:bg-action-hover"
             >
               Start Full Audit
               <span aria-hidden="true">&rarr;</span>

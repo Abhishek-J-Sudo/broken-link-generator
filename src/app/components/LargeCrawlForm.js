@@ -304,10 +304,10 @@ export default function LargeCrawlForm({ onJobStarted }) {
         <button
           type="submit"
           disabled={isLoading || !formData.url}
-          className={`w-full rounded-md px-6 py-3.5 font-medium transition-colors ${
+          className={`w-full rounded-lg px-6 py-3.5 font-medium ${
             isLoading || !formData.url
-              ? 'cursor-not-allowed bg-surface-subtle text-text-subtle'
-              : 'bg-action text-text-on-action hover:bg-action-hover'
+              ? 'cursor-not-allowed bg-surface-subtle text-text-subtle transition-colors'
+              : 'btn-gel bg-action text-text-on-action hover:bg-action-hover'
           }`}
         >
           {isLoading ? currentPhase || 'Processing…' : 'Run Quick Check'}

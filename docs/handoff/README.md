@@ -135,8 +135,14 @@ dark Quick Check band, typeset textures (dot grid / ruled lines / leaders / seri
 professionalized, `LegalTerms`/`SecurityNotice` restyled as hairline notes. See progress log.
 Additional rule from that pass: **no stamp/seal/badge motifs** (rotated "Audited" badge was
 vetoed as unprofessional) — texture vocabulary is hairlines, dot grids, ruled lines, dotted
-leaders, and mono serials only. **Open follow-up:** user asked (2026-07-10) for a "squishy
-liquid" white/black texture behind the primary buttons — exact treatment being clarified.
+leaders, and mono serials only. **Resolved follow-up (2026-07-10):** the "squishy
+liquid" button request = **gel / liquid-glass treatment on PRIMARY buttons** (user-picked over
+noise-texture options). Implemented as `.btn-gel` in `globals.css` — solid `bg-action` fill
+with inset white top-highlight + inset dark bottom lip + soft drop shadow, hover lift, squish
+on press; paired with `rounded-lg`. Applied to Header CTAs, landing hero/mode-card/closing
+CTAs, and the Quick Check submit (enabled state only). **Primary buttons are the one approved
+exception to "hairlines not shadows"; secondary/outline buttons stay flat.** Use `.btn-gel`
+on every future primary button.
 
 **Open decision before step 4:** how deep/professional the audit + SEO report is —
 [doc 09](./09-audit-report-spec.md) is the full spec; confirm scope before building the report page.
