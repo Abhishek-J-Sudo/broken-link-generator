@@ -86,7 +86,7 @@ dist
 
 # Gatsby files
 .cache/
-public
+# public is Next.js static assets and MUST be tracked (the bare "public" ignore here was a Gatsby-template leftover)
 
 # Storybook build outputs
 .out
@@ -171,3 +171,4 @@ docs/.docusaurus/
 crawl-results.json
 url-analysis.json
 .claude-screens/
+public/design/

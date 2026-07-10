@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import ThemeToggle from './ThemeToggle';
 
 export default function Header() {
@@ -18,21 +19,14 @@ export default function Header() {
         <div className="flex justify-between items-center h-16">
           {/* Brand */}
           <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <span className="flex h-8 w-8 items-center justify-center rounded-sm bg-action">
-              <svg
-                className="w-4.5 h-4.5 text-text-on-action"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-                />
-              </svg>
-            </span>
+            <Image
+              src="/seo-scrub-app-logo.png"
+              alt=""
+              width={93}
+              height={113}
+              priority
+              className="h-8 w-auto"
+            />
             <span className="font-display text-2xl leading-none text-text">SeoScrub</span>
             <span className="hidden sm:inline-block border-l border-border pl-3 font-mono text-[11px] uppercase tracking-[0.18em] text-text-subtle">
               Site Audit
