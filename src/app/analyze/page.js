@@ -276,6 +276,7 @@ export default function AuditSetupPage() {
 
   const summary = scopeCurrent?.summary;
   const contentPages = summary?.categories?.pages || 0;
+  const scopeRecommendations = summary?.recommendations || [];
   const recommendedMode =
     summary && (contentPages > 25 || summary.totalUrls > 100) ? 'Full Audit' : 'Quick Check';
 
@@ -583,6 +584,32 @@ export default function AuditSetupPage() {
                 {summary && (
                   <div className="mt-4 border-t border-border pt-3">
                     <LeaderRow k="Recommended" v={recommendedMode} tone="text-action" />
+                  </div>
+                )}
+
+                {scopeRecommendations.length > 0 && (
+                  <div className="mt-6 border-t border-border pt-5">
+                    <SidebarHeading>
+                      {summary.recommendationsSource === 'ai' ? 'AI Scope Notes' : 'Scope Notes'}
+                    </SidebarHeading>
+                    <ul className="space-y-3">
+                      {scopeRecommendations.map((recommendation, index) => {
+                        const tone =
+                          recommendation.type === 'warning'
+                            ? 'border-warning/40 bg-warning-subtle'
+                            : recommendation.type === 'info'
+                              ? 'border-info/40 bg-info-subtle'
+                              : 'border-border bg-surface-subtle';
+                        return (
+                          <li key={`${recommendation.message}-${index}`} className={`border p-3 ${tone}`}>
+                            <p className="text-xs leading-relaxed text-text">{recommendation.message}</p>
+                            <p className="mt-2 font-mono text-[11px] leading-relaxed text-text-muted">
+                              {recommendation.action}
+                            </p>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </div>
                 )}
 

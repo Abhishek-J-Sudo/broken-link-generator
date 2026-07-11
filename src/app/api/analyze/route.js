@@ -11,6 +11,7 @@ import { validateAnalysisRequest, validateAdvancedRateLimit } from '@/lib/valida
 import { errorHandler, handleValidationError, handleSecurityError } from '@/lib/errorHandler';
 import { getClientIp } from '@/lib/clientIp';
 import { csrfProtect, CsrfError } from '@/lib/csrf';
+import { getDeepSeekRecommendations } from '@/lib/deepseekRecommendations';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -413,15 +414,25 @@ async function performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis) 
   );
 
   const patterns = Array.from(urlPatterns.values()).sort((a, b) => b.count - a.count);
+  const categoryCounts = Object.fromEntries(
+    Object.entries(urlCategories).map(([key, urls]) => [key, urls.length])
+  );
+  const fallbackRecommendations = generateRecommendations(urlCategories, patterns);
+  const aiAnalysis = await getDeepSeekRecommendations({
+    categoryCounts,
+    topPatterns: patterns,
+  });
+
   const summary = {
     totalUrls: allUrls.length,
     pagesAnalyzed: pagesProcessed,
     totalLinksFound,
-    categories: Object.fromEntries(
-      Object.entries(urlCategories).map(([key, urls]) => [key, urls.length])
-    ),
+    categories: categoryCounts,
     topPatterns: patterns.slice(0, 10),
-    recommendations: generateRecommendations(urlCategories, patterns),
+    recommendations: aiAnalysis?.recommendations || fallbackRecommendations,
+    recommendationsSource: aiAnalysis ? 'ai' : 'rules',
+    recommendationModel: aiAnalysis?.model || null,
+    recommendationUsage: aiAnalysis?.usage || null,
     isJavaScriptSite: false,
   };
 

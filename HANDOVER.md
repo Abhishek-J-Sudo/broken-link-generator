@@ -2,6 +2,44 @@
 
 ---
 
+## 2026-07-11 - Smart Analyzer AI + pipeline correction
+
+### Branch: `phase2-ui-restructure`
+
+The Smart Analyzer scope estimate now uses **DeepSeek V4 Flash** when
+`DEEPSEEK_API_KEY` is configured.
+
+- **`src/lib/deepseekRecommendations.js`** — one bounded request per successful HTML
+  scope estimate: aggregate category counts + up to 10 truncated URL patterns, 500 output-token
+  cap, 15-second timeout, non-thinking mode, JSON validation, and deterministic-rule fallback on
+  missing key, provider error, timeout, or invalid output.
+- **`src/app/api/analyze/route.js`** — includes recommendation source/model/usage metadata in the
+  estimate summary; existing behavior is unchanged when no API key is configured.
+- **`src/app/analyze/page.js`** — surfaces 2–5 returned recommendations as `AI Scope Notes`
+  alongside the estimate; rule-based fallback renders as `Scope Notes`.
+- **`.env.example`** documents `DEEPSEEK_API_KEY` (never commit a real key).
+
+### Real-run validation
+
+- `yourrighttoknow.com/ae/en`: 7 sampled pages, 23 URLs; DeepSeek returned 3 recommendations.
+  Usage: 237 input tokens (128 cache hit) + 172 output tokens, approximately `$0.000064`.
+- V4 Flash needs `thinking: { type: 'disabled' }` for this small JSON task; default thinking mode
+  can exhaust the output budget and return empty JSON.
+- A JavaScript-rendered site (`mubadalacapital.ae`) correctly used the existing sitemap/rule fallback
+  and made no AI call.
+
+### Pipeline (current)
+
+1. **Deploy** — provision VPS + Coolify (runbook in the 2026-07-07 entry below).
+2. **Future: JS-rendered site support** — Playwright headless rendering is now scoped as Doc 04 B5;
+   it is a separate isolated-worker/security project, not part of the current deploy.
+3. Deeper SEO audit pipeline (Doc 04 §G) — later; unlocks an SEO letter grade.
+
+**Correction:** Track A is closed (including the audit-progress redesign). A3 crawl-endpoint
+consolidation was already completed earlier; the prior "next task" line below was stale.
+
+---
+
 ## 2026-07-11 - Grading separation (link-health vs SEO) + pipeline reset
 
 ### Branch: `phase2-ui-restructure`
