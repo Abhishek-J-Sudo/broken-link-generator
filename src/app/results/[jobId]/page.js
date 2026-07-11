@@ -1,1303 +1,1105 @@
-// src/app/results/[jobId]/page.js - Enhanced version with card UI + modern features
+// src/app/results/[jobId]/page.js — the Audit Report (doc 06 §9 + doc 09),
+// in the "Typeset Audit" language. Report-first: verdict → takeaways → quick
+// wins → findings → remediation plan, with the raw table demoted to an
+// evidence appendix. While the crawl runs, this page is the live progress
+// view; the report assembles itself in place on completion.
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import ResultsTable from '@/app/components/ResultsTable';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
 import SecurityNotice from '@/app/components/SecurityNotice';
+import EvidenceTable from '@/app/components/EvidenceTable';
 import { getCsrfToken } from '@/lib/csrf-client';
+import {
+  buildReport,
+  classifyFinding,
+  deriveSeverity,
+  hostnameOf,
+  pathOf,
+  CLASS_SHORT,
+  SLOW_MS,
+  SHARED_SOURCE_THRESHOLD,
+} from '@/lib/auditReport';
 
-export default function ResultsPage() {
-  const params = useParams();
-  const router = useRouter();
-  const { jobId } = params;
+const microLabel = 'font-mono text-[11px] uppercase tracking-[0.18em]';
+
+const RUNNING_STATUSES = ['running', 'queued', 'pending'];
+
+const STATUS_TONE = {
+  completed: 'text-success',
+  running: 'text-info',
+  queued: 'text-info',
+  pending: 'text-info',
+  failed: 'text-danger',
+  stopped: 'text-warning',
+};
+
+const SEVERITY_META = {
+  critical: {
+    dot: 'bg-danger',
+    text: 'text-danger',
+    why: 'Breaks pages or core journeys on your own site — fix these first.',
+  },
+  major: {
+    dot: 'bg-warning',
+    text: 'text-warning',
+    why: 'Widespread or site-owned — schedule these into the next sprint.',
+  },
+  minor: {
+    dot: 'bg-border-strong',
+    text: 'text-text-muted',
+    why: 'Isolated or third-party — batch these when convenient.',
+  },
+};
+
+function reportDate(value) {
+  const d = new Date(value);
+  if (!value || isNaN(d)) return '—';
+  return d
+    .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    .toUpperCase();
+}
+
+function formatDuration(ms) {
+  if (ms == null) return '—';
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+  return `${seconds}s`;
+}
+
+function download(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ── Typeset primitives ─────────────────────────────────────────────── */
+
+function LeaderRow({ k, v, tone = 'text-text' }) {
+  return (
+    <div className="flex items-baseline gap-2 font-mono text-xs">
+      <span className="text-text-muted">{k}</span>
+      <span className="flex-1 border-b border-dotted border-border-strong" aria-hidden="true" />
+      <span className={tone}>{v}</span>
+    </div>
+  );
+}
+
+function SectionHeading({ serial, label, title }) {
+  return (
+    <div className="mb-8">
+      <div className="mb-4 flex items-center gap-4">
+        <p className={`${microLabel} shrink-0 text-action`}>{serial}</p>
+        <p className={`${microLabel} shrink-0 text-text-subtle`}>{label}</p>
+        <span className="h-px flex-1 bg-border" aria-hidden="true" />
+      </div>
+      <h2 className="font-display text-3xl text-text md:text-4xl">{title}</h2>
+    </div>
+  );
+}
+
+function ColumnHeading({ children }) {
+  return (
+    <div className="mb-4 flex items-center gap-4">
+      <p className={`${microLabel} shrink-0 text-text-subtle`}>{children}</p>
+      <span className="h-px flex-1 bg-border" aria-hidden="true" />
+    </div>
+  );
+}
+
+/* ── Page ───────────────────────────────────────────────────────────── */
+
+export default function AuditReportPage() {
+  const { jobId } = useParams();
 
   const [job, setJob] = useState(null);
-  const [results, setResults] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [filters, setFilters] = useState({
-    errorType: 'all',
-    search: '',
-  });
+  const [fatalError, setFatalError] = useState('');
+  const [pollNonce, setPollNonce] = useState(0);
 
-  //isExporting with separate states:
-  const [isExportingCSV, setIsExportingCSV] = useState(false);
-  const [isExportingJSON, setIsExportingJSON] = useState(false);
-
-  // Card-based view state
-  const [selectedView, setSelectedView] = useState('broken');
-  const [allLinksData, setAllLinksData] = useState(null);
-  const [workingLinksData, setWorkingLinksData] = useState(null);
-  const [pagesData, setPagesData] = useState(null);
-
-  //stop crawl
-  const [isStoppingCrawl, setIsStoppingCrawl] = useState(false);
-  const [showStopConfirm, setShowStopConfirm] = useState(false);
-
-  //seo summary
+  const [findingsPayload, setFindingsPayload] = useState(null);
+  const [findingsError, setFindingsError] = useState('');
+  const [findingsNonce, setFindingsNonce] = useState(0);
   const [seoSummary, setSeoSummary] = useState(null);
-  const [seoLoading, setSeoLoading] = useState(false);
 
-  // Poll for status updates
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
+  const [exporting, setExporting] = useState(null); // 'csv' | 'json' | null
+
+  const [appendixFocus, setAppendixFocus] = useState(null);
+  const appendixRef = useRef(null);
+
+  const isRunning = job && RUNNING_STATUSES.includes(job.status);
+  const reportReady = job && (job.status === 'completed' || job.status === 'stopped');
+
+  /* ── Status polling — the worker's pollInterval sets the cadence ───── */
   useEffect(() => {
-    if (!jobId) return;
+    if (!jobId) return undefined;
+    let cancelled = false;
+    let timer;
 
-    const pollStatus = async () => {
+    const tick = async () => {
       try {
         const response = await fetch(`/api/crawl/status/${jobId}`);
-        const statusData = await response.json();
-
-        if (response.ok) {
-          setJob(statusData);
-
-          // If job is completed, load initial results
-          if (statusData.status === 'completed') {
-            await loadResults();
-            await loadSeoSummary();
+        const data = await response.json();
+        if (cancelled) return;
+        if (!response.ok) {
+          if (response.status === 429) {
+            timer = setTimeout(tick, (data.retryAfter || 5) * 1000);
+            return;
           }
-        } else {
-          console.error('Status fetch error:', statusData);
-          setError(statusData.error || 'Failed to get job status');
+          setFatalError(data.error || 'This audit could not be loaded.');
+          return;
         }
-      } catch (err) {
-        console.error('Status poll error:', err);
-        setError('Failed to connect to server');
+        setJob(data);
+        if (RUNNING_STATUSES.includes(data.status)) {
+          timer = setTimeout(tick, data.pollInterval || 2500);
+        }
+      } catch {
+        // transient network hiccup — keep the live view alive
+        if (!cancelled) timer = setTimeout(tick, 5000);
       }
     };
 
-    // Initial load
-    pollStatus();
-
-    // Set up polling interval for running jobs
-    const interval = setInterval(() => {
-      if (job?.status === 'running' || !job) {
-        pollStatus();
-      }
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [jobId, job?.status]);
-
-  const loadResults = async (page = 1, filterOptions = filters, view = selectedView) => {
-    try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '1000',
-      });
-
-      // Apply modern filtering based on view type
-      if (view === 'working') {
-        params.append('statusFilter', 'working');
-      } else if (view === 'broken') {
-        params.append('statusFilter', 'broken');
-      } else if (view === 'all') {
-        params.append('statusFilter', 'all');
-      } else if (view === 'pages') {
-        params.append('statusFilter', 'pages');
-      }
-
-      // Add filter parameters
-      if (filterOptions.statusCode) {
-        params.append('statusCode', filterOptions.statusCode);
-      }
-
-      if (filterOptions.errorType && filterOptions.errorType !== 'all') {
-        params.append('errorType', filterOptions.errorType);
-      }
-
-      if (filterOptions.search) {
-        params.append('search', filterOptions.search);
-      }
-
-      if (filterOptions.seoScore && filterOptions.seoScore !== 'all') {
-        params.append('seoScore', filterOptions.seoScore);
-      }
-
-      console.log(`Loading results for job ${jobId} with params:`, params.toString());
-
-      const response = await fetch(`/api/results/${jobId}?${params}`);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Results fetch error:', errorData);
-        throw new Error(errorData.error || `HTTP ${response.status}: Failed to load results`);
-      }
-
-      const data = await response.json();
-      console.log('Results loaded:', data);
-
-      // Store data based on view type
-      switch (view) {
-        case 'all':
-          setAllLinksData(data);
-          break;
-        case 'working':
-          setWorkingLinksData(data);
-          break;
-        case 'pages':
-          setPagesData(data);
-          break;
-        default: // 'broken'
-          setResults(data);
-      }
-
-      setCurrentPage(page);
-      setError(''); // Clear any previous errors
-    } catch (err) {
-      console.error('Load results error:', err);
-      setError(err.message || 'Failed to load results');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Load SEO summary data
-  const loadSeoSummary = async () => {
-    if (!jobId) return;
-
-    setSeoLoading(true);
-    try {
-      const response = await fetch(`/api/seo/summary/${jobId}`);
-      if (response.ok) {
-        const seoData = await response.json();
-        setSeoSummary(seoData);
-      }
-    } catch (error) {
-      console.error('Failed to load SEO summary:', error);
-    } finally {
-      setSeoLoading(false);
-    }
-  };
-
-  const handleCardClick = async (viewType) => {
-    if (selectedView === viewType) return; // Already selected
-
-    setSelectedView(viewType);
-    setIsLoading(true);
-
-    // Check if we already have this data
-    const existingData = {
-      broken: results,
-      all: allLinksData,
-      working: workingLinksData,
-      pages: pagesData,
-    }[viewType];
-
-    if (!existingData) {
-      await loadResults(1, filters, viewType);
-    } else {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePageChange = (newPage) => {
-    setCurrentPage(newPage);
-
-    // Update the pagination in the current data
-    const currentData = getCurrentData();
-    if (currentData && currentData.pagination) {
-      const updatedData = {
-        ...currentData,
-        pagination: {
-          ...currentData.pagination,
-          currentPage: newPage,
-        },
-      };
-
-      // Update the correct state based on selectedView
-      switch (selectedView) {
-        case 'all':
-          setAllLinksData(updatedData);
-          break;
-        case 'working':
-          setWorkingLinksData(updatedData);
-          break;
-        case 'pages':
-          setPagesData(updatedData);
-          break;
-        default: // 'broken'
-          setResults(updatedData);
-      }
-    }
-  };
-
-  const handleFilter = (newFilters) => {
-    setFilters(newFilters);
-    loadResults(1, newFilters, selectedView);
-  };
-
-  const exportToCSV = async () => {
-    const currentData = getCurrentData();
-    if (!currentData || !currentData.links) return;
-
-    setIsExportingCSV(true);
-    try {
-      // Get ALL results for export (not just current page)
-      const exportParams = new URLSearchParams({
-        page: '1',
-        limit: '10000', // Large number to get all results
-      });
-
-      // Apply current view and filters to export
-      if (selectedView === 'working') {
-        exportParams.append('statusFilter', 'working');
-      } else if (selectedView === 'broken') {
-        exportParams.append('statusFilter', 'broken');
-      } else if (selectedView === 'all') {
-        exportParams.append('statusFilter', 'all');
-      } else if (selectedView === 'pages') {
-        exportParams.append('statusFilter', 'pages');
-      }
-
-      if (filters.statusCode) {
-        exportParams.append('statusCode', filters.statusCode);
-      }
-
-      if (filters.errorType && filters.errorType !== 'all') {
-        exportParams.append('errorType', filters.errorType);
-      }
-
-      if (filters.search) {
-        exportParams.append('search', filters.search);
-      }
-
-      if (filters.seoScore && filters.seoScore !== 'all') {
-        exportParams.append('seoScore', filters.seoScore);
-      }
-
-      const response = await fetch(`/api/results/${jobId}?${exportParams}`);
-      const allData = await response.json();
-
-      if (response.ok) {
-        // Helper function to validate actual URLs
-        const isValidActualUrl = (url) => {
-          if (!url || typeof url !== 'string') return false;
-          if (url.includes('javascript:')) return false;
-          if (url.includes('mailto:')) return false;
-          if (url.includes('tel:')) return false;
-          if (url.startsWith('#')) return false;
-          if (url.includes('{{') || url.includes('}}')) return false;
-          if (url.includes('<%') || url.includes('%>')) return false;
-          // Filter out Next.js image optimization URLs
-          if (url.includes('/_next/image?')) return false;
-
-          // Filter out direct asset URLs (images, CSS, JS, fonts, etc.)
-          if (
-            url.match(
-              /\.(jpg|jpeg|png|gif|webp|svg|ico|css|js|woff|woff2|ttf|otf|eot|pdf|zip|xml|txt)(\?|$)/i
-            )
-          )
-            return false;
-
-          try {
-            const urlObj = new URL(url);
-            return urlObj.protocol.startsWith('http') && urlObj.hostname.includes('.');
-          } catch {
-            return false;
-          }
-        };
-
-        // Sort data: High issues first, then low scores to high scores, then no score data
-        const sortedLinks = [...allData.links].sort((a, b) => {
-          // Get SEO issues count (prioritize high issues)
-          const aIssues = a.seo_issues_count || 0;
-          const bIssues = b.seo_issues_count || 0;
-
-          // Get SEO scores (handle null/undefined)
-          const aScore = a.seo_score;
-          const bScore = b.seo_score;
-
-          // Helper to check if score exists
-          const hasScore = (score) => score !== null && score !== undefined && !isNaN(score);
-
-          // 1. First priority: High issues count (descending)
-          if (aIssues !== bIssues) {
-            return bIssues - aIssues; // Higher issues first
-          }
-
-          // 2. Second priority: Handle scores
-          const aHasScore = hasScore(aScore);
-          const bHasScore = hasScore(bScore);
-
-          // If both have scores, sort by lowest score first
-          if (aHasScore && bHasScore) {
-            return aScore - bScore; // Lower scores first
-          }
-
-          // If only one has a score, prioritize the one with score
-          if (aHasScore && !bHasScore) return -1;
-          if (!aHasScore && bHasScore) return 1;
-
-          // 3. Third priority: For items with no scores, sort by working status
-          // Broken links first, then working links
-          if (a.is_working !== b.is_working) {
-            return a.is_working ? 1 : -1; // Broken (false) first
-          }
-
-          // 4. Final fallback: Sort by URL alphabetically
-          return (a.url || '').localeCompare(b.url || '');
-        });
-
-        // Enhanced CSV headers - organized logically per requirements
-        const csvHeaders = [
-          // Basic URL Information
-          'URL',
-          'URL Type',
-          'Internal/External',
-          'Status',
-          'HTTP Code',
-
-          // SEO Score & Grade
-          'SEO Score',
-          'SEO Grade',
-          'SEO Issues Count',
-
-          // Page Content (SEO)
-          'Page Title',
-          'Title Length',
-          'Meta Description',
-          'Description Length',
-          'Word Count',
-          'Content Length',
-
-          // Heading Structure (SEO)
-          'H1 Count',
-          'H2 Count',
-          'H3 Count',
-          'Has H1',
-
-          // Images (SEO)
-          'Total Images',
-          'Missing Alt',
-          'Alt Coverage %',
-
-          // Technical (SEO)
-          'Is HTTPS',
-          'Canonical URL',
-          'Status Code (SEO)',
-          'SEO Issues',
-
-          // Source & Performance
-          'Source Page',
-          'Response Time (ms)',
-        ];
-
-        const csvRows = sortedLinks.map((link) => [
-          // Basic URL Information
-          link.url || '',
-          isValidActualUrl(link.url) ? 'Valid URL' : 'Non-URL',
-          link.is_internal ? 'Internal' : 'External',
-          // Fix status text encoding issues
-          (link.status_label || 'Unknown').replace(/[^\x00-\x7F]/g, ''), // Remove non-ASCII characters
-          link.http_status_code || 'N/A',
-
-          // SEO Score & Grade
-          link.seo_score || 'N/A',
-          link.seo_grade || 'N/A',
-          link.seo_issues_count || 0,
-
-          // Page Content (SEO) - Fix title and description length calculation
-          link.seo_title?.text || link.title_text || 'N/A',
-          link.seo_title?.text
-            ? link.seo_title.text.length
-            : link.title_text
-            ? link.title_text.length
-            : 'N/A',
-          link.seo_metaDescription?.text || link.meta_description || 'N/A',
-          link.seo_metaDescription?.text
-            ? link.seo_metaDescription.text.length
-            : link.meta_description
-            ? link.meta_description.length
-            : 'N/A',
-          link.seo_content?.word_count || link.word_count || 'N/A',
-          link.seo_content?.content_length || link.content_length || 'N/A',
-
-          // Heading Structure (SEO)
-          link.seo_headings?.h1_count || link.h1_count || 'N/A',
-          link.seo_headings?.h2_count || link.h2_count || 'N/A',
-          link.seo_headings?.h3_count || link.h3_count || 'N/A',
-          link.seo_headings?.hasNoH1 ? 'No' : 'Yes',
-
-          // Images (SEO)
-          link.seo_images?.total_images || link.total_images || 'N/A',
-          link.seo_images?.missing_alt || link.missing_alt || 'N/A',
-          link.seo_images?.alt_coverage || link.alt_coverage || 'N/A',
-
-          // Technical (SEO)
-          link.seo_technical?.isHttps || link.is_https ? 'Yes' : 'No',
-          link.seo_technical?.canonical_url || link.canonical_url || 'N/A',
-          link.seo_technical?.status_code || link.status_code || 'N/A',
-          link.seo_issues && Array.isArray(link.seo_issues)
-            ? link.seo_issues.map((issue) => `${issue.type}: ${issue.message}`).join('; ')
-            : 'N/A',
-
-          // Source & Performance
-          link.source_url || 'Discovery',
-          link.response_time || 'N/A',
-        ]);
-
-        // Add UTF-8 BOM for better Excel compatibility with Arabic text
-        const BOM = '\uFEFF';
-        const csvContent =
-          BOM +
-          [
-            csvHeaders.join(','),
-            ...csvRows.map((row) =>
-              row.map((field) => `"${String(field).replace(/"/g, '""')}"`).join(',')
-            ),
-          ].join('\n');
-
-        // Create and download file
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        if (link.download !== undefined) {
-          const url = URL.createObjectURL(blob);
-          link.setAttribute('href', url);
-          link.setAttribute(
-            'download',
-            `${selectedView}-links-comprehensive-${new URL(job.url).hostname}-${
-              new Date().toISOString().split('T')[0]
-            }.csv`
-          );
-          link.style.visibility = 'hidden';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }
-      } else {
-        throw new Error('Failed to fetch all results for export');
-      }
-    } catch (err) {
-      setError('Failed to export data');
-      console.error('Export error:', err);
-    } finally {
-      setIsExportingCSV(false);
-    }
-  };
-
-  const exportToJSON = async () => {
-    const currentData = getCurrentData();
-    if (!currentData) return;
-
-    setIsExportingJSON(true);
-    try {
-      // Get ALL results for export
-      const exportParams = new URLSearchParams({
-        page: '1',
-        limit: '10000',
-      });
-
-      // Apply current view and filters
-      if (selectedView === 'working') {
-        exportParams.append('statusFilter', 'working');
-      } else if (selectedView === 'broken') {
-        exportParams.append('statusFilter', 'broken');
-      } else if (selectedView === 'all') {
-        exportParams.append('statusFilter', 'all');
-      } else if (selectedView === 'pages') {
-        exportParams.append('statusFilter', 'pages');
-      }
-
-      if (filters.statusCode) {
-        exportParams.append('statusCode', filters.statusCode);
-      }
-
-      if (filters.errorType && filters.errorType !== 'all') {
-        exportParams.append('errorType', filters.errorType);
-      }
-
-      if (filters.search) {
-        exportParams.append('search', filters.search);
-      }
-
-      const response = await fetch(`/api/results/${jobId}?${exportParams}`);
-      const allData = await response.json();
-
-      if (response.ok) {
-        // Helper function to validate actual URLs
-        const isValidActualUrl = (url) => {
-          if (!url || typeof url !== 'string') return false;
-          if (url.includes('javascript:')) return false;
-          if (url.includes('mailto:')) return false;
-          if (url.includes('tel:')) return false;
-          if (url.startsWith('#')) return false;
-          if (url.includes('{{') || url.includes('}}')) return false;
-          if (url.includes('<%') || url.includes('%>')) return false;
-          // Filter out Next.js image optimization URLs
-          if (url.includes('/_next/image?')) return false;
-
-          // Filter out direct asset URLs (images, CSS, JS, fonts, etc.)
-          if (
-            url.match(
-              /\.(jpg|jpeg|png|gif|webp|svg|ico|css|js|woff|woff2|ttf|otf|eot|pdf|zip|xml|txt)(\?|$)/i
-            )
-          )
-            return false;
-
-          try {
-            const urlObj = new URL(url);
-            return urlObj.protocol.startsWith('http') && urlObj.hostname.includes('.');
-          } catch {
-            return false;
-          }
-        };
-
-        // Sort data: High issues first, then low scores to high scores, then no score data
-        const sortedLinks = [...allData.links].sort((a, b) => {
-          // Get SEO issues count (prioritize high issues)
-          const aIssues = a.seo_issues_count || 0;
-          const bIssues = b.seo_issues_count || 0;
-
-          // Get SEO scores (handle null/undefined)
-          const aScore = a.seo_score;
-          const bScore = b.seo_score;
-
-          // Helper to check if score exists
-          const hasScore = (score) => score !== null && score !== undefined && !isNaN(score);
-
-          // 1. First priority: High issues count (descending)
-          if (aIssues !== bIssues) {
-            return bIssues - aIssues; // Higher issues first
-          }
-
-          // 2. Second priority: Handle scores
-          const aHasScore = hasScore(aScore);
-          const bHasScore = hasScore(bScore);
-
-          // If both have scores, sort by lowest score first
-          if (aHasScore && bHasScore) {
-            return aScore - bScore; // Lower scores first
-          }
-
-          // If only one has a score, prioritize the one with score
-          if (aHasScore && !bHasScore) return -1;
-          if (!aHasScore && bHasScore) return 1;
-
-          // 3. Third priority: For items with no scores, sort by working status
-          // Broken links first, then working links
-          if (a.is_working !== b.is_working) {
-            return a.is_working ? 1 : -1; // Broken (false) first
-          }
-
-          // 4. Final fallback: Sort by URL alphabetically
-          return (a.url || '').localeCompare(b.url || '');
-        });
-
-        // Create comprehensive JSON export with HTTP status data
-        const exportData = {
-          exportInfo: {
-            exportedAt: new Date().toISOString(),
-            website: job.url,
-            jobId: jobId,
-            view: selectedView,
-            totalLinksExported: allData.summary?.totalLinksChecked || 0,
-            appliedFilters: filters,
-          },
-          jobDetails: {
-            url: job.url,
-            status: job.status,
-            createdAt: job.timestamps?.createdAt,
-            completedAt: job.timestamps?.completedAt,
-            duration: job.timestamps?.elapsedTime,
-            settings: job.settings,
-          },
-          statistics: {
-            totalLinksChecked: allData.summary?.totalLinksChecked || 0,
-            workingLinks: allData.summary?.workingLinks || 0,
-            brokenLinks: allData.summary?.brokenLinks || 0,
-            successRate: allData.summary?.successRate || 0,
-            performance: allData.summary?.performance || {},
-            statusCodes: allData.summary?.statusCodes || {},
-            errorTypes: allData.summary?.errorTypes || {},
-          },
-          links: sortedLinks.map((link) => ({
-            // Basic URL Information
-            url: link.url,
-            urlType: isValidActualUrl(link.url) ? 'Valid URL' : 'Non-URL',
-            isInternal: link.is_internal,
-            httpStatusCode: link.http_status_code,
-            responseTime: link.response_time,
-            isWorking: link.is_working,
-            statusLabel: (link.status_label || 'Unknown').replace(/[^\x00-\x7F]/g, ''),
-
-            // SEO Data
-            seoScore: link.seo_score,
-            seoGrade: link.seo_grade,
-            seoIssuesCount: link.seo_issues_count || 0,
-            seoIssues: link.seo_issues,
-
-            // Page Content
-            pageTitle: link.seo_title?.text || link.title_text,
-            titleLength: link.seo_title?.text
-              ? link.seo_title.text.length
-              : link.title_text
-              ? link.title_text.length
-              : null,
-            metaDescription: link.seo_metaDescription?.text || link.meta_description,
-            descriptionLength: link.seo_metaDescription?.text
-              ? link.seo_metaDescription.text.length
-              : link.meta_description
-              ? link.meta_description.length
-              : null,
-            wordCount: link.seo_content?.word_count || link.word_count,
-            contentLength: link.seo_content?.content_length || link.content_length,
-
-            // Heading Structure
-            h1Count: link.seo_headings?.h1_count || link.h1_count,
-            h2Count: link.seo_headings?.h2_count || link.h2_count,
-            h3Count: link.seo_headings?.h3_count || link.h3_count,
-            hasH1: link.seo_headings?.hasNoH1 ? false : true,
-
-            // Images
-            totalImages: link.seo_images?.total_images || link.total_images,
-            missingAlt: link.seo_images?.missing_alt || link.missing_alt,
-            altCoverage: link.seo_images?.alt_coverage || link.alt_coverage,
-
-            // Technical
-            isHttps: link.seo_technical?.isHttps || link.is_https,
-            canonicalUrl: link.seo_technical?.canonical_url || link.canonical_url,
-
-            // Source & Performance
-            sourceUrl: link.source_url,
-
-            // Legacy fields (for compatibility)
-            errorMessage: link.error_message,
-            linkText: link.link_text,
-            errorType: link.error_type,
-            depth: link.depth,
-            checkedAt: link.checked_at,
-          })),
-          summary: allData.summary,
-        };
-
-        // Download JSON file
-        const jsonContent = JSON.stringify(exportData, null, 2);
-        const blob = new Blob([jsonContent], { type: 'application/json' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute(
-          'download',
-          `${selectedView}-links-report-${new URL(job.url).hostname}-${
-            new Date().toISOString().split('T')[0]
-          }.json`
+    tick();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [jobId, pollNonce]);
+
+  /* ── Findings + SEO summary, fetched once the crawl settles ────────── */
+  useEffect(() => {
+    if (!reportReady) return undefined;
+    let cancelled = false;
+    (async () => {
+      setFindingsError('');
+      try {
+        const response = await fetch(
+          `/api/results/${jobId}?statusFilter=broken&page=1&limit=10000`
         );
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      } else {
-        throw new Error('Failed to fetch all results for export');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to load the findings');
+        if (!cancelled) setFindingsPayload({ findings: data.links || [], summary: data.summary });
+      } catch (err) {
+        if (!cancelled) setFindingsError(err.message);
       }
-    } catch (err) {
-      setError('Failed to export JSON data');
-      console.error('JSON export error:', err);
-    } finally {
-      setIsExportingJSON(false);
-    }
-  };
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, reportReady, findingsNonce]);
 
-  // ADD THIS NEW FUNCTION HERE:
-  const handleStopCrawl = async () => {
-    if (!jobId) return;
+  useEffect(() => {
+    if (!reportReady || !job?.settings?.enableSEO) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`/api/seo/summary/${jobId}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!cancelled) setSeoSummary(data);
+      } catch {
+        // the reserved SEO tile simply stays unmeasured
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, reportReady, job?.settings?.enableSEO]);
 
-    setIsStoppingCrawl(true);
-    setShowStopConfirm(false);
+  const report = useMemo(
+    () =>
+      findingsPayload && job
+        ? buildReport({
+            job,
+            summary: findingsPayload.summary,
+            findings: findingsPayload.findings,
+          })
+        : null,
+    [findingsPayload, job]
+  );
 
+  /* ── Actions ────────────────────────────────────────────────────────── */
+
+  const handleStop = async () => {
+    setIsStopping(true);
     try {
       const response = await fetch('/api/crawl/stop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': await getCsrfToken() },
-        body: JSON.stringify({ jobId: jobId }),
+        body: JSON.stringify({ jobId }),
       });
-
       const result = await response.json();
-
-      if (response.ok) {
-        setError('');
-        // Force refresh job status
-        window.location.reload();
-      } else {
-        throw new Error(result.error || 'Failed to stop crawl');
-      }
+      if (!response.ok) throw new Error(result.error || 'Failed to stop the audit');
+      setShowStopConfirm(false);
+      setPollNonce((n) => n + 1); // re-check status immediately
     } catch (err) {
-      setError(`Failed to stop crawl: ${err.message}`);
+      setFatalError(err.message);
     } finally {
-      setIsStoppingCrawl(false);
+      setIsStopping(false);
     }
   };
 
-  const getCurrentData = () => {
-    const data = {
-      broken: results,
-      all: allLinksData,
-      working: workingLinksData,
-      pages: pagesData,
-    }[selectedView];
+  const runExport = async (kind) => {
+    if (!job || !report) return;
+    setExporting(kind);
+    try {
+      const response = await fetch(`/api/results/${jobId}?statusFilter=broken&page=1&limit=10000`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Export fetch failed');
+      const findings = data.links || [];
+      const sharedSet = new Set(report.sharedTargets);
+      const host = hostnameOf(job.url);
+      const day = new Date().toISOString().split('T')[0];
 
-    // DEBUG: Log what we're returning
-    // console.log('🔍 getCurrentData Debug:', {
-    //   selectedView,
-    //   data,
-    //   hasLinks: data?.links ? 'YES' : 'NO',
-    //   linksType: typeof data?.links,
-    //   linksIsArray: Array.isArray(data?.links),
-    //   linksLength: data?.links?.length,
-    //   firstItem: data?.links?.[0],
-    // });
-
-    return data;
+      if (kind === 'csv') {
+        const headers = [
+          'Severity',
+          'Type',
+          'HTTP Code',
+          'URL',
+          'Scope',
+          'Source Page',
+          'Link Text',
+          'Response Time (ms)',
+          'Error',
+          'Checked At',
+        ];
+        const rows = findings.map((f) => {
+          const cls = classifyFinding(f);
+          return [
+            deriveSeverity(cls, !!f.is_internal, sharedSet.has(f.url)),
+            CLASS_SHORT[cls],
+            f.http_status_code ?? '',
+            f.url,
+            f.is_internal ? 'Internal' : 'External',
+            f.source_url || '',
+            f.link_text && f.link_text !== 'Unknown' ? f.link_text : '',
+            f.response_time ?? '',
+            f.error_message || '',
+            f.checked_at || '',
+          ];
+        });
+        const bom = String.fromCharCode(0xfeff); // keeps Excel happy with UTF-8
+        const csv =
+          bom +
+          [headers, ...rows]
+            .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+            .join('\n');
+        download(`seoscrub-audit-${host}-${day}.csv`, csv, 'text/csv;charset=utf-8;');
+      } else {
+        const payload = {
+          exportInfo: { generatedAt: new Date().toISOString(), jobId, url: job.url },
+          job: {
+            url: job.url,
+            status: job.status,
+            settings: job.settings,
+            timestamps: job.timestamps,
+          },
+          report,
+          findings,
+        };
+        download(
+          `seoscrub-audit-${host}-${day}.json`,
+          JSON.stringify(payload, null, 2),
+          'application/json'
+        );
+      }
+    } catch (err) {
+      setFindingsError(err.message);
+    } finally {
+      setExporting(null);
+    }
   };
 
-  const getProgressPercentage = () => {
-    if (!job?.progress) return 0;
-    return job.progress.percentage || 0;
+  const focusEvidence = (term) => {
+    setAppendixFocus({ term: term || '', at: Date.now() });
+    appendixRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const formatDuration = (milliseconds) => {
-    const seconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
+  /* ── Render ─────────────────────────────────────────────────────────── */
 
-    if (hours > 0) return `${hours}h ${minutes % 60}m`;
-    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-    return `${seconds}s`;
-  };
+  // Sections number themselves top-to-bottom so the sequence stays gapless
+  // even when empty sections (quick wins on a clean site) are skipped.
+  let serialCount = 0;
+  const nextSerial = () => String(++serialCount).padStart(2, '0');
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
-          <svg
-            className="w-16 h-16 text-red-500 mx-auto mb-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-            />
-          </svg>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Results</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <div className="space-y-2">
-            <button
-              onClick={() => {
-                setError('');
-                setIsLoading(true);
-                loadResults();
-              }}
-              className="block w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-            >
-              Try Again
-            </button>
-            <button
-              onClick={() => router.push('/')}
-              className="block w-full bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
-            >
-              Back to Home
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading && !job) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading job details...</p>
-        </div>
-      </div>
-    );
-  }
+  const modeLabel = job?.settings?.enableSEO ? 'Full Audit' : 'Quick Check';
+  const kpis = report?.kpis;
+  const score = report?.score;
+  const summary = findingsPayload?.summary;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      {/* Header */}
+    <div className="min-h-screen bg-bg">
       <Header />
-      <div className="bg-white shadow-sm border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                Link Check Results
-              </h1>
-              <p className="text-slate-600 break-all mt-2">{job?.url}</p>
-              <div
-                onClick={() => router.push('/analyze?restore=true')}
-                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 cursor-pointer py-2 transition-colors duration-200 font-medium"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                  />
-                </svg>
-                Back to Analysis
+
+      <main className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
+        {fatalError && (
+          <div className="mx-auto max-w-xl border border-danger/40 bg-danger-subtle p-6">
+            <p className={`${microLabel} text-danger`}>Report unavailable</p>
+            <p className="mt-2 text-sm leading-relaxed text-text">{fatalError}</p>
+            <Link
+              href="/analyze"
+              className="mt-4 inline-block font-mono text-xs text-text underline decoration-border-strong underline-offset-4 hover:text-action hover:decoration-action"
+            >
+              &larr; Back to audit setup
+            </Link>
+          </div>
+        )}
+
+        {!fatalError && !job && (
+          <p className="py-24 text-center font-mono text-xs text-text-subtle">
+            Pulling up audit &#8470; {String(jobId || '').slice(0, 8).toUpperCase()}&hellip;
+          </p>
+        )}
+
+        {!fatalError && job && (
+          <>
+            {/* ── Report masthead ─────────────────────────────────────── */}
+            <div className="mb-14">
+              <div className="mb-4 flex items-center gap-4">
+                <p className={`${microLabel} shrink-0 text-action`}>Audit Report</p>
+                <span className="h-px flex-1 bg-border" aria-hidden="true" />
+                <p className={`${microLabel} shrink-0 text-text-subtle`}>
+                  &#8470; {String(jobId).slice(0, 8).toUpperCase()}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                <div className="min-w-0">
+                  <h1 className="break-words font-display text-4xl text-text md:text-5xl">
+                    {hostnameOf(job.url)}
+                  </h1>
+                  <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-xs">
+                    <a
+                      href={job.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="break-all text-text-muted underline decoration-border-strong underline-offset-4 hover:text-action hover:decoration-action"
+                    >
+                      {job.url}
+                    </a>
+                    <span className="text-text-subtle">
+                      {reportDate(job.timestamps?.createdAt)}
+                    </span>
+                    <span className="text-text-subtle">
+                      {modeLabel} &middot; depth {job.settings?.maxDepth ?? '—'}
+                    </span>
+                    <span className={STATUS_TONE[job.status] || 'text-text-muted'}>
+                      {job.status}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 flex-wrap items-center gap-3">
+                  {isRunning && (
+                    <button
+                      type="button"
+                      onClick={() => setShowStopConfirm(true)}
+                      disabled={isStopping}
+                      className="rounded-md border border-danger/50 px-4 py-2.5 text-sm font-medium text-danger transition-colors hover:bg-danger-subtle disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isStopping ? 'Stopping…' : 'Stop audit'}
+                    </button>
+                  )}
+                  {report && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => runExport('csv')}
+                        disabled={exporting !== null}
+                        className="btn-gel rounded-lg bg-action px-5 py-2.5 text-sm font-medium text-text-on-action hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {exporting === 'csv' ? 'Exporting…' : 'Export CSV'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => runExport('json')}
+                        disabled={exporting !== null}
+                        className="rounded-md border border-border-strong px-4 py-2.5 text-sm font-medium text-text transition-colors hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {exporting === 'json' ? 'Exporting…' : 'Export JSON'}
+                      </button>
+                    </>
+                  )}
+                  <Link
+                    href="/analyze"
+                    className="font-mono text-xs text-text underline decoration-border-strong underline-offset-4 transition-colors hover:text-action hover:decoration-action"
+                  >
+                    New audit <span aria-hidden="true">&rarr;</span>
+                  </Link>
+                </div>
               </div>
             </div>
 
-            {/* Status Badge & Export Actions */}
-            <div className="text-right">
-              <div className="flex items-center space-x-3 mb-2">
-                {/* Stop Button - only show when running */}
-                {job?.status === 'running' && (
-                  <button
-                    onClick={() => setShowStopConfirm(true)}
-                    disabled={isStoppingCrawl}
-                    className={`px-4 py-2 text-sm rounded-xl font-medium transition-all ${
-                      isStoppingCrawl
-                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                        : 'bg-red-600 text-white hover:bg-red-700 shadow-lg'
-                    }`}
-                  >
-                    {isStoppingCrawl ? '⏳ Stopping...' : '🛑 Stop Crawl'}
-                  </button>
-                )}
-                {/* Export Buttons - only show when completed */}
-                {job?.status === 'completed' && getCurrentData() && (
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={exportToCSV}
-                      disabled={isExportingCSV}
-                      className={`px-4 py-2 text-sm rounded-xl font-medium transition-all ${
-                        isExportingCSV
-                          ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                          : 'bg-green-600 text-white hover:bg-green-700 shadow-lg'
-                      }`}
-                    >
-                      {isExportingCSV ? '⏳' : '📊'} Export CSV
-                    </button>
-                    <button
-                      onClick={exportToJSON}
-                      disabled={isExportingJSON}
-                      className={`px-4 py-2 text-sm rounded-xl font-medium transition-all ${
-                        isExportingJSON
-                          ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                          : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
-                      }`}
-                    >
-                      {isExportingJSON ? '⏳' : '📁'} Export JSON
-                    </button>
+            {/* ── Live progress (running / queued) ────────────────────── */}
+            {isRunning && (
+              <section className="mb-16 border border-border bg-surface p-6 sm:p-8">
+                <div className="mb-6 flex items-center gap-4">
+                  <p className={`${microLabel} shrink-0 text-action`}>
+                    {job.status === 'running' ? 'Compiling' : 'Queued'}
+                  </p>
+                  <span className="h-px flex-1 bg-border" aria-hidden="true" />
+                  <span className="shrink-0 font-mono text-xs text-text-muted">
+                    {job.progress?.percentage ?? 0}%
+                  </span>
+                </div>
+
+                <h2 className="mb-6 font-display text-2xl text-text md:text-3xl">
+                  {job.status === 'running' ? (
+                    <>Auditing {hostnameOf(job.url)} — checking every link it can reach.</>
+                  ) : (
+                    <>Waiting for a worker to pick this audit up.</>
+                  )}
+                </h2>
+
+                <div className="h-1.5 w-full border border-border bg-surface-subtle">
+                  <div
+                    className="h-full bg-action transition-[width] duration-500"
+                    style={{ width: `${Math.min(100, job.progress?.percentage ?? 0)}%` }}
+                  />
+                </div>
+
+                <div className="mt-6 grid gap-x-10 gap-y-1.5 sm:grid-cols-2">
+                  <LeaderRow
+                    k="Links checked"
+                    v={`${job.progress?.current ?? 0} / ${job.progress?.total ?? '—'}`}
+                  />
+                  <LeaderRow
+                    k="Broken so far"
+                    v={String(job.stats?.brokenLinksFound ?? 0)}
+                    tone={job.stats?.brokenLinksFound ? 'text-danger' : 'text-success'}
+                  />
+                  <LeaderRow
+                    k="Elapsed"
+                    v={formatDuration(job.timestamps?.elapsedTime)}
+                  />
+                  <LeaderRow
+                    k="Est. remaining"
+                    v={
+                      job.progress?.estimatedTimeRemaining
+                        ? formatDuration(job.progress.estimatedTimeRemaining * 1000)
+                        : '—'
+                    }
+                  />
+                </div>
+
+                <p className="mt-6 text-xs leading-relaxed text-text-muted">
+                  The report assembles itself on this page the moment the crawl completes — no
+                  refresh needed. Stopping keeps everything checked so far as a partial report.
+                </p>
+              </section>
+            )}
+
+            {/* ── Failed ──────────────────────────────────────────────── */}
+            {job.status === 'failed' && (
+              <section className="mb-16 border border-danger/40 bg-danger-subtle p-6">
+                <p className={`${microLabel} text-danger`}>Audit failed</p>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text">
+                  {job.errorMessage ||
+                    'The crawl hit an error it could not recover from. Run a fresh audit — transient network problems account for most failures.'}
+                </p>
+                <Link
+                  href="/analyze"
+                  className="mt-4 inline-block font-mono text-xs text-text underline decoration-border-strong underline-offset-4 hover:text-action hover:decoration-action"
+                >
+                  Run a new audit &rarr;
+                </Link>
+              </section>
+            )}
+
+            {/* ── Report loading / error ──────────────────────────────── */}
+            {reportReady && !report && !findingsError && (
+              <p className="py-16 text-center font-mono text-xs text-text-subtle">
+                Compiling the report&hellip;
+              </p>
+            )}
+            {reportReady && findingsError && (
+              <div className="mb-16 border border-danger/40 bg-danger-subtle p-5">
+                <p className="text-sm text-text">
+                  <span className="font-medium text-danger">Couldn&rsquo;t load the findings.</span>{' '}
+                  {findingsError}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setFindingsNonce((n) => n + 1)}
+                  className="mt-3 font-mono text-xs text-text underline decoration-border-strong underline-offset-4 hover:text-action hover:decoration-action"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+
+            {/* ══ The report ═══════════════════════════════════════════ */}
+            {report && (
+              <>
+                {/* 01 · Executive summary */}
+                <section className="mb-16 lg:mb-20">
+                  <SectionHeading
+                    serial={nextSerial()}
+                    label="Executive Summary"
+                    title="The verdict."
+                  />
+
+                  {job.status === 'stopped' && (
+                    <div className="mb-6 border border-warning/40 bg-warning-subtle p-3">
+                      <p className="text-sm text-text">
+                        This audit was stopped early — the figures below cover the{' '}
+                        {score.coverage}% of discovered links checked before it stopped.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+                    <div className="lg:col-span-4">
+                      <div className="border border-border bg-surface p-6">
+                        <p className={`${microLabel} mb-4 text-text-subtle`}>Overall grade</p>
+                        <p
+                          className={`font-display text-8xl leading-none ${
+                            score.overall >= 80
+                              ? 'text-success'
+                              : score.overall >= 60
+                              ? 'text-warning'
+                              : 'text-danger'
+                          }`}
+                        >
+                          {score.grade}
+                        </p>
+                        <p className="mt-3 font-mono text-sm text-text-muted">
+                          Health {score.overall}/100
+                        </p>
+                        <div className="mt-5 space-y-1.5 border-t border-border pt-4">
+                          <LeaderRow k="Link integrity" v={`${score.integrity}`} />
+                          <LeaderRow k="Response health" v={`${score.response}`} />
+                          <LeaderRow k="Coverage" v={`${score.coverage}%`} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="lg:col-span-8">
+                      <div className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-3">
+                        {[
+                          { label: 'Links checked', value: kpis.totalChecked.toLocaleString() },
+                          { label: 'Healthy', value: kpis.healthy.toLocaleString() },
+                          {
+                            label: 'Issues',
+                            value: kpis.issues.toLocaleString(),
+                            tone: kpis.issues ? 'text-danger' : 'text-success',
+                          },
+                          { label: 'Affected pages', value: String(kpis.affectedPages) },
+                          { label: 'Avg response', value: `${kpis.avgResponse} ms` },
+                          {
+                            label: 'Int / ext broken',
+                            value: `${kpis.internalIssues} / ${kpis.externalIssues}`,
+                          },
+                        ].map((stat) => (
+                          <div key={stat.label} className="bg-surface p-4">
+                            <p className={`font-mono text-2xl ${stat.tone || 'text-text'}`}>
+                              {stat.value}
+                            </p>
+                            <p className={`${microLabel} mt-1 text-text-subtle`}>{stat.label}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <blockquote className="mt-6 border-l-2 border-action pl-5 font-display text-xl leading-snug text-text md:text-2xl">
+                        {report.verdict}
+                      </blockquote>
+                    </div>
                   </div>
+                </section>
+
+                {/* 02 · Key takeaways */}
+                <section className="mb-16 lg:mb-20">
+                  <SectionHeading
+                    serial={nextSerial()}
+                    label="Key Takeaways"
+                    title="What it means."
+                  />
+                  <ul className="max-w-3xl space-y-3 text-base leading-relaxed text-text-muted">
+                    {report.takeaways.map((line) => (
+                      <li key={line} className="flex gap-3">
+                        <span className="font-mono text-action" aria-hidden="true">
+                          &mdash;
+                        </span>
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+
+                {kpis.issues === 0 && (
+                  <section className="mb-16 lg:mb-20">
+                    <div className="border border-success/40 bg-success-subtle p-5">
+                      <p className="text-sm leading-relaxed text-text">
+                        <span className="font-medium">No broken links found.</span> All{' '}
+                        {kpis.totalChecked.toLocaleString()} checked links resolve. The evidence
+                        table below is the complete record — re-audit after the next content push.
+                      </p>
+                    </div>
+                  </section>
                 )}
 
-                <span
-                  className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold ${
-                    job?.status === 'completed'
-                      ? 'bg-green-100 text-green-800'
-                      : job?.status === 'running'
-                      ? 'bg-blue-100 text-blue-800'
-                      : job?.status === 'failed'
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}
-                >
-                  {job?.status}
-                </span>
-              </div>
-              {job?.timestamps?.elapsedTime && (
-                <p className="text-sm text-slate-500">
-                  {formatDuration(job.timestamps.elapsedTime)}
-                </p>
-              )}
+                {/* 03 · Quick wins */}
+                {report.quickWins.length > 0 && (
+                  <section className="mb-16 lg:mb-20">
+                    <SectionHeading serial={nextSerial()} label="Quick Wins" title="Start here." />
+                    <div className="divide-y divide-border border-y border-border">
+                      {report.quickWins.map((task, i) => (
+                        <div
+                          key={task.rank}
+                          className="flex flex-col gap-2 py-4 sm:flex-row sm:items-baseline sm:gap-6"
+                        >
+                          <span className="shrink-0 font-mono text-sm text-action">
+                            {String(i + 1).padStart(2, '0')}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-text">{task.action}</p>
+                            <p className="mt-1 text-xs leading-relaxed text-text-muted">
+                              {task.detail}
+                            </p>
+                          </div>
+                          <span className="shrink-0 font-mono text-xs text-text-muted">
+                            {task.instances} inst &middot; {task.effort} &middot; {task.owner}
+                          </span>
+                          <span className="w-20 shrink-0 font-mono text-xs text-success sm:text-right">
+                            {task.gain > 0 ? `+${task.gain} health` : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* 04 · Findings by priority */}
+                {kpis.issues > 0 && (
+                  <section className="mb-16 lg:mb-20">
+                    <SectionHeading
+                      serial={nextSerial()}
+                      label="Findings · Priority"
+                      title="What broke, in order of harm."
+                    />
+                    <div className="border-b border-border">
+                      {report.bySeverity
+                        .filter((block) => block.count > 0)
+                        .map((block) => {
+                          const meta = SEVERITY_META[block.severity];
+                          return (
+                            <details
+                              key={block.severity}
+                              open={block.severity !== 'minor'}
+                              className="group border-t border-border"
+                            >
+                              <summary className="flex cursor-pointer list-none items-baseline gap-3 py-5 [&::-webkit-details-marker]:hidden">
+                                <span
+                                  className={`h-2 w-2 shrink-0 self-center ${meta.dot}`}
+                                  aria-hidden="true"
+                                />
+                                <span className="font-display text-2xl capitalize text-text">
+                                  {block.severity}
+                                </span>
+                                <span className="font-mono text-sm text-text-muted">
+                                  {block.count}
+                                </span>
+                                <span className="ml-auto font-mono text-xs text-text-subtle underline decoration-border-strong underline-offset-4 group-open:hidden">
+                                  show
+                                </span>
+                                <span className="ml-auto hidden font-mono text-xs text-text-subtle underline decoration-border-strong underline-offset-4 group-open:inline">
+                                  hide
+                                </span>
+                              </summary>
+                              <p className="-mt-1 mb-4 text-sm text-text-muted">{meta.why}</p>
+                              <div className="mb-6 space-y-3">
+                                {block.groups.map((group) => (
+                                  <div
+                                    key={group.cls}
+                                    className="border border-border bg-surface p-4"
+                                  >
+                                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                                      <span className="font-mono text-sm text-text">
+                                        {group.count} &times; {group.label}
+                                      </span>
+                                      <span className="font-mono text-xs text-text-subtle">
+                                        {group.internal} internal &middot; {group.external}{' '}
+                                        external
+                                      </span>
+                                    </div>
+                                    <div className="mt-2 flex items-baseline gap-2 font-mono text-xs">
+                                      <span className="shrink-0 text-text-subtle">e.g.</span>
+                                      <span className="truncate text-text-muted" title={group.example}>
+                                        {group.example}
+                                      </span>
+                                    </div>
+                                    <p className="mt-2 text-xs text-text-muted">{group.action}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          );
+                        })}
+                    </div>
+                  </section>
+                )}
+
+                {/* 05 · Findings by category */}
+                {kpis.issues > 0 && (
+                  <section className="mb-16 lg:mb-20">
+                    <SectionHeading
+                      serial={nextSerial()}
+                      label="Findings · Category"
+                      title="The shape of the problem."
+                    />
+                    <div className="overflow-x-auto border border-border bg-surface">
+                      <table className="w-full min-w-[560px] border-collapse text-left">
+                        <thead>
+                          <tr className="border-b border-border-strong">
+                            <th className={`${microLabel} px-4 py-3 text-text-subtle`}>
+                              Category
+                            </th>
+                            <th className={`${microLabel} px-4 py-3 text-right text-text-subtle`}>
+                              Internal
+                            </th>
+                            <th className={`${microLabel} px-4 py-3 text-right text-text-subtle`}>
+                              External
+                            </th>
+                            <th className={`${microLabel} px-4 py-3 text-right text-text-subtle`}>
+                              Total
+                            </th>
+                            <th className={`${microLabel} px-4 py-3 text-text-subtle`}>Example</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {report.categories.map((category) => (
+                            <tr key={category.cls}>
+                              <td className="px-4 py-3 text-sm text-text">{category.label}</td>
+                              <td className="px-4 py-3 text-right font-mono text-sm text-text-muted">
+                                {category.internal}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono text-sm text-text-muted">
+                                {category.external}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono text-sm text-text">
+                                {category.total}
+                              </td>
+                              <td className="max-w-[260px] px-4 py-3">
+                                <span
+                                  className="block truncate font-mono text-xs text-text-subtle"
+                                  title={category.example}
+                                >
+                                  {category.example}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                )}
+
+                {/* 06 · Affected pages */}
+                {kpis.issues > 0 && (
+                  <section className="mb-16 lg:mb-20">
+                    <SectionHeading
+                      serial={nextSerial()}
+                      label="Affected Pages"
+                      title="Fix page by page."
+                    />
+                    <div className="divide-y divide-border border-y border-border">
+                      {report.affectedPages.slice(0, 15).map((page) => (
+                        <div
+                          key={page.page}
+                          className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-1 py-3.5 sm:flex-nowrap sm:gap-x-6"
+                        >
+                          <span
+                            className="min-w-0 truncate font-mono text-sm text-text"
+                            title={page.page}
+                          >
+                            {page.page === 'Discovery' ? 'crawl seed' : pathOf(page.page)}
+                          </span>
+                          <span
+                            className="hidden flex-1 border-b border-dotted border-border-strong sm:block"
+                            aria-hidden="true"
+                          />
+                          <span className="w-20 shrink-0 font-mono text-xs text-text-muted sm:text-right">
+                            {page.count} issue{page.count === 1 ? '' : 's'}
+                          </span>
+                          <span
+                            className={`w-16 shrink-0 font-mono text-xs capitalize ${
+                              SEVERITY_META[page.worstSeverity].text
+                            }`}
+                          >
+                            {page.worstSeverity}
+                          </span>
+                          <span className="shrink-0 font-mono text-xs text-text-subtle">
+                            {page.classes.map((cls) => CLASS_SHORT[cls]).join(' · ')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {report.affectedPages.length > 15 && (
+                      <p className="mt-3 font-mono text-xs text-text-subtle">
+                        + {report.affectedPages.length - 15} more pages — the appendix has the full
+                        list.
+                      </p>
+                    )}
+                  </section>
+                )}
+
+                {/* 07 · Remediation plan */}
+                {report.tasks.length > 0 && (
+                  <section className="mb-16 lg:mb-20">
+                    <SectionHeading
+                      serial={nextSerial()}
+                      label="Remediation Plan"
+                      title="The hand-off checklist."
+                    />
+                    <p className="mb-6 max-w-2xl text-sm leading-relaxed text-text-muted">
+                      Findings rolled up into tasks and ordered by impact against effort — work
+                      top to bottom. Each task links to its evidence rows below.
+                    </p>
+                    <div className="overflow-x-auto border border-border bg-surface">
+                      <table className="w-full min-w-[760px] border-collapse text-left">
+                        <thead>
+                          <tr className="border-b border-border-strong">
+                            <th className={`${microLabel} px-4 py-3 text-text-subtle`}>#</th>
+                            <th className={`${microLabel} px-4 py-3 text-text-subtle`}>Task</th>
+                            <th className={`${microLabel} px-4 py-3 text-text-subtle`}>Owner</th>
+                            <th className={`${microLabel} px-4 py-3 text-text-subtle`}>Effort</th>
+                            <th className={`${microLabel} px-4 py-3 text-right text-text-subtle`}>
+                              Instances
+                            </th>
+                            <th className={`${microLabel} px-4 py-3 text-right text-text-subtle`}>
+                              Gain
+                            </th>
+                            <th className={`${microLabel} px-4 py-3 text-text-subtle`}>
+                              Evidence
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border align-baseline">
+                          {report.tasks.map((task) => (
+                            <tr key={task.rank}>
+                              <td className="px-4 py-4 font-mono text-sm text-action">
+                                {String(task.rank).padStart(2, '0')}
+                              </td>
+                              <td className="min-w-[280px] px-4 py-4">
+                                <p className="text-sm font-medium text-text">{task.action}</p>
+                                <p className="mt-1 text-xs leading-relaxed text-text-muted">
+                                  {task.detail}
+                                </p>
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-4 font-mono text-xs text-text-muted">
+                                {task.owner}
+                              </td>
+                              <td className="px-4 py-4 font-mono text-sm text-text">
+                                {task.effort}
+                              </td>
+                              <td className="px-4 py-4 text-right font-mono text-sm text-text">
+                                {task.instances}
+                              </td>
+                              <td className="px-4 py-4 text-right font-mono text-sm text-success">
+                                {task.gain > 0 ? `+${task.gain}` : '—'}
+                              </td>
+                              <td className="px-4 py-4">
+                                <button
+                                  type="button"
+                                  onClick={() => focusEvidence(task.search)}
+                                  className="whitespace-nowrap font-mono text-xs text-text underline decoration-border-strong underline-offset-4 transition-colors hover:text-action hover:decoration-action"
+                                >
+                                  view <span aria-hidden="true">&rarr;</span>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                )}
+
+                {/* 08 · Detailed findings (appendix) */}
+                <section ref={appendixRef} className="mb-16 scroll-mt-24 lg:mb-20">
+                  <SectionHeading
+                    serial={nextSerial()}
+                    label="Detailed Findings"
+                    title="The evidence."
+                  />
+                  <EvidenceTable
+                    jobId={jobId}
+                    sharedTargets={report.sharedTargets}
+                    focusSearch={appendixFocus}
+                  />
+                </section>
+
+                {/* 09 · Methodology & scope */}
+                <section className="mb-16 lg:mb-20">
+                  <SectionHeading
+                    serial={nextSerial()}
+                    label="Methodology"
+                    title="How this report was made."
+                  />
+                  <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+                    <div>
+                      <ColumnHeading>Scope</ColumnHeading>
+                      <div className="space-y-1.5">
+                        <LeaderRow k="Mode" v={modeLabel} />
+                        <LeaderRow k="Crawl depth" v={String(job.settings?.maxDepth ?? '—')} />
+                        <LeaderRow
+                          k="External links"
+                          v={job.settings?.includeExternal ? 'checked' : 'not checked'}
+                        />
+                        <LeaderRow
+                          k="SEO analysis"
+                          v={job.settings?.enableSEO ? 'on' : 'off'}
+                        />
+                        <LeaderRow
+                          k="Pages scanned"
+                          v={String(summary?.internalPagesCount ?? '—')}
+                        />
+                        <LeaderRow
+                          k="Links discovered"
+                          v={kpis.totalDiscovered.toLocaleString()}
+                        />
+                        <LeaderRow k="Links checked" v={kpis.totalChecked.toLocaleString()} />
+                        <LeaderRow k="Started" v={reportDate(job.timestamps?.createdAt)} />
+                        <LeaderRow k="Finished" v={reportDate(job.timestamps?.completedAt)} />
+                        <LeaderRow
+                          k="Duration"
+                          v={formatDuration(job.timestamps?.elapsedTime)}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <ColumnHeading>Definitions</ColumnHeading>
+                      <div className="space-y-4 text-sm leading-relaxed text-text-muted">
+                        <p>
+                          A link counts as <span className="font-medium text-text">broken</span>{' '}
+                          when it answers with a 4xx or 5xx status, times out, or fails at the
+                          DNS/TLS layer. Targets that forbid automated checks (robots.txt) are
+                          recorded but weighted lightly.
+                        </p>
+                        <p>
+                          <span className="font-medium text-text">Severity:</span> critical means
+                          internal server errors or a target broken on{' '}
+                          {SHARED_SOURCE_THRESHOLD}+ pages (a shared nav/footer element); major
+                          means other site-owned failures; minor means isolated or third-party
+                          issues.
+                        </p>
+                        <div className="border border-border bg-surface-subtle p-4 font-mono text-xs leading-relaxed text-text-muted">
+                          integrity = 100 &times; (1 &minus; weighted &divide; (checked &times;
+                          0.5))
+                          <br />
+                          weights: int 5xx &times;4 &middot; int 4xx &times;2 &middot; timeout
+                          &times;1.5 &middot; ext &times;0.5
+                          <br />
+                          response = 100 at 0% slow (&gt;{SLOW_MS / 1000}s) &rarr; 0 at 25%
+                          <br />
+                          coverage = checked &divide; discovered
+                          <br />
+                          <span className="text-text">
+                            health = 70% integrity + 20% response + 10% coverage
+                          </span>
+                        </div>
+                        <p>
+                          The score is deliberately explainable — same crawl, same number, every
+                          time.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* 10 · SEO categories (reserved) */}
+                <section className="mb-16 lg:mb-20">
+                  <SectionHeading
+                    serial={nextSerial()}
+                    label="Reserved Sections"
+                    title="SEO categories."
+                  />
+                  <div className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="bg-surface p-5">
+                      <p className={`${microLabel} text-text-subtle`}>On-Page</p>
+                      {seoSummary ? (
+                        <>
+                          <p className="mt-3 font-mono text-2xl text-text">
+                            {Math.round(seoSummary.avg_score || 0)}/100
+                          </p>
+                          <p className="mt-1 font-mono text-xs text-text-muted">
+                            {seoSummary.total_pages || 0} pages &middot;{' '}
+                            {seoSummary.total_issues || 0} issues
+                          </p>
+                          <p className="mt-3 text-xs leading-relaxed text-text-subtle">
+                            Measured this audit — the full on-page breakdown ships in a later
+                            report revision.
+                          </p>
+                        </>
+                      ) : (
+                        <p className="mt-3 text-xs leading-relaxed text-text-subtle">
+                          Not measured in this audit — enable SEO analysis at setup.
+                        </p>
+                      )}
+                    </div>
+                    {['Indexability', 'Performance', 'Security'].map((name) => (
+                      <div key={name} className="bg-surface p-5">
+                        <p className={`${microLabel} text-text-subtle`}>{name}</p>
+                        <p className="mt-3 text-xs leading-relaxed text-text-subtle">
+                          Not yet measured — reserved for a future audit revision.
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </>
+            )}
+          </>
+        )}
+
+        <SecurityNotice />
+      </main>
+
+      {/* ── Stop confirmation ─────────────────────────────────────────── */}
+      {showStopConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md border border-border bg-surface p-6">
+            <p className={`${microLabel} mb-3 text-danger`}>Stop this audit?</p>
+            <p className="text-sm leading-relaxed text-text-muted">
+              Checking stops immediately. Everything checked so far stays in the report, and the
+              report is marked as partial.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={handleStop}
+                disabled={isStopping}
+                className="flex-1 rounded-md bg-danger px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isStopping ? 'Stopping…' : 'Stop audit'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowStopConfirm(false)}
+                className="flex-1 rounded-md border border-border-strong px-4 py-2.5 text-sm text-text transition-colors hover:border-action hover:text-action"
+              >
+                Keep running
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stop Confirmation Dialog */}
-        {showStopConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4">
-              <h3 className="text-xl font-bold text-slate-800 mb-4">🛑 Stop Crawl Confirmation</h3>
-              <p className="text-slate-600 mb-6">
-                Are you sure you want to stop this crawl? You'll be able to see partial results for
-                links that have already been checked.
-              </p>
-              <div className="flex space-x-4">
-                <button
-                  onClick={handleStopCrawl}
-                  className="flex-1 bg-red-600 text-white px-4 py-3 rounded-xl hover:bg-red-700 font-medium transition-colors"
-                >
-                  Yes, Stop Crawl
-                </button>
-                <button
-                  onClick={() => setShowStopConfirm(false)}
-                  className="flex-1 bg-slate-600 text-white px-4 py-3 rounded-xl hover:bg-slate-700 font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Progress Section */}
-        {job?.status === 'running' && (
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-                <svg
-                  className="w-6 h-6 text-blue-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-                Scan in Progress
-              </h2>
-              <span className="text-slate-600 font-medium">
-                {job.progress?.current || 0} / {job.progress?.total || 0} links checked
-              </span>
-            </div>
-
-            <div className="w-full bg-slate-200 rounded-full h-4 mb-4">
-              <div
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 h-4 rounded-full transition-all duration-300"
-                style={{ width: `${getProgressPercentage()}%` }}
-              ></div>
-            </div>
-
-            <p className="text-slate-600">
-              {getProgressPercentage()}% complete
-              {job.progress?.estimatedTimeRemaining && (
-                <>
-                  {' '}
-                  · About {Math.round(job.progress.estimatedTimeRemaining / 60)} minutes remaining
-                </>
-              )}
-            </p>
-          </div>
-        )}
-
-        {/* SEO Summary Cards */}
-        {job?.status === 'completed' && seoSummary && job?.settings?.enableSEO && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {/* SEO Score Card */}
-            <div className="bg-white rounded-xl shadow-2xs p-4 text-center border border-slate-200">
-              <div
-                className={`text-2xl font-bold mb-1 ${
-                  seoSummary.avg_score >= 80
-                    ? 'text-green-600'
-                    : seoSummary.avg_score >= 60
-                    ? 'text-yellow-600'
-                    : 'text-red-600'
-                }`}
-              >
-                {Math.round(seoSummary.avg_score || 0)}/100
-              </div>
-              <div className="text-slate-600 font-medium text-sm">Average SEO Score</div>
-              <div
-                className={`text-xs mt-1 font-bold ${
-                  seoSummary.avg_score >= 80
-                    ? 'text-green-600'
-                    : seoSummary.avg_score >= 60
-                    ? 'text-yellow-600'
-                    : 'text-red-600'
-                }`}
-              >
-                Grade:{' '}
-                {seoSummary.avg_score >= 90
-                  ? 'A'
-                  : seoSummary.avg_score >= 80
-                  ? 'B'
-                  : seoSummary.avg_score >= 70
-                  ? 'C'
-                  : seoSummary.avg_score >= 60
-                  ? 'D'
-                  : 'F'}
-              </div>
-            </div>
-
-            {/* Pages Analyzed */}
-            <div className="bg-white rounded-xl shadow-2xs p-4 text-center border border-slate-200">
-              <div className="text-2xl font-bold text-blue-600 mb-1">
-                {seoSummary.total_pages || 0}
-              </div>
-              <div className="text-slate-600 font-medium text-sm">Pages Analyzed</div>
-              <div className="text-xs text-blue-600 mt-1 font-bold">SEO Data Available</div>
-            </div>
-
-            {/* SEO Issues */}
-            <div className="bg-white rounded-xl shadow-2xs p-4 text-center border border-slate-200">
-              <div className="text-2xl font-bold text-orange-600 mb-1">
-                {seoSummary.total_issues || 0}
-              </div>
-              <div className="text-slate-600 font-medium text-sm">SEO Issues Found</div>
-              <div className="text-xs text-orange-600 mt-1 font-bold">Need Attention</div>
-            </div>
-
-            {/* Performance */}
-            <div className="bg-white rounded-xl shadow-2xs p-4 text-center border border-slate-200">
-              <div className="text-2xl font-bold text-purple-600 mb-1">
-                {Math.round(seoSummary.avg_response_time || 0)}ms
-              </div>
-              <div className="text-slate-600 font-medium text-sm">Avg Response Time</div>
-              <div
-                className={`text-xs mt-1 font-bold ${
-                  (seoSummary.avg_response_time || 0) < 1000
-                    ? 'text-green-600'
-                    : (seoSummary.avg_response_time || 0) < 3000
-                    ? 'text-yellow-600'
-                    : 'text-red-600'
-                }`}
-              >
-                {(seoSummary.avg_response_time || 0) < 1000
-                  ? 'Fast'
-                  : (seoSummary.avg_response_time || 0) < 3000
-                  ? 'Moderate'
-                  : 'Slow'}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Enhanced Stats Cards with Modern Data */}
-        {job && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <button
-              onClick={() => handleCardClick('all')}
-              className={`bg-white rounded-xl shadow-lg p-4 text-center transition-all hover:shadow-xl transform hover:scale-105 ${
-                selectedView === 'all' ? 'ring-2 ring-blue-500 bg-blue-50' : ''
-              }`}
-            >
-              <div className="text-2xl font-bold text-blue-600 mb-1">
-                {job.stats?.totalLinksDiscovered || 0}
-              </div>
-              <div className="text-slate-600 font-medium text-sm">All Unique Links</div>
-              {selectedView === 'all' && (
-                <div className="text-xs text-blue-600 mt-1 font-bold">● Active</div>
-              )}
-            </button>
-
-            <button
-              onClick={() => handleCardClick('working')}
-              className={`bg-white rounded-xl shadow-lg p-4 text-center transition-all hover:shadow-xl transform hover:scale-105 ${
-                selectedView === 'working' ? 'ring-2 ring-green-500 bg-green-50' : ''
-              }`}
-            >
-              <div className="text-2xl font-bold text-green-600 mb-1">
-                {(job.stats?.totalLinksDiscovered || 0) - (job.stats?.brokenLinksFound || 0)}
-              </div>
-              <div className="text-slate-600 font-medium text-sm">Working Links</div>
-              {selectedView === 'working' && (
-                <div className="text-xs text-green-600 mt-1 font-bold">● Active</div>
-              )}
-            </button>
-
-            <button
-              onClick={() => handleCardClick('broken')}
-              className={`bg-white rounded-xl shadow-lg p-4 text-center transition-all hover:shadow-xl transform hover:scale-105 ${
-                selectedView === 'broken' ? 'ring-2 ring-red-500 bg-red-50' : ''
-              }`}
-            >
-              <div className="text-2xl font-bold text-red-600 mb-1">
-                {job.stats?.brokenLinksFound || 0}
-              </div>
-              <div className="text-slate-600 font-medium text-sm">Broken Links</div>
-              {selectedView === 'broken' && (
-                <div className="text-xs text-red-600 mt-1 font-bold">● Active</div>
-              )}
-            </button>
-
-            <button
-              onClick={() => handleCardClick('pages')}
-              className={`bg-white rounded-xl shadow-lg p-4 text-center transition-all hover:shadow-xl transform hover:scale-105 ${
-                selectedView === 'pages' ? 'ring-2 ring-purple-500 bg-purple-50' : ''
-              }`}
-            >
-              <div className="text-2xl font-bold text-purple-600 mb-1">
-                {results?.summary?.internalPagesCount || 0}
-              </div>
-              <div className="text-slate-600 font-medium text-sm">
-                {job?.crawlMode === 'discovered_links' ? 'Pages Scanned' : 'Links Checked'}
-              </div>
-              {selectedView === 'pages' && (
-                <div className="text-xs text-purple-600 mt-1 font-bold">● Active</div>
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* Export Success Message */}
-        {isExportingCSV ||
-          (isExportingJSON && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
-              <div className="flex items-center">
-                <svg
-                  className="animate-spin -ml-1 mr-3 h-6 w-6 text-blue-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                <span className="text-blue-800 font-medium">Preparing export file...</span>
-              </div>
-            </div>
-          ))}
-
-        {/* Enhanced Results Table with HTTP Status Support */}
-        {job?.status === 'completed' && getCurrentData()?.links && (
-          <ResultsTable
-            jobId={jobId}
-            links={getCurrentData().links}
-            selectedView={selectedView}
-            pagination={getCurrentData().pagination}
-            onPageChange={handlePageChange}
-            onFilter={handleFilter}
-            job={job}
-          />
-        )}
-
-        {/* Completed - Show results summary */}
-        {job?.status === 'completed' && results && (
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center mb-8">
-            <svg
-              className={`w-20 h-20 mx-auto mb-6 ${
-                results.summary?.brokenLinks === 0 ? 'text-green-500' : 'text-yellow-500'
-              }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              {results.summary?.brokenLinks === 0 ? (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              ) : (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-                />
-              )}
-            </svg>
-
-            <h3 className="text-2xl font-bold text-slate-800 mb-4">
-              {results.summary?.brokenLinks === 0
-                ? '🎉 Excellent! No Broken Links Found'
-                : `⚠️ Found ${results.summary?.brokenLinks} Broken Links`}
-            </h3>
-
-            <p className="text-slate-600 mb-6">
-              {results.summary?.brokenLinks === 0
-                ? `All ${
-                    job.stats?.totalLinksDiscovered || 0
-                  } links on your website are working perfectly.`
-                : `${results.summary?.brokenLinks} out of ${
-                    job.stats?.totalLinksDiscovered || 0
-                  } links need attention. Review the details below.`}
-            </p>
-
-            <div className="flex justify-center space-x-4">
-              <button
-                onClick={exportToCSV}
-                disabled={isExportingCSV}
-                className="bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 font-medium transition-all shadow-lg"
-              >
-                📊 Export CSV
-              </button>
-              <button
-                onClick={exportToJSON}
-                disabled={isExportingJSON}
-                className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-medium transition-all shadow-lg"
-              >
-                📁 Export JSON
-              </button>
-              <button
-                onClick={() => router.push('/analyze')}
-                className="bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 font-medium transition-all shadow-lg"
-              >
-                🔍 Analyze Another Site
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Pending/Running State */}
-        {job?.status === 'running' && (
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center">
-            <div className="animate-pulse">
-              <div className="text-6xl mb-6">🔍</div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-4">Scanning Your Website</h3>
-              <p className="text-slate-600 text-lg">
-                We're checking each link for broken status and measuring response times. This page
-                will update automatically when complete.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Failed State */}
-        {job?.status === 'failed' && (
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center">
-            <svg
-              className="w-20 h-20 text-red-500 mx-auto mb-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-              />
-            </svg>
-            <h3 className="text-2xl font-bold text-slate-800 mb-4">Scan Failed</h3>
-            <p className="text-slate-600 mb-6 text-lg">
-              {job.errorMessage || 'The scan encountered an error and could not be completed.'}
-            </p>
-            <button
-              onClick={() => router.push('/analyze')}
-              className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-medium transition-all shadow-lg"
-            >
-              Try Again
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Security notice */}
-      <SecurityNotice variant="compact" />
-      {/* Footer */}
       <Footer />
     </div>
   );

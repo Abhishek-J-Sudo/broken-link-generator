@@ -2,6 +2,50 @@
 
 ---
 
+## 2026-07-11 - Audit Report results page refresh
+
+### Branch: `phase2-ui-restructure`
+
+The `/results/[jobId]` experience has been reworked from a table-first crawl output into the
+Audit Report flow described in `docs/handoff/06-ux-ia-and-reporting.md` and
+`docs/handoff/09-audit-report-spec.md`.
+
+- **`src/app/results/[jobId]/page.js`** rebuilt as the report shell:
+  - live queued/running progress view remains in place
+  - completed/stopped crawls render verdict, health score, key takeaways, quick wins,
+    priority findings, affected pages, remediation plan, detailed evidence, methodology,
+    and reserved SEO categories
+  - stop-crawl confirmation, CSV/JSON export, SEO summary loading, and appendix deep links
+    are preserved in the new layout
+- **`src/lib/auditReport.js`** added as a pure derivation layer:
+  - health score, grading, severity classification, shared-target detection, grouping,
+    quick wins, top pages, remediation tasks, and report takeaways
+  - scoring constants are mirrored in the page's Methodology copy
+- **`src/app/components/EvidenceTable.js`** added as the appendix table:
+  - tokenized/square visual treatment
+  - broken/all/working views, search, error-type filtering, pagination, row expansion,
+    severity and action guidance
+- **Deleted:** old `src/app/components/ResultsTable.js` and `src/app/components/ToolTip.js`.
+
+### Validation
+
+- `npx eslint "src/app/results/[jobId]/page.js" src/app/components/EvidenceTable.js src/lib/auditReport.js`
+  completed cleanly.
+- Local dev server returned `200` for a real completed audit report page.
+- A real crawl was queued through the API and completed:
+  `46872c36-7b98-4dee-92f4-c890127b609e`, `33/33`, `3` broken links.
+
+### Notes / follow-up
+
+- `next-env.d.ts` is intentionally still tracked. It is a Next.js generated type shim;
+  do not delete or gitignore it. Incidental local changes to it should be left out of
+  feature commits unless Next itself requires the change.
+- User is going to review the new audit report UI and split observed issues into
+  next-update polish versus actual bugs.
+- Some handoff docs still mention `ResultsTable` as the old implementation/component name;
+  those references are historical/spec context unless we choose to refresh the docs.
+
+---
 ## 2026-07-08 — C3/C4/C5: SSRF hardening
 
 ### Branch: `phase2-doc02-basic-auth` (continued)
