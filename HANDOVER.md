@@ -2,6 +2,62 @@
 
 ---
 
+## 2026-07-11 - Grading separation (link-health vs SEO) + pipeline reset
+
+### Branch: `phase2-ui-restructure`
+
+User reviewed the new audit report UI: approved, with one structural item — the report mixed
+two score systems (link-health grade next to an "SEO avg" tile read as a contradiction:
+grade A beside 61/100). Product decision agreed (from a Codex discussion):
+
+- **SeoScrub = link-health checker first; SEO is an optional module, not part of the grade.**
+- One report shell, separate modules: link-health verdict keeps the letter grade; SEO gets a
+  numeric per-page snapshot — **deliberately no site-level SEO letter grade** until the deeper
+  SEO pipeline (doc 04 §G) exists.
+- The Quick Check / Full Link Audit / SEO Snapshot tiering maps onto existing crawl modes —
+  naming + report modularity only, no crawler rework needed (SEO already only parses internal
+  HTML content pages; external links are status-checked only).
+
+### What changed
+
+- **`src/app/results/[jobId]/page.js`**
+  - Executive summary grid is now link-health only: `SEO pages` / `SEO avg` tiles removed;
+    rebalanced to 8 tiles × 4 cols with a new `Slow links` tile (response-health evidence).
+  - SEO section rebuilt as **"SEO Snapshot — Measured separately."**: lead-in states the
+    population (per analyzed HTML page, N pages) and that it never feeds the link-health
+    grade; On-Page cell shows page average, min–max range, pages · issues, and points to the
+    evidence appendix. Reserved category cells unchanged.
+- **`src/lib/supabase.js`** — `calculateSEOSummary()` now returns `min_score` / `max_score`
+  (served by `/api/seo/summary/[jobId]`; the `seo_job_summary` view already had them).
+
+### Validation
+
+- ESLint clean on both touched files.
+- `/api/seo/summary/59749e40-…` returns the new fields (`min_score: 55, max_score: 75`) —
+  note this job: avg 64 but 7 of 8 pages grade D/F, exactly why the range is shown.
+- Report page returns `200` on the running dev server.
+
+### Pipeline (updated, priority order)
+
+Track A — design/IA restructure — **one surface left**:
+
+1. **Audit progress view** (doc 06 core page model #3) — the queued/running view was carried
+   into the new report shell but never got its own typeset-audit pass. ← **NEXT TASK**
+
+Track A closes after that; everything else is features/improvements/fixes:
+
+2. **A3** — consolidate the 3 crawl endpoints into one.
+3. **Smart Analyzer AI** — replace rule-based `generateRecommendations()` with DeepSeek
+   (decided, not started).
+4. **Deploy** — provision VPS + Coolify (runbook in the 2026-07-07 entry below).
+5. Deeper SEO audit pipeline (doc 04 §G) — later; unlocks an SEO letter grade.
+
+C2 note: the Redis rate-limit store is effectively done (`src/lib/redisRateLimit.js`, atomic
+Lua sliding window, wired via `validation.js`); only the Basic Auth brute-force counter in
+`middleware.ts` stays in-memory, blocked on Next's experimental `nodeMiddleware`.
+
+---
+
 ## 2026-07-11 - Audit Report results page refresh
 
 ### Branch: `phase2-ui-restructure`

@@ -366,7 +366,6 @@ export default function AuditReportPage() {
   const score = report?.score;
   const summary = findingsPayload?.summary;
   const seoPages = seoSummary?.total_pages ?? summary?.pagesAnalyzed ?? 0;
-  const seoAverage = seoSummary?.avg_score ?? null;
 
   return (
     <div className="min-h-screen bg-bg">
@@ -618,7 +617,9 @@ export default function AuditReportPage() {
                     </div>
 
                     <div className="lg:col-span-8">
-                      <div className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-3">
+                      {/* Link-health numbers only — SEO lives in its own snapshot
+                          section so its 0–100 scale never reads as part of the grade. */}
+                      <div className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-4">
                         {[
                           {
                             label: 'Checked URLs',
@@ -631,10 +632,9 @@ export default function AuditReportPage() {
                             tone: kpis.issues ? 'text-danger' : 'text-success',
                           },
                           { label: 'Affected pages', value: String(kpis.affectedPages) },
-                          { label: 'SEO pages', value: String(seoPages) },
                           {
-                            label: 'SEO avg',
-                            value: seoAverage == null ? '—' : `${Math.round(seoAverage)}/100`,
+                            label: 'Int / ext broken',
+                            value: `${kpis.internalIssues} / ${kpis.externalIssues}`,
                           },
                           {
                             label: 'Env signals',
@@ -642,10 +642,7 @@ export default function AuditReportPage() {
                             tone: kpis.environmentExposures ? 'text-warning' : 'text-text',
                           },
                           { label: 'Avg response', value: `${kpis.avgResponse} ms` },
-                          {
-                            label: 'Int / ext broken',
-                            value: `${kpis.internalIssues} / ${kpis.externalIssues}`,
-                          },
+                          { label: 'Slow links', value: String(kpis.slowLinks || 0) },
                         ].map((stat) => (
                           <div key={stat.label} className="bg-surface p-4">
                             <p className={`font-mono text-2xl ${stat.tone || 'text-text'}`}>
@@ -1118,28 +1115,46 @@ export default function AuditReportPage() {
                   </div>
                 </section>
 
-                {/* 10 · SEO categories (reserved) */}
+                {/* SEO snapshot — its own score system over its own population
+                    (analyzed HTML pages); numeric only, no letter grade until the
+                    deeper SEO pipeline (doc 04 §G) earns one. */}
                 <section className="mb-16 lg:mb-20">
                   <SectionHeading
                     serial={nextSerial()}
-                    label="SEO Status"
-                    title="SEO snapshot."
+                    label="SEO Snapshot"
+                    title="Measured separately."
                   />
+                  <p className="mb-6 max-w-3xl text-sm leading-relaxed text-text-muted">
+                    {job.settings?.enableSEO ? (
+                      <>
+                        SEO is scored per analyzed HTML page — {seoPages}{' '}
+                        {seoPages === 1 ? 'page' : 'pages'} in this audit — and never feeds the
+                        link-health grade above. Treat it as a snapshot of on-page signals, not
+                        a full SEO audit.
+                      </>
+                    ) : (
+                      'SEO was not measured in this audit. Run a Full Audit with SEO analysis enabled to add this module.'
+                    )}
+                  </p>
                   <div className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
                     <div className="bg-surface p-5">
                       <p className={`${microLabel} text-text-subtle`}>On-Page</p>
-                      {seoSummary ? (
+                      {seoSummary && seoPages > 0 ? (
                         <>
                           <p className="mt-3 font-mono text-2xl text-text">
                             {Math.round(seoSummary.avg_score || 0)}/100
+                          </p>
+                          <p className="mt-1 font-mono text-xs text-text-muted">
+                            page average &middot; range {seoSummary.min_score ?? '—'}&ndash;
+                            {seoSummary.max_score ?? '—'}
                           </p>
                           <p className="mt-1 font-mono text-xs text-text-muted">
                             {seoSummary.total_pages || 0} pages &middot;{' '}
                             {seoSummary.total_issues || 0} issues
                           </p>
                           <p className="mt-3 text-xs leading-relaxed text-text-subtle">
-                            Measured this audit — the full on-page breakdown ships in a later
-                            report revision.
+                            Per-page titles, meta and issues are in the evidence appendix under
+                            SEO pages.
                           </p>
                         </>
                       ) : (

@@ -464,6 +464,8 @@ export const db = {
         return {
           total_pages: 0,
           avg_score: 0,
+          min_score: 0,
+          max_score: 0,
           grade_distribution: {},
           total_issues: 0,
           https_pages: 0,
@@ -479,9 +481,13 @@ export const db = {
         grade_f_count: data.filter((d) => d.seo_grade === 'F').length,
       };
 
+      const scores = data.map((d) => d.seo_score || 0);
+
       return {
         total_pages: data.length,
-        avg_score: Math.round(data.reduce((sum, d) => sum + d.seo_score, 0) / data.length),
+        avg_score: Math.round(scores.reduce((sum, s) => sum + s, 0) / data.length),
+        min_score: Math.min(...scores),
+        max_score: Math.max(...scores),
         ...gradeDistribution,
         total_issues: data.reduce((sum, d) => sum + (d.issues_count || 0), 0),
         https_pages: data.filter((d) => d.is_https).length,
