@@ -145,6 +145,57 @@ function linkIntegrityScore(weightedBroken, totalChecked) {
 
 const EFFORT_RANK = { XS: 1, S: 2, M: 3, L: 4 };
 
+const ENVIRONMENT_MARKERS = [
+  { id: 'preprod', label: 'pre-production', pattern: /(^|[.\-_/])pre-?prod(uction)?([.\-_/]|$)/i },
+  { id: 'prod', label: 'production', pattern: /(^|[.\-_/])prod(uction)?([.\-_/]|$)/i },
+  { id: 'staging', label: 'staging', pattern: /(^|[.\-_/])stag(e|ing)?([.\-_/]|$)/i },
+  { id: 'uat', label: 'UAT', pattern: /(^|[.\-_/])uat([.\-_/]|$)/i },
+  { id: 'dev', label: 'development', pattern: /(^|[.\-_/])dev(elopment)?([.\-_/]|$)/i },
+  { id: 'qa', label: 'QA', pattern: /(^|[.\-_/])qa([.\-_/]|$)/i },
+  { id: 'test', label: 'test', pattern: /(^|[.\-_/])test([.\-_/]|$)/i },
+  { id: 'internal', label: 'internal host', pattern: /(^|[.\-_/])internal([.\-_/]|$)|\.internal\b|\.local\b|localhost/i },
+];
+
+function environmentReasons(value) {
+  if (!value) return [];
+  let decoded = String(value);
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch {
+    // Keep the original string if it is not safely decodable.
+  }
+  return ENVIRONMENT_MARKERS.filter((marker) => marker.pattern.test(decoded)).map(
+    (marker) => marker.label
+  );
+}
+
+function deriveEnvironmentExposures(checkedLinks = []) {
+  const seen = new Set();
+  const exposures = [];
+
+  for (const link of checkedLinks) {
+    for (const field of ['url', 'source_url']) {
+      const value = link[field];
+      const reasons = environmentReasons(value);
+      if (!reasons.length) continue;
+      const key = `${field}:${value}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      exposures.push({
+        url: value,
+        sourceUrl: link.source_url || 'Discovery',
+        field,
+        reasons,
+        statusCode: link.http_status_code,
+        isWorking: link.is_working,
+        search: value,
+      });
+    }
+  }
+
+  return exposures;
+}
+
 /**
  * Build the full report model.
  *
@@ -153,10 +204,11 @@ const EFFORT_RANK = { XS: 1, S: 2, M: 3, L: 4 };
  * @param {object} args.summary  summary block from /api/results — totals, performance
  * @param {Array}  args.findings broken rows from /api/results (statusFilter=broken)
  */
-export function buildReport({ job, summary, findings }) {
+export function buildReport({ job, summary, findings, checkedLinks = [] }) {
   const totalChecked = summary?.totalLinksChecked || 0;
   const totalDiscovered = job?.stats?.totalLinksDiscovered || totalChecked;
   const healthy = summary?.workingLinks || 0;
+  const environmentExposures = deriveEnvironmentExposures(checkedLinks);
 
   // ── Normalize findings and detect shared-element targets ──────────────
   const bySources = new Map(); // target url -> Set(source pages)
@@ -450,6 +502,14 @@ export function buildReport({ job, summary, findings }) {
   }
 
   // ── One-line verdict (§2) ─────────────────────────────────────────────
+  if (environmentExposures.length > 0) {
+    takeaways.push(
+      `${environmentExposures.length} URL${
+        environmentExposures.length === 1 ? '' : 's'
+      } look like environment/internal endpoints — review before sharing this report externally.`
+    );
+  }
+
   const gradeWord =
     { A: 'Excellent', B: 'Good', C: 'Fair', D: 'Poor', F: 'Critical' }[score.grade] || 'Fair';
   const dominant = categories[0];
@@ -480,6 +540,7 @@ export function buildReport({ job, summary, findings }) {
       externalIssues,
       affectedPages: affectedPages.length,
       pagesAnalyzed: summary?.pagesAnalyzed || 0,
+      environmentExposures: environmentExposures.length,
       avgResponse: summary?.performance?.averageResponseTime || 0,
       slowLinks,
     },
@@ -490,6 +551,7 @@ export function buildReport({ job, summary, findings }) {
     bySeverity,
     categories,
     affectedPages,
+    environmentExposures,
     tasks,
     sharedTargets: [...sharedTargets],
   };

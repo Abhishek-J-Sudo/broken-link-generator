@@ -85,6 +85,23 @@ function download(filename, content, type) {
   URL.revokeObjectURL(url);
 }
 
+async function fetchAllCheckedLinks(jobId) {
+  const links = [];
+  let page = 1;
+  let hasNextPage = true;
+
+  while (hasNextPage) {
+    const response = await fetch(`/api/results/${jobId}?statusFilter=all&page=${page}&limit=100`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to load checked URLs');
+    links.push(...(data.links || []));
+    hasNextPage = !!data.pagination?.hasNextPage;
+    page += 1;
+  }
+
+  return links;
+}
+
 /* ── Typeset primitives ─────────────────────────────────────────────── */
 
 function LeaderRow({ k, v, tone = 'text-text' }) {
@@ -191,7 +208,14 @@ export default function AuditReportPage() {
         );
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Failed to load the findings');
-        if (!cancelled) setFindingsPayload({ findings: data.links || [], summary: data.summary });
+        const checkedLinks = await fetchAllCheckedLinks(jobId);
+        if (!cancelled) {
+          setFindingsPayload({
+            findings: data.links || [],
+            checkedLinks,
+            summary: data.summary,
+          });
+        }
       } catch (err) {
         if (!cancelled) setFindingsError(err.message);
       }
@@ -226,6 +250,7 @@ export default function AuditReportPage() {
             job,
             summary: findingsPayload.summary,
             findings: findingsPayload.findings,
+            checkedLinks: findingsPayload.checkedLinks,
           })
         : null,
     [findingsPayload, job]
@@ -611,6 +636,11 @@ export default function AuditReportPage() {
                             label: 'SEO avg',
                             value: seoAverage == null ? '—' : `${Math.round(seoAverage)}/100`,
                           },
+                          {
+                            label: 'Env signals',
+                            value: String(kpis.environmentExposures || 0),
+                            tone: kpis.environmentExposures ? 'text-warning' : 'text-text',
+                          },
                           { label: 'Avg response', value: `${kpis.avgResponse} ms` },
                           {
                             label: 'Int / ext broken',
@@ -651,6 +681,56 @@ export default function AuditReportPage() {
                     ))}
                   </ul>
                 </section>
+
+                {report.environmentExposures.length > 0 && (
+                  <section className="mb-16 lg:mb-20">
+                    <SectionHeading
+                      serial={nextSerial()}
+                      label="Exposure Review"
+                      title="Environment URLs found."
+                    />
+                    <p className="mb-6 max-w-3xl text-sm leading-relaxed text-text-muted">
+                      These checked URLs or source pages look like production, staging, UAT,
+                      development, or internal endpoints. They can still return 200, so they are
+                      tracked separately from broken-link issues.
+                    </p>
+                    <div className="divide-y divide-border border-y border-border">
+                      {report.environmentExposures.slice(0, 12).map((exposure) => (
+                        <div
+                          key={`${exposure.field}:${exposure.url}`}
+                          className="grid gap-2 py-4 text-sm md:grid-cols-[1fr_auto_auto]"
+                        >
+                          <div className="min-w-0">
+                            <p className="break-all font-mono text-xs text-text">
+                              {exposure.url}
+                            </p>
+                            <p className="mt-1 font-mono text-xs text-text-subtle">
+                              {exposure.field === 'source_url' ? 'source page' : 'checked URL'}
+                              {' · '}
+                              {exposure.reasons.join(', ')}
+                            </p>
+                          </div>
+                          <span className="font-mono text-xs text-text-muted md:text-right">
+                            {exposure.statusCode ?? 'no status'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => focusEvidence(exposure.search)}
+                            className="font-mono text-xs text-text underline decoration-border-strong underline-offset-4 transition-colors hover:text-action hover:decoration-action md:text-right"
+                          >
+                            evidence <span aria-hidden="true">&rarr;</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {report.environmentExposures.length > 12 && (
+                      <p className="mt-3 font-mono text-xs text-text-subtle">
+                        + {report.environmentExposures.length - 12} more environment signals in
+                        the appendix.
+                      </p>
+                    )}
+                  </section>
+                )}
 
                 {kpis.issues === 0 && (
                   <section className="mb-16 lg:mb-20">
