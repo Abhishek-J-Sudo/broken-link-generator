@@ -340,6 +340,8 @@ export default function AuditReportPage() {
   const kpis = report?.kpis;
   const score = report?.score;
   const summary = findingsPayload?.summary;
+  const seoPages = seoSummary?.total_pages ?? summary?.pagesAnalyzed ?? 0;
+  const seoAverage = seoSummary?.avg_score ?? null;
 
   return (
     <div className="min-h-screen bg-bg">
@@ -565,7 +567,9 @@ export default function AuditReportPage() {
                   <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
                     <div className="lg:col-span-4">
                       <div className="border border-border bg-surface p-6">
-                        <p className={`${microLabel} mb-4 text-text-subtle`}>Overall grade</p>
+                        <p className={`${microLabel} mb-4 text-text-subtle`}>
+                          Link-health grade
+                        </p>
                         <p
                           className={`font-display text-8xl leading-none ${
                             score.overall >= 80
@@ -578,7 +582,7 @@ export default function AuditReportPage() {
                           {score.grade}
                         </p>
                         <p className="mt-3 font-mono text-sm text-text-muted">
-                          Health {score.overall}/100
+                          Link health {score.overall}/100
                         </p>
                         <div className="mt-5 space-y-1.5 border-t border-border pt-4">
                           <LeaderRow k="Link integrity" v={`${score.integrity}`} />
@@ -591,14 +595,22 @@ export default function AuditReportPage() {
                     <div className="lg:col-span-8">
                       <div className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-3">
                         {[
-                          { label: 'Links checked', value: kpis.totalChecked.toLocaleString() },
-                          { label: 'Healthy', value: kpis.healthy.toLocaleString() },
                           {
-                            label: 'Issues',
+                            label: 'Checked URLs',
+                            value: kpis.totalChecked.toLocaleString(),
+                          },
+                          { label: 'Healthy links', value: kpis.healthy.toLocaleString() },
+                          {
+                            label: 'Link issues',
                             value: kpis.issues.toLocaleString(),
                             tone: kpis.issues ? 'text-danger' : 'text-success',
                           },
                           { label: 'Affected pages', value: String(kpis.affectedPages) },
+                          { label: 'SEO pages', value: String(seoPages) },
+                          {
+                            label: 'SEO avg',
+                            value: seoAverage == null ? '—' : `${Math.round(seoAverage)}/100`,
+                          },
                           { label: 'Avg response', value: `${kpis.avgResponse} ms` },
                           {
                             label: 'Int / ext broken',
@@ -966,14 +978,18 @@ export default function AuditReportPage() {
                           v={job.settings?.enableSEO ? 'on' : 'off'}
                         />
                         <LeaderRow
-                          k="Pages scanned"
-                          v={String(summary?.internalPagesCount ?? '—')}
+                          k="SEO pages analyzed"
+                          v={String(seoPages)}
+                        />
+                        <LeaderRow
+                          k="Source pages seen"
+                          v={String(summary?.sourcePagesCount ?? '—')}
                         />
                         <LeaderRow
                           k="Links discovered"
                           v={kpis.totalDiscovered.toLocaleString()}
                         />
-                        <LeaderRow k="Links checked" v={kpis.totalChecked.toLocaleString()} />
+                        <LeaderRow k="Checked URLs" v={kpis.totalChecked.toLocaleString()} />
                         <LeaderRow k="Started" v={reportDate(job.timestamps?.createdAt)} />
                         <LeaderRow k="Finished" v={reportDate(job.timestamps?.completedAt)} />
                         <LeaderRow
@@ -1010,7 +1026,7 @@ export default function AuditReportPage() {
                           coverage = checked &divide; discovered
                           <br />
                           <span className="text-text">
-                            health = 70% integrity + 20% response + 10% coverage
+                            link health = 70% integrity + 20% response + 10% coverage
                           </span>
                         </div>
                         <p>
@@ -1026,8 +1042,8 @@ export default function AuditReportPage() {
                 <section className="mb-16 lg:mb-20">
                   <SectionHeading
                     serial={nextSerial()}
-                    label="Reserved Sections"
-                    title="SEO categories."
+                    label="SEO Status"
+                    title="SEO snapshot."
                   />
                   <div className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
                     <div className="bg-surface p-5">

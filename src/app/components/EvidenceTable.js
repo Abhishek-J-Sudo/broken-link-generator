@@ -37,8 +37,9 @@ const ERROR_TYPE_LABELS = {
 
 const VIEWS = [
   { id: 'broken', label: 'Broken' },
-  { id: 'all', label: 'All checked' },
-  { id: 'working', label: 'Working' },
+  { id: 'all', label: 'All checked URLs' },
+  { id: 'working', label: 'Healthy links' },
+  { id: 'pages', label: 'SEO pages' },
 ];
 
 export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch = null }) {
@@ -108,6 +109,7 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
 
   const changeView = (id) => {
     setView(id);
+    if (id !== 'broken') setErrorType('all');
     setPage(1);
   };
 
@@ -125,8 +127,11 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
     if (!summary) return null;
     if (id === 'broken') return summary.brokenLinks;
     if (id === 'working') return summary.workingLinks;
+    if (id === 'pages') return summary.pagesAnalyzed;
     return summary.totalLinksChecked;
   };
+
+  const isPageView = view === 'pages';
 
   return (
     <div>
@@ -152,6 +157,12 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
           ))}
         </div>
 
+        <p className="basis-full text-xs leading-relaxed text-text-subtle sm:basis-auto">
+          {isPageView
+            ? 'Page-level SEO rows from the HTML pages analyzed during this audit.'
+            : 'Link rows are every URL checked for HTTP health; assets can appear here when they were found on a page.'}
+        </p>
+
         <form onSubmit={submitSearch} className="ml-auto flex items-center gap-2">
           <input
             type="search"
@@ -168,9 +179,16 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
               setPage(1);
             }}
             aria-label="Filter by error type"
-            className="rounded-md border border-border bg-surface px-3 py-2 font-mono text-xs text-text focus:border-action focus:outline-none"
+            disabled={view !== 'broken' || errorOptions.length === 0}
+            className="rounded-md border border-border bg-surface px-3 py-2 font-mono text-xs text-text focus:border-action focus:outline-none disabled:cursor-not-allowed disabled:text-text-subtle"
           >
-            <option value="all">All error types</option>
+            <option value="all">
+              {view === 'broken'
+                ? errorOptions.length
+                  ? 'All error types'
+                  : 'No error types'
+                : 'Error types: broken only'}
+            </option>
             {errorOptions.map((opt) => (
               <option key={opt.type} value={opt.type}>
                 {ERROR_TYPE_LABELS[opt.type] || opt.type} ({opt.count})
@@ -186,13 +204,23 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
           <thead>
             <tr className="border-b border-border-strong">
               <th className="w-8 px-2 py-3" aria-label="Expand" />
-              <th className={`${microLabel} px-3 py-3 text-text-subtle`}>Priority</th>
-              <th className={`${microLabel} px-3 py-3 text-text-subtle`}>URL</th>
-              <th className={`${microLabel} px-3 py-3 text-text-subtle`}>Source page</th>
-              <th className={`${microLabel} px-3 py-3 text-text-subtle`}>Type</th>
+              <th className={`${microLabel} px-3 py-3 text-text-subtle`}>
+                {isPageView ? 'SEO' : 'Priority'}
+              </th>
+              <th className={`${microLabel} px-3 py-3 text-text-subtle`}>
+                {isPageView ? 'Page URL' : 'URL'}
+              </th>
+              <th className={`${microLabel} px-3 py-3 text-text-subtle`}>
+                {isPageView ? 'Title / Meta' : 'Source page'}
+              </th>
+              <th className={`${microLabel} px-3 py-3 text-text-subtle`}>
+                {isPageView ? 'Issues' : 'Type'}
+              </th>
               <th className={`${microLabel} px-3 py-3 text-right text-text-subtle`}>Code</th>
               <th className={`${microLabel} px-3 py-3 text-right text-text-subtle`}>ms</th>
-              <th className={`${microLabel} px-3 py-3 text-text-subtle`}>Scope</th>
+              <th className={`${microLabel} px-3 py-3 text-text-subtle`}>
+                {isPageView ? 'HTTPS' : 'Scope'}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -282,6 +310,7 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
 
 function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
   const broken = row.is_working !== true;
+  const isPage = row.row_kind === 'seo_page';
   return (
     <>
       <tr
@@ -292,7 +321,11 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
           {isOpen ? '−' : '+'}
         </td>
         <td className="px-3 py-2.5">
-          {severity ? (
+          {isPage ? (
+            <span className="font-mono text-xs text-text">
+              {row.seo_score ?? '—'}/100 {row.seo_grade ? `(${row.seo_grade})` : ''}
+            </span>
+          ) : severity ? (
             <span className={`font-mono text-xs capitalize ${SEVERITY_TONE[severity]}`}>
               {severity}
             </span>
@@ -306,15 +339,21 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
           </span>
         </td>
         <td className="max-w-[200px] px-3 py-2.5">
-          <span
-            className="block truncate font-mono text-xs text-text-muted"
-            title={row.source_url}
-          >
-            {row.source_url === 'Discovery' ? 'crawl seed' : pathOf(row.source_url)}
-          </span>
+          {isPage ? (
+            <span className="block truncate text-xs text-text-muted" title={row.seo_title?.text}>
+              {row.seo_title?.text || 'Untitled page'}
+            </span>
+          ) : (
+            <span
+              className="block truncate font-mono text-xs text-text-muted"
+              title={row.source_url}
+            >
+              {row.source_url === 'Discovery' ? 'crawl seed' : pathOf(row.source_url)}
+            </span>
+          )}
         </td>
         <td className="px-3 py-2.5 font-mono text-xs text-text-muted">
-          {broken ? CLASS_SHORT[cls] : 'OK'}
+          {isPage ? row.seo_issues_count || 0 : broken ? CLASS_SHORT[cls] : 'OK'}
         </td>
         <td
           className={`px-3 py-2.5 text-right font-mono text-xs ${
@@ -327,7 +366,7 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
           {row.response_time ?? '—'}
         </td>
         <td className="px-3 py-2.5 font-mono text-xs text-text-muted">
-          {row.is_internal ? 'INT' : 'EXT'}
+          {isPage ? (row.seo_technical?.isHttps ? 'YES' : 'NO') : row.is_internal ? 'INT' : 'EXT'}
         </td>
       </tr>
 
@@ -348,6 +387,43 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
               <Detail label="Found on">
                 <span className="break-all font-mono text-text-muted">{row.source_url}</span>
               </Detail>
+              {isPage && row.seo_title && (
+                <Detail label="Title">
+                  <span className="text-text-muted">
+                    {row.seo_title.text}
+                    {row.seo_title.length != null ? ` (${row.seo_title.length} chars)` : ''}
+                  </span>
+                </Detail>
+              )}
+              {isPage && row.seo_metaDescription && (
+                <Detail label="Meta">
+                  <span className="text-text-muted">
+                    {row.seo_metaDescription.text}
+                    {row.seo_metaDescription.length != null
+                      ? ` (${row.seo_metaDescription.length} chars)`
+                      : ''}
+                  </span>
+                </Detail>
+              )}
+              {isPage && (
+                <Detail label="Structure">
+                  <span className="font-mono text-text-muted">
+                    H1 {row.seo_headings?.h1_count || 0} · H2 {row.seo_headings?.h2_count || 0} ·{' '}
+                    Words {row.seo_content?.word_count || 0} · Images{' '}
+                    {row.seo_images?.total_images || 0}
+                  </span>
+                </Detail>
+              )}
+              {isPage && row.seo_issues?.length > 0 && (
+                <Detail label="SEO issues">
+                  <span className="text-text-muted">
+                    {row.seo_issues
+                      .slice(0, 4)
+                      .map((issue) => issue.message || issue.type || String(issue))
+                      .join('; ')}
+                  </span>
+                </Detail>
+              )}
               {row.link_text && row.link_text !== 'Unknown' && (
                 <Detail label="Link text">
                   <span className="text-text-muted">&ldquo;{row.link_text}&rdquo;</span>

@@ -4,10 +4,10 @@
  * FIXED: Now properly shows source URLs for all links from discovered_links table
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabase';
 import { validateUtils } from '@/lib/utils';
-import { errorHandler, handleValidationError } from '@/lib/errorHandler';
+import { errorHandler } from '@/lib/errorHandler';
 import { corsOrigin } from '@/lib/cors';
 
 export async function GET(request, { params }) {
@@ -41,9 +41,6 @@ export async function GET(request, { params }) {
     search = searchParams.get('search'); // Search in URLs or link text
     const seoScore = searchParams.get('seoScore') || 'all';
 
-    // NEW: Add sorting parameters
-    const sortBy = searchParams.get('sortBy'); // 'response_time' or 'seo_score'
-    const sortOrder = searchParams.get('sortOrder') || 'desc'; // 'asc' or 'desc'
     // Check if job exists
     const job = await db.getJob(jobId);
     if (!job) {
@@ -131,14 +128,73 @@ export async function GET(request, { params }) {
     //   sampleMapLookup: seoMap.get(seoData?.[0]?.url),
     // });
 
+    const pageResults = (seoData || []).map((seo) => ({
+      id: seo.id,
+      row_kind: 'seo_page',
+      url: seo.url,
+      source_url: 'SEO analysis',
+      is_internal: true,
+      depth: null,
+      http_status_code: seo.status_code,
+      response_time: seo.response_time,
+      checked_at: seo.analyzed_at,
+      is_working: seo.status_code == null ? true : seo.status_code < 400,
+      error_message: null,
+      status_category: getStatusCategory(
+        seo.status_code,
+        seo.status_code == null ? true : seo.status_code < 400
+      ),
+      status_label: getStatusLabel(
+        seo.status_code,
+        seo.status_code == null ? true : seo.status_code < 400
+      ),
+      seo_score: seo.seo_score,
+      seo_grade: seo.seo_grade,
+      seo_title: seo.title_text
+        ? {
+            text: seo.title_text,
+            length: seo.title_length,
+          }
+        : null,
+      seo_metaDescription: seo.meta_description
+        ? {
+            text: seo.meta_description,
+            length: seo.description_length,
+          }
+        : null,
+      seo_headings: {
+        h1_count: seo.h1_count || 0,
+        h2_count: seo.h2_count || 0,
+        h3_count: seo.h3_count || 0,
+        hasNoH1: (seo.h1_count || 0) === 0,
+      },
+      seo_content: {
+        word_count: seo.word_count || 0,
+      },
+      seo_images: {
+        total_images: seo.total_images || 0,
+        missing_alt: seo.missing_alt || 0,
+        alt_coverage: seo.alt_coverage ?? 100,
+      },
+      seo_technical: {
+        isHttps: seo.is_https || false,
+        canonical_url: seo.canonical_url || null,
+        status_code: seo.status_code || null,
+      },
+      seo_issues_count: seo.issues_count || 0,
+      seo_issues: seo.issues || [],
+      seo_analyzed_at: seo.analyzed_at || null,
+      has_seo_data: true,
+      link_text: null,
+      error_type: null,
+      created_at: seo.created_at,
+    }));
+
     // Apply status filter
     if (statusFilter === 'working') {
       discoveredQuery = discoveredQuery.eq('is_working', true);
     } else if (statusFilter === 'broken') {
       discoveredQuery = discoveredQuery.or('is_working.eq.false,is_working.is.null');
-    } else if (statusFilter === 'pages') {
-      // NEW: Filter for internal pages only (scanned pages)
-      discoveredQuery = discoveredQuery.eq('is_internal', true);
     }
 
     // Apply HTTP status code filter
@@ -151,15 +207,9 @@ export async function GET(request, { params }) {
       discoveredQuery = discoveredQuery.ilike('url', `%${search}%`);
     }
 
-    // Apply pagination and ordering
-    const offset = (validPage - 1) * validLimit;
     discoveredQuery = discoveredQuery.order('checked_at', { ascending: false });
 
-    const {
-      data: discoveredLinks,
-      error: discoveredError,
-      count: discoveredCount,
-    } = await discoveredQuery;
+    const { data: discoveredLinks, error: discoveredError } = await discoveredQuery;
 
     // console.log(`📊 DEBUG: Discovered links query result:`, {
     //   discoveredLinksCount: discoveredLinks?.length || 0,
@@ -273,8 +323,12 @@ export async function GET(request, { params }) {
     });
 
     // Filter by error type if specified (after enhancement)
-    let filteredResults = enhancedResults;
-    if (errorType && errorType !== 'all') {
+    let filteredResults = statusFilter === 'pages' ? pageResults : enhancedResults;
+    if (statusFilter === 'pages' && search) {
+      const needle = search.toLowerCase();
+      filteredResults = filteredResults.filter((page) => page.url.toLowerCase().includes(needle));
+    }
+    if (statusFilter !== 'pages' && errorType && errorType !== 'all') {
       filteredResults = enhancedResults.filter((link) => link.error_type === errorType);
     }
 
@@ -312,7 +366,7 @@ export async function GET(request, { params }) {
     // Get comprehensive statistics
     const statsQuery = db.supabase
       .from('discovered_links')
-      .select('http_status_code, is_working, response_time')
+      .select('http_status_code, is_working, response_time, source_url, is_internal')
       .eq('job_id', jobId)
       .eq('status', 'checked');
 
@@ -351,6 +405,11 @@ export async function GET(request, { params }) {
     // Get working vs broken breakdown
     const workingCount = allLinks?.filter((link) => link.is_working === true).length || 0;
     const brokenCount = allLinks?.filter((link) => link.is_working !== true).length || 0;
+    const sourcePagesCount = new Set(
+      (allLinks || [])
+        .filter((link) => link.is_internal && link.source_url)
+        .map((link) => link.source_url)
+    ).size;
 
     // Get error type summary from broken_links
     const errorTypeSummary = {};
@@ -396,7 +455,9 @@ export async function GET(request, { params }) {
         workingLinks: workingCount,
         brokenLinks: brokenCount,
         successRate: allLinks?.length > 0 ? Math.round((workingCount / allLinks.length) * 100) : 0,
-        internalPagesCount: internalPagesCount || 0,
+        internalPagesCount: pageResults.length || internalPagesCount || 0,
+        pagesAnalyzed: pageResults.length,
+        sourcePagesCount,
 
         // HTTP Status Code Breakdown
         statusCodes: statusCodeSummary,

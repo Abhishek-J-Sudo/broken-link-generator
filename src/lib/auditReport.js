@@ -394,7 +394,7 @@ export function buildReport({ job, summary, findings }) {
   const takeaways = [];
   if (!issues) {
     takeaways.push(
-      `All ${totalChecked.toLocaleString()} checked links are working — no broken links found.`
+      `All ${totalChecked.toLocaleString()} checked URLs are working — no broken links found.`
     );
   } else {
     const topShared = tasks.find((t) => t.kind === 'shared');
@@ -454,8 +454,8 @@ export function buildReport({ job, summary, findings }) {
     { A: 'Excellent', B: 'Good', C: 'Fair', D: 'Poor', F: 'Critical' }[score.grade] || 'Fair';
   const dominant = categories[0];
   const verdict = !issues
-    ? `${gradeWord} health (${score.overall}/100, grade ${score.grade}). All ${totalChecked.toLocaleString()} checked links resolve — keep the cadence and re-audit after the next content push.`
-    : `${gradeWord} health (${score.overall}/100, grade ${score.grade}). ${issues} issue${
+    ? `${gradeWord} link health (${score.overall}/100, grade ${score.grade}). All ${totalChecked.toLocaleString()} checked URLs resolve — keep the cadence and re-audit after the next content push.`
+    : `${gradeWord} link health (${score.overall}/100, grade ${score.grade}). ${issues} link issue${
         issues === 1 ? '' : 's'
       }, mostly ${dominant.label.toLowerCase()}${
         internalIssues >= externalIssues ? ' on site-owned links' : ' in external references'
@@ -479,6 +479,7 @@ export function buildReport({ job, summary, findings }) {
       internalIssues,
       externalIssues,
       affectedPages: affectedPages.length,
+      pagesAnalyzed: summary?.pagesAnalyzed || 0,
       avgResponse: summary?.performance?.averageResponseTime || 0,
       slowLinks,
     },
