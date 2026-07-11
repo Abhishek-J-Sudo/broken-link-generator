@@ -46,6 +46,47 @@ Audit Report flow described in `docs/handoff/06-ux-ia-and-reporting.md` and
   those references are historical/spec context unless we choose to refresh the docs.
 
 ---
+## 2026-07-11 - Audit Report follow-up fixes
+
+### Branch: `phase2-ui-restructure`
+
+Follow-up commits after the first audit-report rebuild:
+
+- **`8e37d0d` - Clarify link health and SEO page reporting**
+  - Main grade is now explicitly a **link-health grade**, not a full-site SEO grade.
+  - Summary labels separate checked URLs, healthy links, link issues, SEO pages, and SEO average.
+  - `statusFilter=pages` now returns actual `seo_analysis` rows instead of internal checked
+    URLs/assets from `discovered_links`.
+  - Evidence appendix tabs now distinguish `All checked URLs`, `Healthy links`, and `SEO pages`.
+  - Error-type dropdown disables when there are no broken-link error categories.
+- **`7793efd` - Fix SEO appendix row keys and expansion layout**
+  - SEO page API rows include IDs, and `EvidenceTable` has a stable fallback key.
+  - Fixes the React "Each child in a list should have a unique key" warning.
+  - Expanded SEO rows now lay out URL, title, meta, structure, image alt counts, and issue
+    messages more clearly.
+- **`b2971fb` - Add environment URL exposure signals to audit reports**
+  - Report scans all checked URLs and source pages for environment/internal markers:
+    `prod`, `preprod`, `staging`, `uat`, `dev`, `qa`, `test`, `localhost`, `.internal`, `.local`.
+  - These are surfaced as **Env signals** and an **Exposure Review** section, separately from
+    broken-link issues because exposed environment URLs may still return `200`.
+  - The report pages through all checked URLs so larger audits do not miss exposure signals after
+    the first API page.
+
+### Product clarification
+
+- Current scope remains **Link-Health Audit first** per `docs/handoff/09-audit-report-spec.md`.
+- SEO is currently a measured snapshot for analyzed HTML pages, with deeper SEO audit work still
+  mapped in `docs/handoff/04-features-and-improvements.md` section G.
+- Environment/internal URL exposure is a report signal, not part of the link-health grade.
+
+### Validation
+
+- Focused ESLint passed for the touched report files.
+- Local report page returned `200` for job `59749e40-11a0-4d7f-bbb2-9138b962fd5e`.
+- Local DB search for the previously mentioned prod/internal exposure did not find that old URL in
+  current stored jobs; only image filenames containing `product` were present and all returned `200`.
+
+---
 ## 2026-07-08 — C3/C4/C5: SSRF hardening
 
 ### Branch: `phase2-doc02-basic-auth` (continued)

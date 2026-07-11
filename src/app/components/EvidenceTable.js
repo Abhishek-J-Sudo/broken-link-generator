@@ -1,6 +1,3 @@
-// src/app/components/EvidenceTable.js — the detailed-findings appendix of the
-// audit report (doc 09 §9). Evidence, not the lead: one row per checked link,
-// filterable and pageable, expanding to the raw failure detail.
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -53,10 +50,9 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [errorOptions, setErrorOptions] = useState([]);
-  const [status, setStatus] = useState('loading'); // loading | done | error
+  const [status, setStatus] = useState('loading');
   const [expanded, setExpanded] = useState(new Set());
 
-  // The remediation plan's "evidence →" links land here with a search term.
   useEffect(() => {
     if (!focusSearch?.at) return;
     const term = focusSearch.term || '';
@@ -69,14 +65,17 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
 
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
       setStatus('loading');
+
       try {
         const params = new URLSearchParams({
           page: String(page),
           limit: '50',
           statusFilter: view,
         });
+
         if (errorType !== 'all') params.set('errorType', errorType);
         if (search) params.set('search', search);
 
@@ -87,14 +86,13 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
 
         setData(payload);
         setExpanded(new Set());
+        setErrorOptions(payload.filterOptions?.errorTypes || []);
         setStatus('done');
-        if (errorType === 'all' && payload.filterOptions?.errorTypes) {
-          setErrorOptions(payload.filterOptions.errorTypes);
-        }
       } catch {
         if (!cancelled) setStatus('error');
       }
     })();
+
     return () => {
       cancelled = true;
     };
@@ -122,6 +120,7 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
   const rows = data?.links || [];
   const pagination = data?.pagination;
   const summary = data?.summary;
+  const isPageView = view === 'pages';
 
   const viewCount = (id) => {
     if (!summary) return null;
@@ -131,11 +130,8 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
     return summary.totalLinksChecked;
   };
 
-  const isPageView = view === 'pages';
-
   return (
     <div>
-      {/* ── Filter bar ──────────────────────────────────────────────────── */}
       <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3">
         <div className="flex items-center gap-5">
           {VIEWS.map((v) => (
@@ -168,7 +164,7 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
             type="search"
             value={searchDraft}
             onChange={(e) => setSearchDraft(e.target.value)}
-            placeholder="Search URLs…"
+            placeholder="Search URLs..."
             aria-label="Search URLs"
             className="w-44 rounded-md border border-border bg-surface px-3 py-2 font-mono text-xs text-text placeholder:text-text-subtle focus:border-action focus:outline-none sm:w-56"
           />
@@ -179,15 +175,11 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
               setPage(1);
             }}
             aria-label="Filter by error type"
-            disabled={view !== 'broken' || errorOptions.length === 0}
+            disabled={view !== 'broken'}
             className="rounded-md border border-border bg-surface px-3 py-2 font-mono text-xs text-text focus:border-action focus:outline-none disabled:cursor-not-allowed disabled:text-text-subtle"
           >
             <option value="all">
-              {view === 'broken'
-                ? errorOptions.length
-                  ? 'All error types'
-                  : 'No error types'
-                : 'Error types: broken only'}
+              {view === 'broken' ? 'All error types' : 'Error types: broken only'}
             </option>
             {errorOptions.map((opt) => (
               <option key={opt.type} value={opt.type}>
@@ -198,7 +190,6 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
         </form>
       </div>
 
-      {/* ── Table ───────────────────────────────────────────────────────── */}
       <div className="overflow-x-auto border border-border bg-surface">
         <table className="w-full min-w-[860px] border-collapse text-left">
           <thead>
@@ -227,17 +218,19 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
             {status === 'loading' && (
               <tr>
                 <td colSpan={8} className="px-4 py-10 text-center font-mono text-xs text-text-subtle">
-                  Loading findings&hellip;
+                  Loading findings...
                 </td>
               </tr>
             )}
+
             {status === 'error' && (
               <tr>
                 <td colSpan={8} className="px-4 py-10 text-center text-sm text-danger">
-                  Couldn&rsquo;t load the findings — try again.
+                  Couldn&apos;t load the findings. Try again.
                 </td>
               </tr>
             )}
+
             {status === 'done' && rows.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-10 text-center text-sm text-text-muted">
@@ -255,6 +248,7 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
                   : null;
                 const rowKey = row.id || `${row.row_kind || 'link'}:${row.url}:${index}`;
                 const isOpen = expanded.has(rowKey);
+
                 return (
                   <FragmentRow
                     key={rowKey}
@@ -270,12 +264,10 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
         </table>
       </div>
 
-      {/* ── Pagination ──────────────────────────────────────────────────── */}
       {pagination && pagination.totalPages > 1 && (
         <div className="mt-4 flex items-center justify-between font-mono text-xs">
           <span className="text-text-subtle">
-            Page {pagination.currentPage} of {pagination.totalPages} &middot;{' '}
-            {pagination.totalCount} rows
+            Page {pagination.currentPage} of {pagination.totalPages} · {pagination.totalCount} rows
           </span>
           <div className="flex gap-4">
             <button
@@ -288,7 +280,7 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
                   : 'cursor-not-allowed text-text-subtle'
               }`}
             >
-              &larr; Prev
+              ← Prev
             </button>
             <button
               type="button"
@@ -300,7 +292,7 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
                   : 'cursor-not-allowed text-text-subtle'
               }`}
             >
-              Next &rarr;
+              Next →
             </button>
           </div>
         </div>
@@ -315,6 +307,7 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
   const issueMessages = (row.seo_issues || [])
     .slice(0, 6)
     .map((issue) => issue.message || issue.type || String(issue));
+
   return (
     <>
       <tr
@@ -322,19 +315,19 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
         className="cursor-pointer align-baseline transition-colors hover:bg-surface-subtle"
       >
         <td className="px-2 py-2.5 text-center font-mono text-xs text-text-subtle">
-          {isOpen ? '−' : '+'}
+          {isOpen ? '-' : '+'}
         </td>
         <td className="px-3 py-2.5">
           {isPage ? (
             <span className="font-mono text-xs text-text">
-              {row.seo_score ?? '—'}/100 {row.seo_grade ? `(${row.seo_grade})` : ''}
+              {row.seo_score ?? '-'} / 100 {row.seo_grade ? `(${row.seo_grade})` : ''}
             </span>
           ) : severity ? (
             <span className={`font-mono text-xs capitalize ${SEVERITY_TONE[severity]}`}>
               {severity}
             </span>
           ) : (
-            <span className="font-mono text-xs text-text-subtle">&mdash;</span>
+            <span className="font-mono text-xs text-text-subtle">-</span>
           )}
         </td>
         <td className="max-w-[280px] px-3 py-2.5">
@@ -364,10 +357,10 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
             broken ? 'text-danger' : 'text-text-muted'
           }`}
         >
-          {row.http_status_code ?? '—'}
+          {row.http_status_code ?? '-'}
         </td>
         <td className="px-3 py-2.5 text-right font-mono text-xs text-text-muted">
-          {row.response_time ?? '—'}
+          {row.response_time ?? '-'}
         </td>
         <td className="px-3 py-2.5 font-mono text-xs text-text-muted">
           {isPage ? (row.seo_technical?.isHttps ? 'YES' : 'NO') : row.is_internal ? 'INT' : 'EXT'}
@@ -377,105 +370,138 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
       {isOpen && (
         <tr className="bg-surface-subtle">
           <td colSpan={8} className="px-4 py-4">
-            <div className="grid gap-x-10 gap-y-4 text-xs sm:grid-cols-2">
-              <Detail label={isPage ? 'Page URL' : 'Full URL'} wide={isPage}>
-                <a
-                  href={row.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="break-all font-mono text-text underline decoration-border-strong underline-offset-4 hover:text-action hover:decoration-action"
-                >
-                  {row.url}
-                </a>
-              </Detail>
-              {!isPage && (
+            {isPage ? (
+              <SeoPageDetails row={row} issueMessages={issueMessages} />
+            ) : (
+              <div className="grid gap-x-10 gap-y-4 text-xs sm:grid-cols-2">
+                <Detail label="Full URL">
+                  <a
+                    href={row.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="break-all font-mono text-text underline decoration-border-strong underline-offset-4 hover:text-action hover:decoration-action"
+                  >
+                    {row.url}
+                  </a>
+                </Detail>
                 <Detail label="Found on">
                   <span className="break-all font-mono text-text-muted">{row.source_url}</span>
                 </Detail>
-              )}
-              {isPage && row.seo_title && (
-                <Detail label="Title">
-                  <span className="text-text-muted">
-                    {row.seo_title.text}
-                    {row.seo_title.length != null ? ` (${row.seo_title.length} chars)` : ''}
-                  </span>
-                </Detail>
-              )}
-              {isPage && row.seo_metaDescription && (
-                <Detail label="Meta" wide>
-                  <span className="text-text-muted">
-                    {row.seo_metaDescription.text}
-                    {row.seo_metaDescription.length != null
-                      ? ` (${row.seo_metaDescription.length} chars)`
-                      : ''}
-                  </span>
-                </Detail>
-              )}
-              {isPage && (
-                <Detail label="Structure">
-                  <span className="font-mono text-text-muted">
-                    H1 {row.seo_headings?.h1_count || 0} · H2 {row.seo_headings?.h2_count || 0} ·{' '}
-                    Words {row.seo_content?.word_count || 0} · Images{' '}
-                    {row.seo_images?.total_images || 0}
-                  </span>
-                </Detail>
-              )}
-              {isPage && (
-                <Detail label="Images">
-                  <span className="font-mono text-text-muted">
-                    {row.seo_images?.missing_alt || 0} missing alt /{' '}
-                    {row.seo_images?.total_images || 0} total
-                  </span>
-                </Detail>
-              )}
-              {isPage && row.seo_issues?.length > 0 && (
-                <Detail label="SEO issues" wide>
-                  <ul className="space-y-1.5 text-text-muted">
-                    {issueMessages.map((message, index) => (
-                      <li key={`${row.url}:issue:${index}`} className="flex gap-2">
-                        <span className="font-mono text-action" aria-hidden="true">
-                          -
-                        </span>
-                        <span>{message}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </Detail>
-              )}
-              {row.link_text && row.link_text !== 'Unknown' && (
-                <Detail label="Link text">
-                  <span className="text-text-muted">&ldquo;{row.link_text}&rdquo;</span>
-                </Detail>
-              )}
-              {row.error_message && (
-                <Detail label="Error">
-                  <span className="font-mono text-danger">{row.error_message}</span>
-                </Detail>
-              )}
-              {broken && (
-                <Detail label="Recommended action">
-                  <span className="text-text">{actionForClass(cls, !!row.is_internal)}</span>
-                </Detail>
-              )}
-              {!isPage && row.has_seo_data && row.seo_score != null && (
-                <Detail label="SEO score">
-                  <span className="font-mono text-text-muted">
-                    {row.seo_score}/100 ({row.seo_grade})
-                  </span>
-                </Detail>
-              )}
-              {row.checked_at && (
-                <Detail label="Checked at">
-                  <span className="font-mono text-text-subtle">
-                    {new Date(row.checked_at).toLocaleString()}
-                  </span>
-                </Detail>
-              )}
-            </div>
+                {row.link_text && row.link_text !== 'Unknown' && (
+                  <Detail label="Link text">
+                    <span className="text-text-muted">&ldquo;{row.link_text}&rdquo;</span>
+                  </Detail>
+                )}
+                {row.error_message && (
+                  <Detail label="Error">
+                    <span className="font-mono text-danger">{row.error_message}</span>
+                  </Detail>
+                )}
+                {broken && (
+                  <Detail label="Recommended action">
+                    <span className="text-text">{actionForClass(cls, !!row.is_internal)}</span>
+                  </Detail>
+                )}
+                {row.has_seo_data && row.seo_score != null && (
+                  <Detail label="SEO score">
+                    <span className="font-mono text-text-muted">
+                      {row.seo_score}/100 ({row.seo_grade})
+                    </span>
+                  </Detail>
+                )}
+                {row.checked_at && (
+                  <Detail label="Checked at">
+                    <span className="font-mono text-text-subtle">
+                      {new Date(row.checked_at).toLocaleString()}
+                    </span>
+                  </Detail>
+                )}
+              </div>
+            )}
           </td>
         </tr>
       )}
     </>
+  );
+}
+
+function SeoPageDetails({ row, issueMessages }) {
+  return (
+    <div className="space-y-4 text-xs">
+      <Detail label="Page URL">
+        <a
+          href={row.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="break-all font-mono text-text underline decoration-border-strong underline-offset-4 hover:text-action hover:decoration-action"
+        >
+          {row.url}
+        </a>
+      </Detail>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
+          {row.seo_title && (
+            <Detail label="Title">
+              <span className="text-text-muted">
+                {row.seo_title.text}
+                {row.seo_title.length != null ? ` (${row.seo_title.length} chars)` : ''}
+              </span>
+            </Detail>
+          )}
+
+          <Detail label="Images">
+            <span className="font-mono text-text-muted">
+              {row.seo_images?.missing_alt || 0} missing alt / {row.seo_images?.total_images || 0}{' '}
+              total
+            </span>
+          </Detail>
+
+          {row.seo_issues?.length > 0 && (
+            <Detail label="SEO issues">
+              <ul className="space-y-2 text-text-muted">
+                {issueMessages.map((message, index) => (
+                  <li key={`${row.url}:issue:${index}`} className="flex gap-2">
+                    <span className="font-mono text-action" aria-hidden="true">
+                      -
+                    </span>
+                    <span>{message}</span>
+                  </li>
+                ))}
+              </ul>
+            </Detail>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <Detail label="Structure">
+            <span className="font-mono text-text-muted">
+              H1 {row.seo_headings?.h1_count || 0} · H2 {row.seo_headings?.h2_count || 0} · Words{' '}
+              {row.seo_content?.word_count || 0} · Images {row.seo_images?.total_images || 0}
+            </span>
+          </Detail>
+
+          {row.seo_metaDescription && (
+            <Detail label="Meta description">
+              <span className="text-text-muted">
+                {row.seo_metaDescription.text}
+                {row.seo_metaDescription.length != null
+                  ? ` (${row.seo_metaDescription.length} chars)`
+                  : ''}
+              </span>
+            </Detail>
+          )}
+
+          {row.checked_at && (
+            <Detail label="Checked at">
+              <span className="font-mono text-text-subtle">
+                {new Date(row.checked_at).toLocaleString()}
+              </span>
+            </Detail>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
