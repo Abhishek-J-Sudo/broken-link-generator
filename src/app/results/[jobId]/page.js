@@ -366,6 +366,11 @@ export default function AuditReportPage() {
   const score = report?.score;
   const summary = findingsPayload?.summary;
   const seoPages = seoSummary?.total_pages ?? summary?.pagesAnalyzed ?? 0;
+  const progressPercent = Math.min(100, Math.max(0, job?.progress?.percentage ?? 0));
+  const progressCurrent = job?.progress?.current ?? 0;
+  const progressTotal = job?.progress?.total ?? 0;
+  const progressKnown = progressTotal > 0;
+  const isQueued = job?.status === 'queued' || job?.status === 'pending';
 
   return (
     <div className="min-h-screen bg-bg">
@@ -396,7 +401,9 @@ export default function AuditReportPage() {
             {/* ── Report masthead ─────────────────────────────────────── */}
             <div className="mb-14">
               <div className="mb-4 flex items-center gap-4">
-                <p className={`${microLabel} shrink-0 text-action`}>Audit Report</p>
+                <p className={`${microLabel} shrink-0 text-action`}>
+                  {isRunning ? 'Live Audit' : 'Audit Report'}
+                </p>
                 <span className="h-px flex-1 bg-border" aria-hidden="true" />
                 <p className={`${microLabel} shrink-0 text-text-subtle`}>
                   &#8470; {String(jobId).slice(0, 8).toUpperCase()}
@@ -406,7 +413,7 @@ export default function AuditReportPage() {
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="min-w-0">
                   <h1 className="break-words font-display text-4xl text-text md:text-5xl">
-                    {hostnameOf(job.url)}
+                    {isRunning ? `Auditing ${hostnameOf(job.url)}` : hostnameOf(job.url)}
                   </h1>
                   <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-xs">
                     <a
@@ -472,60 +479,121 @@ export default function AuditReportPage() {
 
             {/* ── Live progress (running / queued) ────────────────────── */}
             {isRunning && (
-              <section className="mb-16 border border-border bg-surface p-6 sm:p-8">
-                <div className="mb-6 flex items-center gap-4">
-                  <p className={`${microLabel} shrink-0 text-action`}>
-                    {job.status === 'running' ? 'Compiling' : 'Queued'}
-                  </p>
-                  <span className="h-px flex-1 bg-border" aria-hidden="true" />
-                  <span className="shrink-0 font-mono text-xs text-text-muted">
-                    {job.progress?.percentage ?? 0}%
-                  </span>
+              <section className="mb-16 border border-border bg-surface">
+                <div className="border-b border-border px-6 py-5 sm:px-8">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          isQueued ? 'bg-info' : 'animate-pulse bg-action'
+                        }`}
+                        aria-hidden="true"
+                      />
+                      <p className={`${microLabel} text-action`}>
+                        {isQueued ? 'In queue' : 'Crawl in progress'}
+                      </p>
+                    </div>
+                    <p className="font-mono text-xs text-text-muted" aria-live="polite">
+                      {isQueued
+                        ? 'Waiting for an available worker'
+                        : progressKnown
+                          ? `${progressPercent}% complete`
+                          : 'Mapping site scope'}
+                    </p>
+                  </div>
                 </div>
 
-                <h2 className="mb-6 font-display text-2xl text-text md:text-3xl">
-                  {job.status === 'running' ? (
-                    <>Auditing {hostnameOf(job.url)} — checking every link it can reach.</>
-                  ) : (
-                    <>Waiting for a worker to pick this audit up.</>
-                  )}
-                </h2>
+                <div className="grid lg:grid-cols-[minmax(0,1fr)_17rem]">
+                  <div className="p-6 sm:p-8">
+                    <h2 className="max-w-2xl font-display text-3xl leading-tight text-text md:text-4xl">
+                      {isQueued
+                        ? 'Your audit is ready to begin.'
+                        : 'We’re tracing the paths your visitors take.'}
+                    </h2>
+                    <p className="mt-4 max-w-xl text-sm leading-relaxed text-text-muted">
+                      {isQueued
+                        ? 'Keep this page open if you like. We’ll begin checking links as soon as a worker is free.'
+                        : 'Links are being discovered and checked in real time. Early findings are provisional until the audit finishes.'}
+                    </p>
 
-                <div className="h-1.5 w-full border border-border bg-surface-subtle">
-                  <div
-                    className="h-full bg-action transition-[width] duration-500"
-                    style={{ width: `${Math.min(100, job.progress?.percentage ?? 0)}%` }}
-                  />
+                    <div className="mt-8">
+                      <div className="mb-3 flex items-end justify-between gap-4">
+                        <p className={`${microLabel} text-text-subtle`}>Audit completion</p>
+                        <p className="font-mono text-sm text-text">
+                          {progressKnown ? `${progressCurrent} / ${progressTotal}` : 'Preparing scope'}
+                        </p>
+                      </div>
+                      <div
+                        className="h-2 w-full overflow-hidden border border-border bg-surface-subtle"
+                        role="progressbar"
+                        aria-label="Audit completion"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={progressPercent}
+                      >
+                        <div
+                          className="h-full bg-action transition-[width] duration-500"
+                          style={{ width: `${isQueued ? 0 : progressPercent}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-8 grid gap-x-10 gap-y-2 sm:grid-cols-2">
+                      <LeaderRow
+                        k="Links checked"
+                        v={progressKnown ? `${progressCurrent} / ${progressTotal}` : String(progressCurrent)}
+                      />
+                      <LeaderRow
+                        k="Issues found"
+                        v={String(job.stats?.brokenLinksFound ?? 0)}
+                        tone={job.stats?.brokenLinksFound ? 'text-danger' : 'text-success'}
+                      />
+                      <LeaderRow k="Elapsed" v={formatDuration(job.timestamps?.elapsedTime)} />
+                      <LeaderRow
+                        k="Est. remaining"
+                        v={
+                          job.progress?.estimatedTimeRemaining
+                            ? formatDuration(job.progress.estimatedTimeRemaining * 1000)
+                            : 'Calculating…'
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <aside className="border-t border-border bg-surface-subtle p-6 lg:border-t-0 lg:border-l sm:p-8">
+                    <p className={`${microLabel} text-text-subtle`}>Audit sequence</p>
+                    <ol className="mt-6 space-y-5">
+                      {[
+                        ['01', 'Scheduled', true],
+                        ['02', 'Discover links', !isQueued],
+                        ['03', 'Check destinations', !isQueued && progressCurrent > 0],
+                        ['04', 'Build your report', false],
+                      ].map(([number, label, complete], index) => {
+                        const active = !complete && ((isQueued && index === 0) || (!isQueued && index === 2));
+                        return (
+                          <li key={number} className="flex items-center gap-3">
+                            <span
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center border font-mono text-[10px] ${
+                                complete || active
+                                  ? 'border-action bg-action text-text-on-action'
+                                  : 'border-border-strong text-text-subtle'
+                              }`}
+                            >
+                              {number}
+                            </span>
+                            <span className={complete || active ? 'text-sm text-text' : 'text-sm text-text-muted'}>
+                              {label}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                    <p className="mt-8 border-t border-border pt-5 text-xs leading-relaxed text-text-muted">
+                      Your report will appear here automatically when the audit is complete. You can
+                      stop now and keep a partial report of everything checked so far.
+                    </p>
+                  </aside>
                 </div>
-
-                <div className="mt-6 grid gap-x-10 gap-y-1.5 sm:grid-cols-2">
-                  <LeaderRow
-                    k="Links checked"
-                    v={`${job.progress?.current ?? 0} / ${job.progress?.total ?? '—'}`}
-                  />
-                  <LeaderRow
-                    k="Broken so far"
-                    v={String(job.stats?.brokenLinksFound ?? 0)}
-                    tone={job.stats?.brokenLinksFound ? 'text-danger' : 'text-success'}
-                  />
-                  <LeaderRow
-                    k="Elapsed"
-                    v={formatDuration(job.timestamps?.elapsedTime)}
-                  />
-                  <LeaderRow
-                    k="Est. remaining"
-                    v={
-                      job.progress?.estimatedTimeRemaining
-                        ? formatDuration(job.progress.estimatedTimeRemaining * 1000)
-                        : '—'
-                    }
-                  />
-                </div>
-
-                <p className="mt-6 text-xs leading-relaxed text-text-muted">
-                  The report assembles itself on this page the moment the crawl completes — no
-                  refresh needed. Stopping keeps everything checked so far as a partial report.
-                </p>
               </section>
             )}
 
