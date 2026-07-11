@@ -247,21 +247,22 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
             )}
 
             {status === 'done' &&
-              rows.map((row) => {
+              rows.map((row, index) => {
                 const broken = row.is_working !== true;
                 const cls = broken ? classifyFinding(row) : null;
                 const severity = broken
                   ? deriveSeverity(cls, !!row.is_internal, shared.current.has(row.url))
                   : null;
-                const isOpen = expanded.has(row.id);
+                const rowKey = row.id || `${row.row_kind || 'link'}:${row.url}:${index}`;
+                const isOpen = expanded.has(rowKey);
                 return (
                   <FragmentRow
-                    key={row.id}
+                    key={rowKey}
                     row={row}
                     cls={cls}
                     severity={severity}
                     isOpen={isOpen}
-                    onToggle={() => toggleRow(row.id)}
+                    onToggle={() => toggleRow(rowKey)}
                   />
                 );
               })}
@@ -311,6 +312,9 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
 function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
   const broken = row.is_working !== true;
   const isPage = row.row_kind === 'seo_page';
+  const issueMessages = (row.seo_issues || [])
+    .slice(0, 6)
+    .map((issue) => issue.message || issue.type || String(issue));
   return (
     <>
       <tr
@@ -373,8 +377,8 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
       {isOpen && (
         <tr className="bg-surface-subtle">
           <td colSpan={8} className="px-4 py-4">
-            <div className="grid gap-x-10 gap-y-2 text-xs sm:grid-cols-2">
-              <Detail label="Full URL">
+            <div className="grid gap-x-10 gap-y-4 text-xs sm:grid-cols-2">
+              <Detail label={isPage ? 'Page URL' : 'Full URL'} wide={isPage}>
                 <a
                   href={row.url}
                   target="_blank"
@@ -384,9 +388,11 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
                   {row.url}
                 </a>
               </Detail>
-              <Detail label="Found on">
-                <span className="break-all font-mono text-text-muted">{row.source_url}</span>
-              </Detail>
+              {!isPage && (
+                <Detail label="Found on">
+                  <span className="break-all font-mono text-text-muted">{row.source_url}</span>
+                </Detail>
+              )}
               {isPage && row.seo_title && (
                 <Detail label="Title">
                   <span className="text-text-muted">
@@ -396,7 +402,7 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
                 </Detail>
               )}
               {isPage && row.seo_metaDescription && (
-                <Detail label="Meta">
+                <Detail label="Meta" wide>
                   <span className="text-text-muted">
                     {row.seo_metaDescription.text}
                     {row.seo_metaDescription.length != null
@@ -414,14 +420,26 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
                   </span>
                 </Detail>
               )}
-              {isPage && row.seo_issues?.length > 0 && (
-                <Detail label="SEO issues">
-                  <span className="text-text-muted">
-                    {row.seo_issues
-                      .slice(0, 4)
-                      .map((issue) => issue.message || issue.type || String(issue))
-                      .join('; ')}
+              {isPage && (
+                <Detail label="Images">
+                  <span className="font-mono text-text-muted">
+                    {row.seo_images?.missing_alt || 0} missing alt /{' '}
+                    {row.seo_images?.total_images || 0} total
                   </span>
+                </Detail>
+              )}
+              {isPage && row.seo_issues?.length > 0 && (
+                <Detail label="SEO issues" wide>
+                  <ul className="space-y-1.5 text-text-muted">
+                    {issueMessages.map((message, index) => (
+                      <li key={`${row.url}:issue:${index}`} className="flex gap-2">
+                        <span className="font-mono text-action" aria-hidden="true">
+                          -
+                        </span>
+                        <span>{message}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </Detail>
               )}
               {row.link_text && row.link_text !== 'Unknown' && (
@@ -439,7 +457,7 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
                   <span className="text-text">{actionForClass(cls, !!row.is_internal)}</span>
                 </Detail>
               )}
-              {row.has_seo_data && row.seo_score != null && (
+              {!isPage && row.has_seo_data && row.seo_score != null && (
                 <Detail label="SEO score">
                   <span className="font-mono text-text-muted">
                     {row.seo_score}/100 ({row.seo_grade})
@@ -461,10 +479,10 @@ function FragmentRow({ row, cls, severity, isOpen, onToggle }) {
   );
 }
 
-function Detail({ label, children }) {
+function Detail({ label, children, wide = false }) {
   return (
-    <div className="flex items-baseline gap-3">
-      <span className={`${microLabel} shrink-0 text-text-subtle`}>{label}</span>
+    <div className={`grid gap-1 ${wide ? 'sm:col-span-2' : ''}`}>
+      <span className={`${microLabel} text-text-subtle`}>{label}</span>
       <span className="min-w-0">{children}</span>
     </div>
   );

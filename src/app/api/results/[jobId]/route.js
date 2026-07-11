@@ -91,6 +91,7 @@ export async function GET(request, { params }) {
       .from('seo_analysis')
       .select(
         `
+        id,
         url, 
         seo_score, 
         seo_grade, 
