@@ -154,6 +154,8 @@ export default function AuditReportPage() {
   const [isStopping, setIsStopping] = useState(false);
   const [exporting, setExporting] = useState(null); // 'csv' | 'json' | null
 
+  const [aiNarrative, setAiNarrative] = useState(null);
+
   const [appendixFocus, setAppendixFocus] = useState(null);
   const appendixRef = useRef(null);
 
@@ -255,6 +257,25 @@ export default function AuditReportPage() {
         : null,
     [findingsPayload, job]
   );
+
+  /* ── AI narrative, fetched once report data is ready ───────────────── */
+  useEffect(() => {
+    if (!report || !jobId) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/ai/narrative/${jobId}`);
+        if (!res.ok || res.status === 204) return;
+        const data = await res.json();
+        if (!cancelled && data?.headline) setAiNarrative(data);
+      } catch {
+        // fall back to static verdict / takeaways silently
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, report]);
 
   /* ── Actions ────────────────────────────────────────────────────────── */
 
@@ -722,29 +743,58 @@ export default function AuditReportPage() {
                       </div>
 
                       <blockquote className="mt-6 border-l-2 border-action pl-5 font-display text-xl leading-snug text-text md:text-2xl">
-                        {report.verdict}
+                        {aiNarrative?.headline ?? report.verdict}
                       </blockquote>
                     </div>
                   </div>
                 </section>
 
-                {/* 02 · Key takeaways */}
+                {/* 02 · Key takeaways / AI analysis */}
                 <section className="mb-16 lg:mb-20">
                   <SectionHeading
                     serial={nextSerial()}
-                    label="Key Takeaways"
+                    label={aiNarrative ? 'AI Analysis' : 'Key Takeaways'}
                     title="What it means."
                   />
-                  <ul className="max-w-3xl space-y-3 text-base leading-relaxed text-text-muted">
-                    {report.takeaways.map((line) => (
-                      <li key={line} className="flex gap-3">
-                        <span className="font-mono text-action" aria-hidden="true">
-                          &mdash;
-                        </span>
-                        {line}
-                      </li>
-                    ))}
-                  </ul>
+
+                  {aiNarrative ? (
+                    <div className="max-w-3xl space-y-6">
+                      {aiNarrative.findings.map((f, i) => (
+                        <div key={i} className="space-y-1.5 border-l-2 border-border pl-5">
+                          <p className="text-base text-text">{f.finding}</p>
+                          <p className="text-sm leading-relaxed text-text-muted">{f.why}</p>
+                          <p className={`${microLabel} text-action`}>&rarr;&nbsp;{f.action}</p>
+                        </div>
+                      ))}
+
+                      {aiNarrative.priorityActions?.length > 0 && (
+                        <div className="mt-8 border-t border-border pt-6">
+                          <p className={`${microLabel} mb-4 text-text-subtle`}>Priority actions</p>
+                          <ol className="space-y-2">
+                            {aiNarrative.priorityActions.map((action, i) => (
+                              <li key={i} className="flex gap-3 text-sm text-text-muted">
+                                <span className="shrink-0 font-mono text-action">
+                                  {String(i + 1).padStart(2, '0')}
+                                </span>
+                                {action}
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <ul className="max-w-3xl space-y-3 text-base leading-relaxed text-text-muted">
+                      {report.takeaways.map((line) => (
+                        <li key={line} className="flex gap-3">
+                          <span className="font-mono text-action" aria-hidden="true">
+                            &mdash;
+                          </span>
+                          {line}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </section>
 
                 {report.environmentExposures.length > 0 && (

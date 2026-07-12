@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS crawl_jobs (
     created_at    TIMESTAMPTZ DEFAULT NOW(),
     completed_at  TIMESTAMPTZ,
     error_message TEXT,
-    heartbeat_at  TIMESTAMPTZ
+    heartbeat_at  TIMESTAMPTZ,
+    ai_narrative  JSONB
 );
 
 -- ---------------------------------------------------------------------------
@@ -108,6 +109,11 @@ CREATE TABLE IF NOT EXISTS seo_analysis (
     created_at         TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (job_id, url)
 );
+
+-- ---------------------------------------------------------------------------
+-- Idempotent column additions (for existing installs upgrading in place)
+-- ---------------------------------------------------------------------------
+ALTER TABLE crawl_jobs ADD COLUMN IF NOT EXISTS ai_narrative JSONB;
 
 -- ---------------------------------------------------------------------------
 -- Indexes

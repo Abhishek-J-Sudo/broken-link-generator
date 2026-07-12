@@ -83,6 +83,22 @@ These are fast wins and directly back the security work.
 
 ---
 
+## H. AI-powered insights ✅ (partially done)
+
+The USP build adds AI interpretation on top of the raw crawl data so the report reads like
+an expert wrote it, not a template engine.
+
+| Item | Status | Description |
+|------|--------|-------------|
+| **H1. Post-audit narrative** | ✅ Done | After crawl completes, one DeepSeek V4 Flash call generates `headline` + findings (finding / why / action) + numbered priority actions. Cached in `crawl_jobs.ai_narrative`; results page swaps in AI content over the static verdict/takeaways. `src/lib/deepseekNarrative.js`, `src/app/api/ai/narrative/[jobId]/route.js`. |
+| **H2. Deeper SEO pipeline** | Next | Per-page SEO signals (see §G) feed the narrative so it can say things like "your blog archive has thin content AND broken links — fix or noindex that section." G0 (extraction fix) must land first. |
+| **H3. Shareable client reports** | Planned | Read-only signed URL per audit (see B6). Agencies send the AI-enriched report directly to clients without sharing login credentials. |
+
+Cost: ~$0.000189/completed audit for the narrative call (cached — repeat views free).
+See HANDOVER 2026-07-12 entry for the full cost table and validation notes.
+
+---
+
 ## G. SEO analysis depth
 
 The SEO analyzer (`seoDetector.js`) currently covers titles, descriptions, headings,

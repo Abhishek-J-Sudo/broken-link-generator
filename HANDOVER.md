@@ -2,6 +2,79 @@
 
 ---
 
+## 2026-07-12 — AI narrative layer (item 1 of USP build)
+
+### Branch: `phase2-ui-restructure`
+
+Post-audit AI analysis: after a crawl completes, one DeepSeek V4 Flash call synthesises
+the report into a plain-English `headline`, 2–4 `findings` (finding / why it matters /
+what to do), and a numbered `priorityActions` list. This replaces the static
+template-string `verdict` and rule-matched `takeaways` that were in `buildReport()`.
+
+### What changed
+
+- **`database/init.sql`** — `ai_narrative JSONB` column added to `crawl_jobs`; idempotent
+  `ALTER TABLE … ADD COLUMN IF NOT EXISTS` so existing installs apply with one SQL line or
+  a re-run of `npm run db:init`.
+- **`src/lib/deepseekNarrative.js`** (new) — bounded DeepSeek call: condensed report data
+  in, structured JSON out (`headline` / `findings[]` / `priorityActions[]`); 1000-token
+  output cap, 20 s timeout, `thinking: disabled`, JSON validation, returns `null` on any
+  failure so callers fall back to static content.
+- **`src/app/api/ai/narrative/[jobId]/route.js`** (new) — `GET` endpoint: returns cached
+  `ai_narrative` from the DB row immediately (no API cost on repeat views); if absent,
+  runs 4 parallel DB queries to build a condensed summary (stats, error-type breakdown
+  joined to `discovered_links.is_internal`, top affected pages, shared targets), calls
+  DeepSeek, stores result, returns it. Returns `204` for non-completed jobs or on any
+  failure — the results page always has static content to fall back to.
+- **`src/app/results/[jobId]/page.js`** — new `aiNarrative` state; `useEffect` fires once
+  `report` is non-null, calls the narrative endpoint, swaps in AI content on success.
+  Verdict `<blockquote>` prefers `aiNarrative.headline`. Takeaways section relabels to
+  "AI Analysis" and renders findings + numbered priority actions when AI content is
+  available; falls back to static takeaways silently.
+
+### Cost (DeepSeek V4 Flash, derived from prior validated run)
+
+| Call | Avg tokens | Avg cost |
+|---|---|---|
+| Scope estimate (existing, at analyze time) | ~237 in / 172 out | ~$0.000064 |
+| Narrative (new, at first report view) | ~700 in / 500 out | ~$0.000189 |
+| **Total per completed audit** | | **~$0.000253** |
+
+Narrative result is cached in DB — every subsequent view is free.
+At 10 000 audits: ~$2.53 total AI cost.
+
+### Bug caught during verification
+
+`useEffect([jobId, report])` was placed before `const report = useMemo(…)` in the
+function body — TDZ error during Next.js SSR pass → `HTTP 500` on every results page.
+Fixed by moving the effect below the `useMemo`. Confirmed `HTTP 200` after fix.
+
+### Validation
+
+- `GET /api/ai/narrative/<completed-job>` → `HTTP 200`, correct JSON narrative
+- Second call to same job → `HTTP 200` from DB cache (JSONB key order differs, content identical)
+- Job with 1 broken link → narrative correctly identified SSL failure + slow link
+- Non-completed (failed) job → `HTTP 204` (correct)
+- Unknown UUID → `HTTP 204` (semantic gap: should be 404, no user impact)
+- Unauthenticated → `HTTP 401` (middleware blocks correctly)
+- Results page `GET /results/<jobId>` → `HTTP 200` after TDZ fix
+- ESLint clean on all touched files
+
+### Pipeline (updated)
+
+USP build — in order:
+
+1. ~~**AI narrative layer**~~ ✅ Done (2026-07-12)
+2. **Deeper SEO pipeline** — per-page signals (Core Web Vitals, structured data, canonical
+   issues, redirect chains) so the audit has real SEO teeth. See doc 04 §G for the full
+   backlog; G0 (fix extraction layer) gates most of the rest.
+3. **Shareable client reports** — read-only signed URL per audit so agencies can send the
+   report directly to clients (see doc 04 B6).
+
+Deploy (VPS + Coolify) deferred to last stage — runbook in the 2026-07-07 entry below.
+
+---
+
 ## 2026-07-11 - Smart Analyzer AI + pipeline correction
 
 ### Branch: `phase2-ui-restructure`
