@@ -34,6 +34,15 @@
   --slate-900: #0d1113;
   --navy-950: #0b1620;
 
+  /* SeoScrub ink — house dark neutrals. Green-cast near-blacks grown from the
+     hand-tuned card color (#0d1113); deliberately NOT Tailwind slate. Dark
+     surfaces read this ramp only. */
+  --ink-1000: #050809; /* inverse band — deepest, sits below the page bg */
+  --ink-950: #090d0e; /* page background */
+  --ink-900: #0d1113; /* cards / surface */
+  --ink-850: #11171a; /* subtle fills */
+  --ink-800: #161d20; /* raised surfaces */
+
   /* Status */
   --red-400: #f87171;
   --red-500: #ef4444;
@@ -157,12 +166,15 @@
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --color-bg: var(--navy-950);
-  --color-surface: var(--slate-900);
-  --color-surface-raised: var(--slate-800);
-  --color-surface-subtle: #172033;
-  --color-border: #243044;
-  --color-border-strong: var(--slate-700);
+  --color-bg: var(--ink-950);
+  --color-surface: var(--ink-900);
+  --color-surface-raised: var(--ink-800);
+  --color-surface-subtle: var(--ink-850);
+  /* White-alpha hairlines: hue-neutral and proportional on every surface.
+     Solid blue-slate borders read harsh against the near-black neutral
+     cards — 2026-07-15 polish pass. */
+  --color-border: rgba(255, 255, 255, 0.09);
+  --color-border-strong: rgba(255, 255, 255, 0.18);
 
   --color-text: var(--slate-50);
   --color-text-muted: var(--slate-400);
@@ -170,7 +182,7 @@
   --color-text-inverse: var(--slate-900);
   --color-text-on-action: var(--slate-900);
 
-  --color-surface-inverse: #070d18;
+  --color-surface-inverse: var(--ink-1000);
   --color-text-on-inverse: var(--slate-50);
   --color-text-on-inverse-muted: var(--slate-400);
   --color-border-inverse: rgba(255, 255, 255, 0.14);
@@ -201,12 +213,13 @@
   :root:not([data-theme]) {
     color-scheme: dark;
 
-    --color-bg: var(--navy-950);
-    --color-surface: var(--slate-900);
-    --color-surface-raised: var(--slate-800);
-    --color-surface-subtle: #172033;
-    --color-border: #243044;
-    --color-border-strong: var(--slate-700);
+    --color-bg: var(--ink-950);
+    --color-surface: var(--ink-900);
+    --color-surface-raised: var(--ink-800);
+    --color-surface-subtle: var(--ink-850);
+    /* Keep identical to the [data-theme='dark'] block above. */
+    --color-border: rgba(255, 255, 255, 0.09);
+    --color-border-strong: rgba(255, 255, 255, 0.18);
 
     --color-text: var(--slate-50);
     --color-text-muted: var(--slate-400);
@@ -214,7 +227,7 @@
     --color-text-inverse: var(--slate-900);
     --color-text-on-action: var(--slate-900);
 
-    --color-surface-inverse: #070d18;
+    --color-surface-inverse: var(--ink-1000);
     --color-text-on-inverse: var(--slate-50);
     --color-text-on-inverse-muted: var(--slate-400);
     --color-border-inverse: rgba(255, 255, 255, 0.14);
