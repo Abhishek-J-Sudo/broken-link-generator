@@ -152,7 +152,10 @@ export default function AuditReportPage() {
 
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
-  const [exporting, setExporting] = useState(null); // 'csv' | 'json' | null
+  const [exporting, setExporting] = useState(null); // 'csv' | 'json' | 'seo' | null
+  const [sharePath, setSharePath] = useState(null); // '/share/<token>' once created
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const [aiNarrative, setAiNarrative] = useState(null);
 
@@ -295,6 +298,99 @@ export default function AuditReportPage() {
       setFatalError(err.message);
     } finally {
       setIsStopping(false);
+    }
+  };
+
+  const createShareLink = async () => {
+    setShareBusy(true);
+    try {
+      const response = await fetch(`/api/share/manage/${jobId}`, {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': await getCsrfToken() },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not create the share link');
+      setSharePath(data.path);
+      await navigator.clipboard.writeText(`${window.location.origin}${data.path}`);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
+    } catch (err) {
+      setFindingsError(err.message);
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const revokeShareLink = async () => {
+    setShareBusy(true);
+    try {
+      const response = await fetch(`/api/share/manage/${jobId}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRF-Token': await getCsrfToken() },
+      });
+      if (!response.ok) throw new Error('Could not revoke the share link');
+      setSharePath(null);
+    } catch (err) {
+      setFindingsError(err.message);
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const runSeoExport = async () => {
+    setExporting('seo');
+    try {
+      const response = await fetch(`/api/results/${jobId}?statusFilter=pages&page=1&limit=10000`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'SEO export fetch failed');
+      const host = hostnameOf(job.url);
+      const day = new Date().toISOString().split('T')[0];
+      const headers = [
+        'Page URL',
+        'Score',
+        'Grade',
+        'Title',
+        'Title Length',
+        'Meta Description Length',
+        'Issues',
+        'Noindex',
+        'Blocked by robots.txt',
+        'Open Graph',
+        'Structured Data',
+        'Lang',
+        'Viewport',
+        'Stale Content',
+      ];
+      const rows = (data.links || []).map((p) => {
+        const s = p.seo_signals || {};
+        return [
+          p.url,
+          p.seo_score ?? '',
+          p.seo_grade ?? '',
+          p.seo_title?.text || '',
+          p.seo_title?.length ?? '',
+          p.seo_metaDescription?.length ?? 0,
+          (p.seo_issues || []).map((i) => i.message).join(' | '),
+          s.robots?.noindex ? 'YES' : 'no',
+          s.robotsTxt?.disallowed ? 'YES' : 'no',
+          s.social?.hasOpenGraph ? 'present' : 'MISSING',
+          s.structuredData?.hasStructuredData ? s.structuredData.types.join('; ') : 'MISSING',
+          s.fundamentals?.htmlLang || 'MISSING',
+          s.fundamentals?.hasViewport ? 'present' : 'MISSING',
+          s.freshness?.isStale ? 'YES' : 'no',
+        ];
+      });
+      const bom = String.fromCharCode(0xfeff);
+      const csv =
+        bom +
+        [headers, ...rows]
+          .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+          .join('\n');
+      download(`seoscrub-seo-fixlist-${host}-${day}.csv`, csv, 'text/csv;charset=utf-8;');
+    } catch (err) {
+      setFindingsError(err.message);
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -472,12 +568,36 @@ export default function AuditReportPage() {
                     <>
                       <button
                         type="button"
+                        onClick={sharePath ? revokeShareLink : createShareLink}
+                        disabled={shareBusy}
+                        className="btn-gel rounded-lg bg-action px-5 py-2.5 text-sm font-medium text-text-on-action hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {shareBusy
+                          ? 'Working…'
+                          : sharePath
+                            ? shareCopied
+                              ? 'Link copied ✓ (click to revoke)'
+                              : 'Revoke share link'
+                            : 'Share report'}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => runExport('csv')}
                         disabled={exporting !== null}
-                        className="btn-gel rounded-lg bg-action px-5 py-2.5 text-sm font-medium text-text-on-action hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-md border border-border-strong px-4 py-2.5 text-sm font-medium text-text transition-colors hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {exporting === 'csv' ? 'Exporting…' : 'Export CSV'}
                       </button>
+                      {job.settings?.enableSEO && (
+                        <button
+                          type="button"
+                          onClick={runSeoExport}
+                          disabled={exporting !== null}
+                          className="rounded-md border border-border-strong px-4 py-2.5 text-sm font-medium text-text transition-colors hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {exporting === 'seo' ? 'Exporting…' : 'SEO fix list'}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => runExport('json')}

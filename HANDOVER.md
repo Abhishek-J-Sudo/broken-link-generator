@@ -2,6 +2,64 @@
 
 ---
 
+## 2026-07-15 — Shareable client reports (USP item 3)
+
+### Branch: `phase2-shareable-reports` (off main; batch-1 was merged+pushed to main first, user-approved)
+
+The product bar this serves (user-stated): *scan → report ready → send straight to the
+client or SEO team → team instantly works on it.* Before this, the report only existed
+behind Basic Auth with no export of SEO data at all.
+
+### What shipped
+
+- **Read-only share link per audit** — `crawl_jobs.share_token` (32-char base64url via
+  `crypto.randomBytes`, unique partial index, idempotent ALTERs applied via db:init).
+  - `POST/DELETE /api/share/manage/[jobId]` (behind Basic Auth + CSRF): create (reuses
+    existing token so the link is stable) / revoke. Only `completed`/`stopped` jobs.
+  - `GET /api/share/view/[token]` (public): ONE composite payload — job (no id leaked,
+    token is the only handle), summary (same shape `buildReport()` expects), findings,
+    checked links (cap 5000), seoSummary incl. indexability, seoPages incl. signals,
+    cached narrative (never triggers a DeepSeek call). Rate-limited (`results` bucket),
+    `X-Robots-Tag: noindex`, token format validated before DB hit.
+  - **Middleware:** new prefix allow-list `['/share/', '/api/share/view/']` — everything
+    else stays behind Basic Auth (verified 401s after the change).
+- **`/share/[token]` page** — print-first client report document (forces light theme):
+  masthead, link-health verdict + KPI leaders, AI SEO expert summary, remediation plan,
+  findings by priority, SEO snapshot (on-page + indexability tiles + per-page issue
+  list + noindex/robots flags), exposure review, methodology footer. Toolbar
+  (`print:hidden`): Print/Save-as-PDF (`window.print`), Findings CSV, SEO fix list CSV —
+  all generated client-side from the payload. Reuses `buildReport()` — zero duplicated
+  derivation logic.
+- **Results page:** "Share report" button (creates link + copies to clipboard, click
+  again to revoke) and a new **"SEO fix list"** CSV export (page URL, score/grade, title,
+  issues, noindex, robots-blocked, OG, structured data, lang, viewport, staleness) — the
+  working document for an SEO team. Old CSV/JSON exports unchanged.
+
+### Validation
+
+- ESLint clean on all 5 touched/new files.
+- E2E on the user's real audit: share created (`/share/yCFjj8NZ…`), public payload 200
+  **without credentials** (48 checked, 8 SEO pages, narrative present, no job id in
+  payload), share page 200; `/results/*` and `/api/results/*` still 401 unauthenticated.
+- Revoke flow: view 200 → DELETE → view 404 (tested on a scratch job).
+
+### Product notes
+
+- Share links survive forever until revoked; `shared_at` records when sharing began.
+- PDF = browser print of the share page (deliberate: no server-side PDF dependency).
+- Not done (future): custom branding/white-label, expiring links, share analytics.
+
+### Pipeline (updated)
+
+1. ~~AI narrative layer~~ ✅ — SEO-aware since 2026-07-15
+2. **Deeper SEO pipeline** — G0/G11 + batch 1 done; batch 2 remaining:
+   G1 duplicate titles/descriptions, G12 SERP preview, G13 hreflang.
+3. ~~Shareable client reports~~ ✅ Done (2026-07-15) — core flow; branding/expiry later.
+
+Deploy (VPS + Coolify) is now the biggest unblocked item — runbook in the 2026-07-07 entry.
+
+---
+
 ## 2026-07-15 — §G batch 1: deeper SEO signals (G2/G3/G8/G9/G10/G14/G15)
 
 ### Branch: `phase2-g-batch1-signals` (flat, off main)

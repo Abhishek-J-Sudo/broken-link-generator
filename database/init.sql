@@ -118,6 +118,11 @@ CREATE TABLE IF NOT EXISTS seo_analysis (
 -- ---------------------------------------------------------------------------
 ALTER TABLE crawl_jobs ADD COLUMN IF NOT EXISTS ai_narrative JSONB;
 ALTER TABLE seo_analysis ADD COLUMN IF NOT EXISTS signals JSONB;
+-- Shareable client reports: unguessable read-only token per audit
+ALTER TABLE crawl_jobs ADD COLUMN IF NOT EXISTS share_token TEXT;
+ALTER TABLE crawl_jobs ADD COLUMN IF NOT EXISTS shared_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crawl_jobs_share_token
+    ON crawl_jobs (share_token) WHERE share_token IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- Indexes

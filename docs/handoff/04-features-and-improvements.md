@@ -31,7 +31,7 @@ These are fast wins and directly back the security work.
 | **B3. Scan history & trends per site** | Persist runs and show a timeline (broken count over time, newly broken vs fixed). Requires a `sites` concept above one-off jobs. | M | B1 |
 | **B4. First-class sitemap crawling** | `analyze/route.js` already falls back to `sitemap.xml` for JS-heavy sites. Promote it to a real input mode ("crawl from sitemap") and handle sitemap index files + `sitemap.xml.gz`. | S | — |
 | **B5. JS-rendered site support (headless browser)** | The analyzer explicitly can't see SPA content (`createJavaScriptSiteResponse`). Add an optional Playwright path for JS-heavy **Full Audits**: normal HTML crawl → sitemap fallback → selectively render capped pages and extract rendered DOM links into the existing checker. Run Chromium in an isolated worker/container with fresh contexts, no credentials/cookies/downloads/form actions, strict page/time/concurrency limits, and network egress controls that block private IPs, Docker services, and cloud-metadata endpoints. Validate every navigation/redirect and never bypass logins, CAPTCHAs, or bot controls. | L | Doc 03 A1, Doc 01 C3 |
-| **B6. Richer exports & shareable reports** | `json2csv` is already a dep. Offer CSV/JSON export of results and broken-link lists, plus a printable/PDF summary report per job. | S–M | — |
+| **B6. Richer exports & shareable reports** | ✅ Done (2026-07-15). Read-only tokenized `/share/[token]` client report (print → PDF), findings CSV, SEO fix-list CSV, revocable links. Future: white-label branding, expiring links. | S–M | — |
 | **B7. Scan profiles / presets** | Save common settings (depth, external on/off, SEO on/off, ignore patterns) as named profiles so re-runs are one click. | S | — |
 | **B8. Ignore / allow rules** | Let users exclude URL patterns (e.g. `/tag/*`, tracking params) — the analyzer already categorizes pagination/params and even recommends this; wire the recommendations into actual filters. | S | — |
 
@@ -92,7 +92,7 @@ an expert wrote it, not a template engine.
 |------|--------|-------------|
 | **H1. Post-audit narrative** | ✅ Done | After crawl completes, one DeepSeek V4 Flash call generates `headline` + findings (finding / why / action) + numbered priority actions. Cached in `crawl_jobs.ai_narrative`; results page swaps in AI content over the static verdict/takeaways. `src/lib/deepseekNarrative.js`, `src/app/api/ai/narrative/[jobId]/route.js`. |
 | **H2. Deeper SEO pipeline** | Next | Per-page SEO signals (see §G) feed the narrative so it can say things like "your blog archive has thin content AND broken links — fix or noindex that section." G0 (extraction fix) must land first. |
-| **H3. Shareable client reports** | Planned | Read-only signed URL per audit (see B6). Agencies send the AI-enriched report directly to clients without sharing login credentials. |
+| **H3. Shareable client reports** | ✅ Done | Read-only tokenized URL per audit (see B6). Agencies send the AI-enriched report directly to clients without sharing login credentials. Revocable; public route serves cached narrative only. |
 
 Cost: ~$0.000189/completed audit for the narrative call (cached — repeat views free).
 See HANDOVER 2026-07-12 entry for the full cost table and validation notes.

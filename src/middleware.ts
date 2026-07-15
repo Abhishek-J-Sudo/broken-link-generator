@@ -19,6 +19,10 @@ if (IS_PRODUCTION && ENABLE_BASIC_AUTH && BASIC_AUTH_PASSWORD) {
 // Paths that skip Basic Auth — uptime monitors can't send credentials.
 const PUBLIC_PATHS = ['/api/health'];
 
+// Prefix-matched public paths: shareable client reports are read-only and
+// gated by their own unguessable token (validated in the route, not here).
+const PUBLIC_PREFIXES = ['/share/', '/api/share/view/'];
+
 // Paths using their own token — don't double-gate with Basic Auth.
 const TOKEN_AUTH_PATHS = ['/api/admin/cleanup'];
 
@@ -70,6 +74,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_PATHS.includes(pathname)) return NextResponse.next();
+  if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next();
   if (TOKEN_AUTH_PATHS.some((p) => pathname.startsWith(p))) return NextResponse.next();
 
   // Fail-safe — in production, default-deny when auth is not properly configured.
