@@ -823,7 +823,7 @@ export default function AuditReportPage() {
                             grade={score.grade}
                             sub={`Link health ${score.overall}/100`}
                             size={180}
-                            gradeClass="text-8xl"
+                            gradeClass="font-display text-8xl"
                             tone={
                               score.overall >= 80
                                 ? 'text-success'

@@ -4,6 +4,8 @@ import LargeCrawlForm from '@/app/components/LargeCrawlForm';
 import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
 import LegalTerms from './components/LegalTerms';
+import BrandRule from '@/app/components/BrandRule';
+import GradeHex from '@/app/components/GradeHex';
 
 const microLabel = 'font-mono text-[11px] uppercase tracking-[0.18em]';
 
@@ -97,8 +99,8 @@ export default function HomePage() {
 
                 <div className="border-t border-border pt-5 mb-5">
                   <p className={`${microLabel} text-text-subtle mb-2`}>Executive Summary</p>
-                  <div className="flex items-baseline gap-3 mb-3">
-                    <span className="font-display text-5xl text-text">84</span>
+                  <div className="flex items-center gap-4 mb-3">
+                    <GradeHex grade="84" size={76} gradeClass="font-display text-3xl" />
                     <span className="font-mono text-sm text-text-muted">/ 100 site health</span>
                   </div>
                   {/* Ledger rows: label ……… value */}
@@ -176,7 +178,9 @@ export default function HomePage() {
               },
             ].map((step) => (
               <div key={step.n} className="border-t-2 border-action pt-5">
-                <p className="font-mono text-sm text-action mb-3">{step.n}</p>
+                <div className="mb-3 -ml-2">
+                  <GradeHex grade={step.n} size={44} gradeClass="font-mono text-sm" tone="text-action" />
+                </div>
                 <h3 className="font-display text-2xl text-text mb-3">{step.title}</h3>
                 <p className="text-sm text-text-muted leading-relaxed">{step.body}</p>
               </div>
@@ -363,6 +367,8 @@ export default function HomePage() {
               Quick Check
             </Link>
           </div>
+          {/* Document-close signature rule */}
+          <BrandRule className="mt-16" />
         </div>
       </section>
 

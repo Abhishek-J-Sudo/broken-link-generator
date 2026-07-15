@@ -9,7 +9,7 @@ export default function GradeHex({
   sub,
   tone = 'text-text',
   size = 150,
-  gradeClass = 'text-6xl',
+  gradeClass = 'font-display text-6xl',
 }) {
   // Regular pointy-top hexagon: height = width * 2/√3
   const height = Math.round(size * 1.1547);
@@ -32,7 +32,7 @@ export default function GradeHex({
         />
         <circle cx="52" cy="2" r="2.5" fill="var(--color-accent)" />
       </svg>
-      <p className={`font-display leading-none ${gradeClass} ${tone}`}>{grade}</p>
+      <p className={`leading-none ${gradeClass} ${tone}`}>{grade}</p>
       {sub && <p className="mt-2 font-mono text-xs text-text-muted">{sub}</p>}
     </div>
   );
