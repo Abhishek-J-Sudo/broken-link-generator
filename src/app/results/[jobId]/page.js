@@ -398,16 +398,24 @@ export default function AuditReportPage() {
     if (!job || !report) return;
     setExporting(kind);
     try {
-      const response = await fetch(`/api/results/${jobId}?statusFilter=broken&page=1&limit=10000`);
+      const response = await fetch(`/api/results/${jobId}?statusFilter=all&page=1&limit=10000`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Export fetch failed');
-      const findings = data.links || [];
       const sharedSet = new Set(report.sharedTargets);
+      // Full inventory, broken rows first — a healthy site still exports every
+      // checked URL as proof-of-work instead of an empty file.
+      const links = (data.links || []).slice().sort((a, b) => {
+        const aBroken = a.is_working !== true;
+        const bBroken = b.is_working !== true;
+        if (aBroken !== bBroken) return aBroken ? -1 : 1;
+        return a.url.localeCompare(b.url);
+      });
       const host = hostnameOf(job.url);
       const day = new Date().toISOString().split('T')[0];
 
       if (kind === 'csv') {
         const headers = [
+          'Result',
           'Severity',
           'Type',
           'HTTP Code',
@@ -419,19 +427,21 @@ export default function AuditReportPage() {
           'Error',
           'Checked At',
         ];
-        const rows = findings.map((f) => {
-          const cls = classifyFinding(f);
+        const rows = links.map((l) => {
+          const broken = l.is_working !== true;
+          const cls = broken ? classifyFinding(l) : null;
           return [
-            deriveSeverity(cls, !!f.is_internal, sharedSet.has(f.url)),
-            CLASS_SHORT[cls],
-            f.http_status_code ?? '',
-            f.url,
-            f.is_internal ? 'Internal' : 'External',
-            f.source_url || '',
-            f.link_text && f.link_text !== 'Unknown' ? f.link_text : '',
-            f.response_time ?? '',
-            f.error_message || '',
-            f.checked_at || '',
+            broken ? 'BROKEN' : 'OK',
+            broken ? deriveSeverity(cls, !!l.is_internal, sharedSet.has(l.url)) : '',
+            broken ? CLASS_SHORT[cls] : '',
+            l.http_status_code ?? '',
+            l.url,
+            l.is_internal ? 'Internal' : 'External',
+            l.source_url || '',
+            l.link_text && l.link_text !== 'Unknown' ? l.link_text : '',
+            l.response_time ?? '',
+            l.error_message || '',
+            l.checked_at || '',
           ];
         });
         const bom = String.fromCharCode(0xfeff); // keeps Excel happy with UTF-8
@@ -440,7 +450,7 @@ export default function AuditReportPage() {
           [headers, ...rows]
             .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
             .join('\n');
-        download(`seoscrub-audit-${host}-${day}.csv`, csv, 'text/csv;charset=utf-8;');
+        download(`seoscrub-links-${host}-${day}.csv`, csv, 'text/csv;charset=utf-8;');
       } else {
         const payload = {
           exportInfo: { generatedAt: new Date().toISOString(), jobId, url: job.url },
@@ -451,10 +461,10 @@ export default function AuditReportPage() {
             timestamps: job.timestamps,
           },
           report,
-          findings,
+          links,
         };
         download(
-          `seoscrub-audit-${host}-${day}.json`,
+          `seoscrub-links-${host}-${day}.json`,
           JSON.stringify(payload, null, 2),
           'application/json'
         );
@@ -570,6 +580,7 @@ export default function AuditReportPage() {
                         type="button"
                         onClick={sharePath ? revokeShareLink : createShareLink}
                         disabled={shareBusy}
+                        title="Creates a public read-only link to the client report and copies it to the clipboard"
                         className="btn-gel rounded-lg bg-action px-5 py-2.5 text-sm font-medium text-text-on-action hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {shareBusy
@@ -578,33 +589,36 @@ export default function AuditReportPage() {
                             ? shareCopied
                               ? 'Link copied ✓ (click to revoke)'
                               : 'Revoke share link'
-                            : 'Share report'}
+                            : 'Share client report'}
                       </button>
                       <button
                         type="button"
                         onClick={() => runExport('csv')}
                         disabled={exporting !== null}
+                        title="Every checked link with its status — broken rows include severity, error type, and link text"
                         className="rounded-md border border-border-strong px-4 py-2.5 text-sm font-medium text-text transition-colors hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {exporting === 'csv' ? 'Exporting…' : 'Export CSV'}
+                        {exporting === 'csv' ? 'Exporting…' : 'Links CSV'}
                       </button>
                       {job.settings?.enableSEO && (
                         <button
                           type="button"
                           onClick={runSeoExport}
                           disabled={exporting !== null}
+                          title="Per-page SEO scores, issues, and signals for every analyzed page"
                           className="rounded-md border border-border-strong px-4 py-2.5 text-sm font-medium text-text transition-colors hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {exporting === 'seo' ? 'Exporting…' : 'SEO fix list'}
+                          {exporting === 'seo' ? 'Exporting…' : 'SEO pages CSV'}
                         </button>
                       )}
                       <button
                         type="button"
                         onClick={() => runExport('json')}
                         disabled={exporting !== null}
+                        title="Same link data as the Links CSV plus the derived report, for programmatic use"
                         className="rounded-md border border-border-strong px-4 py-2.5 text-sm font-medium text-text transition-colors hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {exporting === 'json' ? 'Exporting…' : 'Export JSON'}
+                        {exporting === 'json' ? 'Exporting…' : 'Links JSON'}
                       </button>
                     </>
                   )}

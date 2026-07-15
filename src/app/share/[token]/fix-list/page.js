@@ -128,22 +128,47 @@ export default function SharedFixListPage() {
   for (const g of classGroups) for (const r of g.rows) severityCounts[r.severity]++;
   const totalFindings = report.kpis.issues;
 
-  const exportFindingsCsv = () => {
+  const exportLinksCsv = () => {
     const sharedSet = new Set(report.sharedTargets);
+    // Broken rows carry error detail the checked-links payload doesn't have.
+    const findingByUrl = new Map((payload.findings || []).map((f) => [f.url, f]));
+    // Full inventory, broken rows first — a healthy site still exports every
+    // checked URL as proof-of-work instead of an empty file.
+    const links = (payload.checkedLinks || []).slice().sort((a, b) => {
+      const aBroken = a.is_working !== true;
+      const bBroken = b.is_working !== true;
+      if (aBroken !== bBroken) return aBroken ? -1 : 1;
+      return a.url.localeCompare(b.url);
+    });
     csvDownload(
-      `seoscrub-findings-${host}.csv`,
-      ['Severity', 'Type', 'HTTP Code', 'URL', 'Scope', 'Source Page', 'Link Text', 'Error'],
-      (payload.findings || []).map((f) => {
-        const cls = classifyFinding(f);
+      `seoscrub-links-${host}.csv`,
+      [
+        'Result',
+        'Severity',
+        'Type',
+        'HTTP Code',
+        'URL',
+        'Scope',
+        'Source Page',
+        'Link Text',
+        'Response Time (ms)',
+        'Error',
+      ],
+      links.map((l) => {
+        const broken = l.is_working !== true;
+        const f = broken ? findingByUrl.get(l.url) : null;
+        const cls = broken ? classifyFinding(f || l) : null;
         return [
-          deriveSeverity(cls, !!f.is_internal, sharedSet.has(f.url)),
-          CLASS_SHORT[cls],
-          f.http_status_code ?? '',
-          f.url,
-          f.is_internal ? 'Internal' : 'External',
-          f.source_url || '',
-          f.link_text && f.link_text !== 'Unknown' ? f.link_text : '',
-          f.error_message || '',
+          broken ? 'BROKEN' : 'OK',
+          broken ? deriveSeverity(cls, !!l.is_internal, sharedSet.has(l.url)) : '',
+          broken ? CLASS_SHORT[cls] : '',
+          l.http_status_code ?? '',
+          l.url,
+          l.is_internal ? 'Internal' : 'External',
+          l.source_url || '',
+          f?.link_text && f.link_text !== 'Unknown' ? f.link_text : '',
+          l.response_time ?? '',
+          f?.error_message || '',
         ];
       })
     );
@@ -213,18 +238,20 @@ export default function SharedFixListPage() {
           </button>
           <button
             type="button"
-            onClick={exportFindingsCsv}
+            onClick={exportLinksCsv}
+            title="Every checked link with its status — broken rows include severity, error type, and link text"
             className="rounded-lg border border-border bg-surface px-4 py-2 text-sm text-text transition-colors hover:border-border-strong"
           >
-            Findings CSV
+            Links CSV
           </button>
           {seoPages.length > 0 && (
             <button
               type="button"
               onClick={exportSeoCsv}
+              title="Per-page SEO scores, issues, and signals for every analyzed page"
               className="rounded-lg border border-border bg-surface px-4 py-2 text-sm text-text transition-colors hover:border-border-strong"
             >
-              SEO fix list CSV
+              SEO pages CSV
             </button>
           )}
         </div>
@@ -360,7 +387,7 @@ export default function SharedFixListPage() {
                 </table>
                 {group.rows.length > MAX_ROWS_PER_CLASS && (
                   <p className="mt-2 text-xs text-text-subtle">
-                    Showing {MAX_ROWS_PER_CLASS} of {group.rows.length} — the Findings CSV has the
+                    Showing {MAX_ROWS_PER_CLASS} of {group.rows.length} — the Links CSV has the
                     complete list.
                   </p>
                 )}

@@ -55,6 +55,25 @@ token** (three-surface model: `/results/[jobId]` stays the internal operator con
 - All four page variants (both tokens × summary/fix-list) render 200 unauthenticated;
   `/results/*` still 401. Scratch token revoked, temp scripts deleted.
 
+### Follow-up (same day): export clarity — user feedback on the toolbar
+
+User's test: looking at the results-page buttons as a new user, you cannot tell which
+button exports which report — and the broken-only CSV produced a headers-only file on
+a healthy site, which reads as "export is broken".
+
+- **Labels now name the content:** `Export CSV` → **Links CSV**, `SEO fix list` →
+  **SEO pages CSV**, `Export JSON` → **Links JSON**, `Share report` → **Share client
+  report**; all four carry `title` tooltips saying exactly what they produce. Same
+  renames on the share fix-list toolbar (`Findings CSV` → **Links CSV**).
+- **Link exports are now the full inventory** (user requirement: "report all the
+  findings on the links even if there were none broken"): every checked URL with a
+  leading `Result` column (OK/BROKEN), broken rows sorted first and enriched with
+  severity/type/link text/error. Results page pulls `statusFilter=all`; share fix-list
+  builds from `checkedLinks` + a findings join. JSON export same data + derived report
+  (key renamed `findings` → `links`). Filenames now `seoscrub-links-*`.
+- Validated via authed API calls: healthy shared audit → 48 OK rows (no more empty
+  file); textfiles job → 3 enriched BROKEN rows first, then 30 OK. Both pages 200.
+
 ### Notes
 
 - Fix-list "Issues" column and totals use **current-rules derived counts**
