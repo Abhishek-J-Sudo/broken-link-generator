@@ -2,6 +2,45 @@
 
 ---
 
+## 2026-07-15 — UI polish: ink dark theme + brand accents (branch open)
+
+### Branch: `phase2-ui-polish` (off main, UNMERGED — user approved the look so far)
+
+`phase2-shareable-reports` was merged + pushed to main this session (user-approved,
+fast-forward to `b212bdb`; branch kept). Then the polish batch, all validated on the
+running dev server, ESLint clean:
+
+- **`f81930b` — SeoScrub ink dark palette.** User was de-slating dark mode by hand
+  (hated AI defaulting to Tailwind slate); finished the job: house neutral ramp
+  `--ink-1000…-800` (green-cast near-blacks grown from their hand-tuned `#0d1113`)
+  drives all dark surfaces incl. the inverse band; dark borders switched to white-alpha
+  hairlines (9% / 18% strong). NOT done yet: dark text grays are still slate-400/500 —
+  de-slating them is agreed in principle, pending user eyeball.
+- **`e5f444d` — brand accents batch 1** (curated from the user's brand board;
+  cut-corners/angled buttons/glows deliberately NOT adopted in-app — marketing only):
+  `BrandRule` (hairline + nodes + S mark; share mastheads), `GradeHex` (hairline hex +
+  green apex node; the ONE square-container exception — results verdict + share client
+  report), scan-trail loading animation on share pages (reduced-motion safe).
+- **`c29fcac` — homepage accents:** hero report mock uses the hex health score, hex
+  step numerals on How-It-Works, closing BrandRule. GradeHex `gradeClass` now controls
+  font fully.
+
+### Next session (user-requested)
+
+- **"Add some juice" to the homepage** — user wants more energy/delight on the landing
+  page. Raw material already curated: brand-board animations (#10) in restrained form,
+  scan-sweep loaders, hex pulse; keep glows marketing-only per the curation agreement.
+- Remaining polish backlog: dark text grays → ink family (pending user judgment),
+  secondary-button recipe unification (rounded-md vs rounded-lg), focus-visible rings,
+  table row hover on EvidenceTable/fix-list, empty/error state styling.
+- Then the standing pipeline: deploy (VPS+Coolify — user must provision; app is safe to
+  deploy privately behind Basic Auth), user accounts/quotas before any open access,
+  §G batch 2 (G1/G12/G13), trends B1–B3 + CWV G7.
+- Aside: user showed their other product "Templit" (HTML email QA) — showcase only,
+  no action; noted the two products don't share a brand family (open question if ever).
+
+---
+
 ## 2026-07-15 — Report format redesign: client report / fix-list split
 
 ### Branch: `phase2-shareable-reports` (continued — this closes the ⚠ OPEN item below)
