@@ -753,7 +753,7 @@ export default function AuditReportPage() {
                 <section className="mb-16 lg:mb-20">
                   <SectionHeading
                     serial={nextSerial()}
-                    label={aiNarrative ? 'AI Analysis' : 'Key Takeaways'}
+                    label={aiNarrative ? 'AI SEO Expert Summary' : 'Key Takeaways'}
                     title="What it means."
                   />
 
@@ -1282,7 +1282,47 @@ export default function AuditReportPage() {
                         </p>
                       )}
                     </div>
-                    {['Indexability', 'Performance', 'Security'].map((name) => (
+                    <div className="bg-surface p-5">
+                      <p className={`${microLabel} text-text-subtle`}>Indexability</p>
+                      {seoSummary?.indexability ? (
+                        <>
+                          <p
+                            className={`mt-3 font-mono text-2xl ${
+                              seoSummary.indexability.hidden > 0 ? 'text-danger' : 'text-text'
+                            }`}
+                          >
+                            {seoSummary.indexability.indexable}/
+                            {seoSummary.indexability.measured_pages}
+                          </p>
+                          <p className="mt-1 font-mono text-xs text-text-muted">
+                            pages visible to search
+                          </p>
+                          {seoSummary.indexability.hidden > 0 ? (
+                            <p className="mt-1 font-mono text-xs text-danger">
+                              {seoSummary.indexability.noindexed > 0 &&
+                                `${seoSummary.indexability.noindexed} noindexed`}
+                              {seoSummary.indexability.noindexed > 0 &&
+                                seoSummary.indexability.robots_blocked > 0 &&
+                                ' · '}
+                              {seoSummary.indexability.robots_blocked > 0 &&
+                                `${seoSummary.indexability.robots_blocked} blocked by robots.txt`}
+                            </p>
+                          ) : (
+                            <p className="mt-1 font-mono text-xs text-text-muted">
+                              no noindex or robots.txt blocks found
+                            </p>
+                          )}
+                          <p className="mt-3 text-xs leading-relaxed text-text-subtle">
+                            Per-page detail is under Deeper signals in the evidence appendix.
+                          </p>
+                        </>
+                      ) : (
+                        <p className="mt-3 text-xs leading-relaxed text-text-subtle">
+                          Not measured in this audit — re-run with SEO analysis enabled.
+                        </p>
+                      )}
+                    </div>
+                    {['Performance', 'Security'].map((name) => (
                       <div key={name} className="bg-surface p-5">
                         <p className={`${microLabel} text-text-subtle`}>{name}</p>
                         <p className="mt-3 text-xs leading-relaxed text-text-subtle">

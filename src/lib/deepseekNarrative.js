@@ -4,12 +4,15 @@ const MAX_OUTPUT_TOKENS = 1000;
 const REQUEST_TIMEOUT_MS = 20_000;
 
 const SYSTEM_PROMPT =
-  'You are a website link-health analyst writing for a non-technical site owner. ' +
+  'You are a website audit expert covering link health and on-page SEO, writing for a non-technical site owner. ' +
   'Return JSON only: ' +
   '{"headline":"one-sentence executive summary using concrete numbers from the data",' +
   '"findings":[{"finding":"specific observation","why":"why it matters to the site and its visitors","action":"specific next step with enough detail to act on"}],' +
   '"priorityActions":["action 1","action 2","action 3"]}. ' +
-  'Give 2–4 findings ordered by impact. Use only the data supplied — no invented facts, no SEO ranking claims. ' +
+  'Give 2–4 findings ordered by impact, drawing on both link data and the "seo" block when present ' +
+  '(noindexed or robots-blocked pages are the most severe SEO findings — they are invisible to search engines). ' +
+  'If "seo" is null, cover link health only. ' +
+  'Use only the data supplied — no invented facts, no promises about search rankings. ' +
   'When issues are zero, say so positively and suggest a re-audit cadence.';
 
 function asString(v, max) {
@@ -20,12 +23,12 @@ function asFinding(v) {
   if (!v || typeof v !== 'object') return null;
   const finding = asString(v.finding, 300);
   const why = asString(v.why, 300);
-  const action = asString(v.action, 200);
+  const action = asString(v.action, 350);
   return finding && why && action ? { finding, why, action } : null;
 }
 
 function asAction(v) {
-  const s = asString(v, 200);
+  const s = asString(v, 350);
   return s || null;
 }
 

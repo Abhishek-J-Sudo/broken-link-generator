@@ -58,17 +58,37 @@ crawler already has (zero extra requests except one robots.txt fetch per job):
   and checked; `lang`/viewport correctly detected present (not flagged); Last-Modified
   freshness 0 months; full signals JSONB round-tripped DB → API. Results page `200`.
 
+### Batch wrap-up (same day, same branch)
+
+- **Indexability tile is live** — the SEO Snapshot cell that said "Not yet measured"
+  now shows real data: `calculateSEOSummary` returns an `indexability` rollup
+  (measured/noindexed/robots-blocked/hidden/indexable) computed from per-page signals;
+  tile renders N/N in danger red when pages are hidden from search. Performance and
+  Security cells remain reserved.
+- **AI narrative now reads the SEO signals** — `buildCondensed` gained a 5th query;
+  `condenseSeo()` sends a compact rollup (avg/range, noindexed, robots-blocked,
+  missing-OG, no-structured-data, stale counts, top 5 recurring issues, 3 worst pages).
+  System prompt updated: audit expert covering link health + on-page SEO; noindex/robots
+  called out as most severe. `seo: null` (SEO-off audits) → link-health-only narrative.
+- **Section renamed** — "AI Analysis" → **"AI SEO Expert Summary"** (user request; earned
+  now that the narrative actually covers SEO). Static fallback label stays "Key Takeaways".
+- Finding/action length caps 200→350 chars (SEO-dense actions were truncating mid-word).
+- Validated on the user's real audit (yourrighttoknow.com, 8 SEO pages): indexability 8/8,
+  regenerated narrative correctly blends link health (48/48 healthy) with SEO findings
+  (missing descriptions/OG/canonicals, stale page, lang attribute, worst page 42/100);
+  usage ~444 in / ~571 out tokens (~$0.0002). Stale cached narratives were cleared for
+  that job so the label matches the content.
+
 ### Pipeline (updated)
 
 USP build — in order:
 
-1. ~~AI narrative layer~~ ✅ (2026-07-12)
+1. ~~AI narrative layer~~ ✅ (2026-07-12) — now SEO-aware (2026-07-15)
 2. **Deeper SEO pipeline** — in progress:
    - ~~G0 + G11 extraction/threshold fixes~~ ✅ (2026-07-15)
-   - ~~Batch 1: G2/G3/G8/G9/G10/G14/G15 signals~~ ✅ (2026-07-15)
+   - ~~Batch 1: G2/G3/G8/G9/G10/G14/G15 signals + indexability tile + AI wiring~~ ✅ (2026-07-15)
    - Next — batch 2 (presentation/query layer): G1 duplicate titles/descriptions,
-     G12 SERP preview, G13 hreflang validation. Also worth feeding the new signals
-     into the DeepSeek narrative prompt (they're in the DB now, unused by AI).
+     G12 SERP preview, G13 hreflang validation.
 3. **Shareable client reports** — read-only signed URL per audit (doc 04 B6).
 
 Deploy (VPS + Coolify) still deferred to last — runbook in the 2026-07-07 entry.

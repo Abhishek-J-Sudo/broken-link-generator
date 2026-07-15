@@ -456,7 +456,7 @@ export const db = {
     try {
       const { data, error } = await supabase
         .from('seo_analysis')
-        .select('seo_score, seo_grade, is_https, response_time, issues_count')
+        .select('seo_score, seo_grade, is_https, response_time, issues_count, signals')
         .eq('job_id', jobId);
 
       if (error) throw error;
@@ -471,8 +471,28 @@ export const db = {
           total_issues: 0,
           https_pages: 0,
           avg_response_time: 0,
+          indexability: null,
         };
       }
+
+      // Indexability rollup from per-page signals (G2 + G15); pages analyzed
+      // before the signals column existed simply don't count as measured.
+      const measured = data.filter((d) => d.signals);
+      const noindexed = measured.filter((d) => d.signals.robots?.noindex).length;
+      const robotsBlocked = measured.filter((d) => d.signals.robotsTxt?.disallowed).length;
+      const hidden = measured.filter(
+        (d) => d.signals.robots?.noindex || d.signals.robotsTxt?.disallowed
+      ).length;
+      const indexability =
+        measured.length > 0
+          ? {
+              measured_pages: measured.length,
+              noindexed,
+              robots_blocked: robotsBlocked,
+              hidden,
+              indexable: measured.length - hidden,
+            }
+          : null;
 
       const gradeDistribution = {
         grade_a_count: data.filter((d) => d.seo_grade === 'A').length,
@@ -497,6 +517,7 @@ export const db = {
             data.filter((d) => d.response_time).reduce((sum, d) => sum + d.response_time, 0) /
               data.filter((d) => d.response_time).length
           ) || 0,
+        indexability,
       };
     } catch (error) {
       console.error('❌ Error calculating SEO summary:', error);

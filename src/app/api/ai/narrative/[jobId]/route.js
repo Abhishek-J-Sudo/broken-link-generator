@@ -26,7 +26,7 @@ const CLS_LABEL = {
 };
 
 async function buildCondensed(jobId, job) {
-  const [statsResult, errorResult, pagesResult, sharedResult] = await Promise.all([
+  const [statsResult, errorResult, pagesResult, sharedResult, seoResult] = await Promise.all([
     // Link-level stats
     query(
       `SELECT
@@ -72,6 +72,14 @@ async function buildCondensed(jobId, job) {
        LIMIT 5`,
       [jobId]
     ),
+    // Per-page SEO analysis incl. deeper signals (doc 04 §G)
+    query(
+      `SELECT url, seo_score, issues, signals
+       FROM seo_analysis
+       WHERE job_id = $1
+       ORDER BY seo_score ASC`,
+      [jobId]
+    ),
   ]);
 
   const stats = statsResult.rows[0];
@@ -114,6 +122,47 @@ async function buildCondensed(jobId, job) {
     sharedTargets: sharedResult.rows.slice(0, 5).map((r) => ({
       url: r.url,
       appearsOnPages: Number(r.page_count),
+    })),
+    seo: condenseSeo(seoResult.rows),
+  };
+}
+
+// Compact per-page SEO rollup for the prompt — aggregate counts plus the
+// worst 3 pages, kept small to protect the token budget.
+function condenseSeo(rows) {
+  if (!rows || rows.length === 0) return null;
+
+  const toPath = (url) => { try { return new URL(url).pathname; } catch { return url; } };
+  const scores = rows.map((r) => Number(r.seo_score) || 0);
+  const withSignals = rows.filter((r) => r.signals);
+
+  // Sitewide issue frequency (top 5 recurring issue messages)
+  const issueCounts = {};
+  for (const row of rows) {
+    for (const issue of row.issues || []) {
+      issueCounts[issue.message] = (issueCounts[issue.message] || 0) + 1;
+    }
+  }
+  const topIssues = Object.entries(issueCounts)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+    .map(([message, count]) => ({ issue: message, pages: count }));
+
+  return {
+    pagesAnalyzed: rows.length,
+    avgScore: Math.round(scores.reduce((s, n) => s + n, 0) / rows.length),
+    scoreRange: [Math.min(...scores), Math.max(...scores)],
+    noindexedPages: withSignals.filter((r) => r.signals.robots?.noindex).length,
+    robotsBlockedPages: withSignals.filter((r) => r.signals.robotsTxt?.disallowed).length,
+    pagesWithoutOpenGraph: withSignals.filter((r) => !r.signals.social?.hasOpenGraph).length,
+    pagesWithoutStructuredData: withSignals.filter(
+      (r) => !r.signals.structuredData?.hasStructuredData
+    ).length,
+    stalePages: withSignals.filter((r) => r.signals.freshness?.isStale).length,
+    topIssues,
+    worstPages: rows.slice(0, 3).map((r) => ({
+      path: toPath(r.url),
+      score: Number(r.seo_score) || 0,
     })),
   };
 }
