@@ -53,14 +53,14 @@ export async function GET(request, { params }) {
                 bl.error_type, bl.link_text
          FROM discovered_links dl
          LEFT JOIN broken_links bl ON bl.job_id = dl.job_id AND bl.url = dl.url
-         WHERE dl.job_id = $1 AND dl.status = 'checked' AND dl.is_working = false`,
+         WHERE dl.job_id = $1 AND dl.status = 'checked' AND dl.is_working IS NOT TRUE`,
         [job.id]
       ),
       query(
         `SELECT url, seo_score, seo_grade, title_text, title_length,
                 meta_description, description_length, canonical_url,
                 h1_count, h2_count, word_count, total_images, missing_alt,
-                issues, signals
+                response_time, issues, signals
          FROM seo_analysis WHERE job_id = $1 ORDER BY seo_score ASC`,
         [job.id]
       ),

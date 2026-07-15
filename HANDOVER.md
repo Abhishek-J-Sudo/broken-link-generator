@@ -2,6 +2,71 @@
 
 ---
 
+## 2026-07-15 — Report format redesign: client report / fix-list split
+
+### Branch: `phase2-shareable-reports` (continued — this closes the ⚠ OPEN item below)
+
+Product decision (discussed with user): the share report was one document serving two
+audiences, which made it "too technical / too busy". Split into **two documents on one
+token** (three-surface model: `/results/[jobId]` stays the internal operator console):
+
+- **`/share/[token]` — client health report.** The brief for the site owner: grade +
+  grade-word, AI headline verdict, 3–4 headline stats (URLs checked / broken / % working /
+  pages hidden from search), AI findings as prose (finding + why, no mono arrows), "what
+  gets fixed first" (AI priorityActions, fallback derived tasks), search-visibility tiles,
+  plain-language footer. No URL tables, no jargon, no CSVs. Prints 1–2 pages.
+- **`/share/[token]/fix-list` — SEO team work order** (new page). Work summary with anchor
+  links; **broken links as real tables grouped by failure type** (columns: Broken URL /
+  Status / Found on / Link text, plus internal-external + shared-element + critical
+  markers, rows link out, 200-row cap per class with CSV pointer); **on-page SEO grouped
+  by check type** (Meta & canonical, Content, Structure & fundamentals, Indexability,
+  Social preview, Freshness) — each check shows severity, fix hint, and failing pages
+  with measured values; passing checks confirmed in one line; unmeasurable ones marked
+  "not measured". Pages-measured score table on top. Exposure review table moved here.
+  Both CSV exports moved here. Cross-links with the client page in the screen toolbar.
+
+### New/changed files
+
+- **`src/lib/seoChecks.js`** (new) — issue-centric check registry + `buildSeoFixList()`.
+  Pure; mirrors `seoDetector.calculateSEOScore()` trigger-for-trigger so the fix list
+  reconciles with stored per-page scores. Unscored observations (Twitter card, missing
+  date signals) carry severity `notice`. Null `signals` (pre-G-batch audits) → "na".
+- **`src/app/share/useSharedReport.js`** (new) — shared hook (payload fetch + forced
+  light theme) + microLabel/reportDate/csvDownload + error/loading screens.
+- **`src/app/share/[token]/page.js`** — rewritten as the client brief (above).
+- **`src/app/share/[token]/fix-list/page.js`** (new) — the work order (above).
+- **`src/app/api/share/view/[token]/route.js`** — seoPages SELECT now includes
+  `response_time` (slow-page check); **bug fix:** findings filter changed from
+  `is_working = false` to `is_working IS NOT TRUE` — legacy rows store NULL for
+  DNS/connection failures and were silently missing from share findings (internal
+  results API already treated NULL as broken).
+- Middleware needed no change — `/share/` is prefix-matched public.
+
+### Validation
+
+- ESLint clean on all five files.
+- Real-payload derivation check (temp node script, removed): fresh audit
+  (yourrighttoknow.com, 8 pages) reconciles **exactly** — 56 derived scored issues =
+  56 stored; all six categories fire correctly (noindex/robots pass, stale page −42
+  months, JSON-LD parse failures, heading skips). Legacy job (textfiles.com, 24 pages,
+  pre-G0 scoring) shows expected snapshot drift (147 current-rules vs 145 stored) and
+  all signal checks correctly "not measured"; its 3 NULL-is_working findings appear
+  after the filter fix (DNS failures with source page + link text).
+- All four page variants (both tokens × summary/fix-list) render 200 unauthenticated;
+  `/results/*` still 401. Scratch token revoked, temp scripts deleted.
+
+### Notes
+
+- Fix-list "Issues" column and totals use **current-rules derived counts**
+  (`pageIssueCounts`), not the stored issues snapshot, so the document always agrees
+  with its own breakdown; legacy jobs may differ from stored `issues_count`.
+- The `EvidenceTable` on the internal results page could adopt `seoChecks.js` later for
+  the same check-type grouping — not done, not asked.
+- Still open before merge: user review of the two new documents. Then: trends (B1–B3),
+  Core Web Vitals (G7) as next manager-facing content; §G batch 2 (G1/G12/G13).
+
+---
+
 ## 2026-07-15 — Shareable client reports (USP item 3)
 
 ### Branch: `phase2-shareable-reports` (off main; batch-1 was merged+pushed to main first, user-approved)
