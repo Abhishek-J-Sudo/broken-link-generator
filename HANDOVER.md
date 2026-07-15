@@ -2,6 +2,79 @@
 
 ---
 
+## 2026-07-15 — §G batch 1: deeper SEO signals (G2/G3/G8/G9/G10/G14/G15)
+
+### Branch: `phase2-g-batch1-signals` (flat, off main)
+
+**Workflow note (user-directed):** the old branch stack was fast-forwarded into `main`
+(27 commits, no divergence) and pushed. From now on: one FLAT branch off `main` per
+feature batch, merged when validated — no stacking. Existing branches were NOT deleted.
+
+Seven new per-page signal families, all extracted from the same 50KB slice/response the
+crawler already has (zero extra requests except one robots.txt fetch per job):
+
+- **G2 indexability** — meta robots + `X-Robots-Tag` header; noindex → critical issue (−15).
+- **G3 social preview** — OG (title/description/image/type) + Twitter card tags, either
+  `property=` or `name=` attribute; none → minor (−3), partial → minor (−2).
+- **G8 structured data** — JSON-LD blocks parsed (incl. `@graph`, type arrays); `@type`
+  list reported; none → minor (−2), unparseable block → warning (−3).
+- **G9 heading outline** — ordered H1–H6 outline (capped 40); skipped level (H2→H4) →
+  warning (−4); headings before first H1 → minor (−3). This is the meaningful replacement
+  for the multiple-H1 penalty dropped in G0.
+- **G10 fundamentals** — `<html lang>` (−2), viewport meta (−5), URL >100 chars /
+  underscores (−2).
+- **G14 freshness** — `article:published_time`/`modified_time`, JSON-LD dates (from G8),
+  `Last-Modified` header (weakest, fallback only); >12 months stale → minor (−2).
+- **G15 robots.txt audit** — **new `src/lib/robotsAudit.js`**: fetched once per job in
+  `checkLinks()` (via safeFetch), parsed per Google REP semantics (group merge, specific
+  `googlebot` group *replaces* `*`, longest-match wins, allow wins ties, `*`/`$` wildcards,
+  4xx = no restrictions, 5xx/unreachable = audit skipped). Same-origin URLs only.
+  Disallowed page → critical issue (−15). Distinct from `securityUtils.checkRobotsTxt`
+  (our bot's politeness).
+
+### Plumbing
+
+- `seoDetector.analyzePage(html, url, status, time, context)` — new optional 5th param:
+  `context.headers` (`x-robots-tag`, `last-modified`) + `context.robotsTxt` (evaluated match).
+- `httpChecker.checkUrlWithSEO/checkUrlsWithSEO` accept `robotsRules`, build the context;
+  `x-robots-tag` added to `_extractRelevantHeaders`.
+- `crawler/linkCheck.js` loads robots rules once per job when SEO is on.
+- **DB:** `seo_analysis.signals JSONB` (CREATE TABLE + idempotent ALTER in `init.sql`;
+  applied locally via `npm run db:init`). Written by `addSEOAnalysis`, served by the
+  results API as `seo_signals` on both page rows and link rows.
+- **UI:** `EvidenceTable` expanded SEO rows get a "Deeper signals" section — indexability,
+  social preview, structured data types, heading outline, fundamentals, freshness.
+- Drive-by: removed dead `brokenLinksFound` counter in `linkCheck.js` (blocked ESLint).
+
+### Validation
+
+- 46/46 fixture checks (temp script, removed): every signal family positive + negative,
+  REP matcher semantics (wildcards, anchors, group preference, cross-origin null), scoring
+  integration, signals shape. Note: two initial "failures" were wrong test expectations —
+  a `googlebot` group correctly makes `*` rules inapplicable.
+- ESLint clean on all 7 touched files.
+- E2E on real infra (job `26197940-0d43-4319-9ccb-5574742b75a8`, example.com, SEO on):
+  score 65 → 60 exactly per new deductions (no OG −3, no JSON-LD −2); robots.txt fetched
+  and checked; `lang`/viewport correctly detected present (not flagged); Last-Modified
+  freshness 0 months; full signals JSONB round-tripped DB → API. Results page `200`.
+
+### Pipeline (updated)
+
+USP build — in order:
+
+1. ~~AI narrative layer~~ ✅ (2026-07-12)
+2. **Deeper SEO pipeline** — in progress:
+   - ~~G0 + G11 extraction/threshold fixes~~ ✅ (2026-07-15)
+   - ~~Batch 1: G2/G3/G8/G9/G10/G14/G15 signals~~ ✅ (2026-07-15)
+   - Next — batch 2 (presentation/query layer): G1 duplicate titles/descriptions,
+     G12 SERP preview, G13 hreflang validation. Also worth feeding the new signals
+     into the DeepSeek narrative prompt (they're in the DB now, unused by AI).
+3. **Shareable client reports** — read-only signed URL per audit (doc 04 B6).
+
+Deploy (VPS + Coolify) still deferred to last — runbook in the 2026-07-07 entry.
+
+---
+
 ## 2026-07-15 — G0 + G11: SEO extraction layer fixed (phase 1 of deeper SEO pipeline)
 
 ### Branch: `phase2-g0-seo-extraction`

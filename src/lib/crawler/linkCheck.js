@@ -1,6 +1,7 @@
 import { HttpChecker } from '@/lib/httpChecker';
 import { batchUtils, errorUtils } from '@/lib/utils';
 import { db } from '@/lib/supabase';
+import { loadRobotsRules } from '@/lib/robotsAudit';
 
 /**
  * Check link statuses and persist results.
@@ -32,8 +33,19 @@ export async function checkLinks(
   const batchDelay = enableSEO ? 800 : quickMode ? 200 : 500;
   const batches = batchUtils.chunkArray(linksToCheck, batchSize);
 
+  // G15: fetch the site's robots.txt once per job so each SEO-analyzed page
+  // can be checked against Google's crawl rules. null = audit unavailable.
+  let robotsRules = null;
+  if (enableSEO) {
+    try {
+      const job = await db.getJob(jobId);
+      robotsRules = await loadRobotsRules(job.url);
+    } catch (robotsError) {
+      console.error('robots.txt audit unavailable:', robotsError.message);
+    }
+  }
+
   let processedCount = 0;
-  let brokenLinksFound = 0;
   let seoAnalyzedCount = 0;
 
   for (let i = 0; i < batches.length; i++) {
@@ -63,7 +75,7 @@ export async function checkLinks(
       } else {
         const { results: raw } = await httpChecker.checkUrlsWithSEO(
           batch.map((link) => ({ url: link.url, sourceUrl: link.sourceUrl })),
-          { enableSEO }
+          { enableSEO, robotsRules }
         );
         results = raw.map((r, j) => ({
           ...r,
@@ -129,7 +141,6 @@ export async function checkLinks(
               linkText: result.linkText || originalLink.linkText || 'Link',
               responseTime: result.response_time,
             });
-            brokenLinksFound++;
           } catch (dbError) {
             console.error('Failed to save broken link:', dbError);
           }

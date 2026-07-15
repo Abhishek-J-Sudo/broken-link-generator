@@ -110,6 +110,7 @@ export async function GET(request, { params }) {
         alt_coverage,
         canonical_url,
         issues,
+        signals,
         status_code,
         analyzed_at
       `
@@ -184,6 +185,7 @@ export async function GET(request, { params }) {
       },
       seo_issues_count: seo.issues_count || 0,
       seo_issues: seo.issues || [],
+      seo_signals: seo.signals || null,
       seo_analyzed_at: seo.analyzed_at || null,
       has_seo_data: true,
       link_text: null,
@@ -312,6 +314,7 @@ export async function GET(request, { params }) {
         },
         seo_issues_count: seoDataForLink?.issues_count || 0,
         seo_issues: seoDataForLink?.issues || [],
+        seo_signals: seoDataForLink?.signals || null,
         seo_analyzed_at: seoDataForLink?.analyzed_at || null,
         has_seo_data: !!seoDataForLink,
 

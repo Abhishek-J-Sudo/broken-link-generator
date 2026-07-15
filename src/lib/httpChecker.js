@@ -6,6 +6,7 @@
 import { errorUtils, batchUtils } from './utils.js';
 import { securityUtils } from './security.js';
 import { seoDetector } from './seoDetector.js';
+import { evaluateRobots } from './robotsAudit.js';
 import { safeFetch } from './safeFetch.js';
 
 export class HttpChecker {
@@ -265,7 +266,14 @@ export class HttpChecker {
           if (contentType.includes('text/html')) {
             try {
               const html = await response.text();
-              result.seo_data = seoDetector.analyzePage(html, url, response.status, responseTime);
+              const seoContext = {
+                headers: {
+                  'x-robots-tag': response.headers.get('x-robots-tag') || null,
+                  'last-modified': response.headers.get('last-modified') || null,
+                },
+                robotsTxt: options.robotsRules ? evaluateRobots(options.robotsRules, url) : null,
+              };
+              result.seo_data = seoDetector.analyzePage(html, url, response.status, responseTime, seoContext);
             } catch (seoError) {
               result.seo_data = { url, error: seoError.message, analyzedAt: new Date().toISOString() };
             }
@@ -326,7 +334,10 @@ export class HttpChecker {
 
       return async () => {
         try {
-          const result = await this.checkUrlWithSEO(url, sourceUrl, { enableSEO: shouldAnalyzeSEO });
+          const result = await this.checkUrlWithSEO(url, sourceUrl, {
+            enableSEO: shouldAnalyzeSEO,
+            robotsRules: options.robotsRules || null,
+          });
           results[index] = result;
           completedCount++;
           if (onProgress) onProgress({ completed: completedCount, total: urls.length, current: result, seoAnalyzed: result.seo_data ? 1 : 0 });
@@ -372,7 +383,7 @@ export class HttpChecker {
   }
 
   _extractRelevantHeaders(headers) {
-    const keys = ['content-type', 'content-length', 'last-modified', 'cache-control', 'expires', 'server', 'x-powered-by', 'location'];
+    const keys = ['content-type', 'content-length', 'last-modified', 'cache-control', 'expires', 'server', 'x-powered-by', 'location', 'x-robots-tag'];
     const result = {};
     for (const key of keys) {
       const val = headers.get(key);

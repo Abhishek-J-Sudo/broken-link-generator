@@ -501,6 +501,97 @@ function SeoPageDetails({ row, issueMessages }) {
           )}
         </div>
       </div>
+
+      {row.seo_signals && <SignalsDetails signals={row.seo_signals} />}
+    </div>
+  );
+}
+
+function SignalsDetails({ signals }) {
+  const indexProblems = [];
+  if (signals.robots?.noindex) indexProblems.push(`noindex via ${signals.robots.noindexSource}`);
+  if (signals.robotsTxt?.disallowed)
+    indexProblems.push(`robots.txt disallows "${signals.robotsTxt.matchedRule}"`);
+
+  const social = signals.social;
+  const socialSummary = !social
+    ? null
+    : !social.hasOpenGraph
+      ? 'no Open Graph tags'
+      : social.missingOpenGraph.length > 0
+        ? `missing ${social.missingOpenGraph.join(', ')}`
+        : 'Open Graph complete';
+
+  const structured = signals.structuredData;
+  const outline = signals.headings?.outline || [];
+  const freshness = signals.freshness;
+  const freshnessDate = freshness?.modifiedTime || freshness?.publishedTime || freshness?.lastModifiedHeader;
+  const fundamentals = signals.fundamentals;
+
+  return (
+    <div className="border-t border-border pt-4">
+      <span className={`${microLabel} text-text-subtle`}>Deeper signals</span>
+      <div className="mt-3 grid gap-4 lg:grid-cols-2">
+        <Detail label="Indexability">
+          {indexProblems.length > 0 ? (
+            <span className="font-mono text-danger">{indexProblems.join(' · ')}</span>
+          ) : (
+            <span className="font-mono text-text-muted">
+              indexable{signals.robots?.nofollow ? ' · nofollow' : ''}
+            </span>
+          )}
+        </Detail>
+
+        <Detail label="Social preview">
+          <span className="font-mono text-text-muted">
+            {socialSummary}
+            {social?.hasTwitterCard ? ` · twitter:${social.twitter.card}` : ''}
+          </span>
+        </Detail>
+
+        <Detail label="Structured data">
+          <span className="font-mono text-text-muted">
+            {structured?.hasStructuredData ? structured.types.join(', ') : 'none'}
+            {structured?.invalidBlocks > 0 ? ` · ${structured.invalidBlocks} invalid block(s)` : ''}
+          </span>
+        </Detail>
+
+        <Detail label="Heading outline">
+          <span className="font-mono text-text-muted">
+            {outline.length > 0 ? outline.slice(0, 12).join(' → ') : 'no headings'}
+            {outline.length > 12 ? ' …' : ''}
+            {signals.headings?.skippedLevels ? (
+              <span className="text-danger"> · skips {signals.headings.skippedLevels}</span>
+            ) : null}
+          </span>
+        </Detail>
+
+        <Detail label="Fundamentals">
+          <span className="font-mono text-text-muted">
+            lang {fundamentals?.htmlLang || 'missing'} · viewport{' '}
+            {fundamentals?.hasViewport ? 'present' : 'missing'} · URL{' '}
+            {fundamentals?.urlTooLong || fundamentals?.urlHasUnderscores
+              ? [
+                  fundamentals?.urlTooLong ? 'over 100 chars' : null,
+                  fundamentals?.urlHasUnderscores ? 'has underscores' : null,
+                ]
+                  .filter(Boolean)
+                  .join(', ')
+              : 'ok'}
+          </span>
+        </Detail>
+
+        <Detail label="Freshness">
+          <span className="font-mono text-text-muted">
+            {freshnessDate
+              ? `${new Date(freshnessDate).toLocaleDateString()}${
+                  freshness.ageMonths != null ? ` (~${freshness.ageMonths} mo old)` : ''
+                }`
+              : 'no date signals'}
+            {freshness?.isStale ? <span className="text-danger"> · stale</span> : null}
+          </span>
+        </Detail>
+      </div>
     </div>
   );
 }

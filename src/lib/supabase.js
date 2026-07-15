@@ -358,6 +358,7 @@ export const db = {
           seo_grade: seoData.grade || 'F',
           issues_count: seoData.issues?.length || 0,
           issues: seoData.issues || [], // Supabase handles JSON automatically
+          signals: seoData.signals || null,
 
           analyzed_at: seoData.analyzedAt || new Date().toISOString(),
         })

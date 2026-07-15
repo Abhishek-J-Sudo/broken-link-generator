@@ -17,8 +17,12 @@ export class LightweightSEODetector {
   /**
    * Analyze SEO basics from existing HTTP response
    * Reuses the HTML content already fetched for link checking
+   *
+   * context (all optional):
+   *   headers   — { 'x-robots-tag', 'last-modified' } from the page response
+   *   robotsTxt — result of robotsAudit.evaluateRobots() for this URL
    */
-  analyzePage(html, url, statusCode, responseTime) {
+  analyzePage(html, url, statusCode, responseTime, context = {}) {
     // Skip SEO analysis for non-content pages or errors
     if (!html || statusCode >= 400 || !this.isContentPage(url)) {
       return null;
@@ -37,6 +41,11 @@ export class LightweightSEODetector {
       const canonicalUrl = this.extractCanonical($);
       const headings = this.analyzeHeadings($);
       const images = this.analyzeImages($);
+      const robots = this.extractRobotsDirectives($, context.headers?.['x-robots-tag']);
+      const social = this.extractSocialTags($);
+      const structuredData = this.extractStructuredData($);
+      const fundamentals = this.extractFundamentals($, url);
+      const freshness = this.extractFreshness($, structuredData, context.headers?.['last-modified']);
       const wordCount = this.estimateWordCount($);
 
       const seoData = {
@@ -63,6 +72,25 @@ export class LightweightSEODetector {
           responseTime,
           isHttps: url.startsWith('https://'),
           hasTrailingSlash: url.endsWith('/'),
+        },
+
+        // Deeper per-page signals (doc 04 §G batch: G2/G3/G8/G9/G10/G14/G15).
+        // Persisted as one JSONB column; scored below like everything else.
+        signals: {
+          robots,
+          social,
+          structuredData,
+          fundamentals,
+          freshness,
+          robotsTxt: context.robotsTxt || null,
+          // outline lives here because seo_analysis only has h1–h3 count columns
+          headings: {
+            outline: headings.outline.slice(0, 40),
+            firstHeading: headings.firstHeading,
+            skippedLevels: headings.skippedLevels,
+            headingsBeforeH1: headings.headingsBeforeH1,
+            totalHeadings: headings.totalHeadings,
+          },
         },
 
         // SEO Score (simple calculation)
@@ -138,11 +166,11 @@ export class LightweightSEODetector {
   }
 
   /**
-   * Find a <meta> tag by its name attribute (case-insensitive, attribute-order independent)
+   * Find a <meta> tag by name/property attribute (case-insensitive, attribute-order independent)
    */
-  findMetaContent($, name) {
+  findMetaContent($, key, attr = 'name') {
     const meta = $('meta')
-      .filter((_, el) => (el.attribs.name || '').trim().toLowerCase() === name)
+      .filter((_, el) => (el.attribs[attr] || '').trim().toLowerCase() === key)
       .first();
     return meta.length ? (meta.attr('content') || '').trim() : '';
   }
@@ -182,20 +210,217 @@ export class LightweightSEODetector {
   }
 
   /**
-   * Analyze heading structure (lightweight)
+   * Analyze heading structure as an ordered outline (G9).
+   * Flags skipped levels (H2 → H4) and headings appearing before the first H1.
    */
   analyzeHeadings($) {
-    const h1Count = $('h1').length;
-    const h2Count = $('h2').length;
-    const h3Count = $('h3').length;
+    const counts = { h1: 0, h2: 0, h3: 0, h4: 0, h5: 0, h6: 0 };
+    const outline = [];
+    const levels = [];
+
+    $('h1, h2, h3, h4, h5, h6')
+      .filter((_, el) => $(el).closest('svg').length === 0)
+      .each((_, el) => {
+        const tag = el.name.toLowerCase();
+        counts[tag]++;
+        levels.push(Number(tag[1]));
+        if (outline.length < 100) outline.push(tag.toUpperCase());
+      });
+
+    let skippedLevels = null;
+    for (let i = 1; i < levels.length; i++) {
+      if (levels[i] > levels[i - 1] + 1) {
+        skippedLevels = `H${levels[i - 1]} → H${levels[i]}`;
+        break;
+      }
+    }
+
+    const firstH1Index = levels.indexOf(1);
 
     return {
-      h1Count,
-      h2Count,
-      h3Count,
-      totalHeadings: h1Count + h2Count + h3Count,
-      hasMultipleH1: h1Count > 1,
-      hasNoH1: h1Count === 0,
+      h1Count: counts.h1,
+      h2Count: counts.h2,
+      h3Count: counts.h3,
+      h4Count: counts.h4,
+      h5Count: counts.h5,
+      h6Count: counts.h6,
+      totalHeadings: levels.length,
+      hasMultipleH1: counts.h1 > 1,
+      hasNoH1: counts.h1 === 0,
+      outline,
+      firstHeading: outline.length ? outline[0] : null,
+      skippedLevels,
+      headingsBeforeH1: firstH1Index > 0,
+      noHeadings: levels.length === 0,
+    };
+  }
+
+  /**
+   * Meta robots + X-Robots-Tag indexability directives (G2)
+   */
+  extractRobotsDirectives($, xRobotsTag) {
+    const metaRobots = this.findMetaContent($, 'robots') || null;
+    const metaVal = (metaRobots || '').toLowerCase();
+    const headerVal = (xRobotsTag || '').toLowerCase();
+
+    const noindex = metaVal.includes('noindex') || headerVal.includes('noindex');
+
+    return {
+      metaRobots,
+      xRobotsTag: xRobotsTag || null,
+      noindex,
+      nofollow: metaVal.includes('nofollow') || headerVal.includes('nofollow'),
+      noindexSource: metaVal.includes('noindex')
+        ? 'meta robots'
+        : headerVal.includes('noindex')
+          ? 'X-Robots-Tag header'
+          : null,
+    };
+  }
+
+  /**
+   * Open Graph / Twitter card tags (G3)
+   */
+  extractSocialTags($) {
+    // OG is spec'd as property=, Twitter as name=, but both appear in the wild either way
+    const tag = (key) =>
+      this.findMetaContent($, key, 'property') || this.findMetaContent($, key, 'name');
+
+    const og = {
+      title: tag('og:title').substring(0, 200) || null,
+      description: tag('og:description').substring(0, 300) || null,
+      image: tag('og:image').substring(0, 500) || null,
+      type: tag('og:type').substring(0, 50) || null,
+    };
+    const twitter = {
+      card: tag('twitter:card').substring(0, 50) || null,
+      title: tag('twitter:title').substring(0, 200) || null,
+      description: tag('twitter:description').substring(0, 300) || null,
+      image: tag('twitter:image').substring(0, 500) || null,
+    };
+
+    const missingOpenGraph = [];
+    if (!og.title) missingOpenGraph.push('og:title');
+    if (!og.description) missingOpenGraph.push('og:description');
+    if (!og.image) missingOpenGraph.push('og:image');
+
+    return {
+      og,
+      twitter,
+      hasOpenGraph: missingOpenGraph.length < 3,
+      hasTwitterCard: !!twitter.card,
+      missingOpenGraph,
+    };
+  }
+
+  /**
+   * JSON-LD structured data detection (G8)
+   */
+  extractStructuredData($) {
+    const blocks = $('script').filter(
+      (_, el) => (el.attribs.type || '').trim().toLowerCase() === 'application/ld+json'
+    );
+
+    const types = new Set();
+    let invalidBlocks = 0;
+    let datePublished = null;
+    let dateModified = null;
+
+    const collectNode = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        node.forEach(collectNode);
+        return;
+      }
+      const t = node['@type'];
+      if (typeof t === 'string') types.add(t);
+      else if (Array.isArray(t)) t.forEach((x) => typeof x === 'string' && types.add(x));
+      if (!datePublished && typeof node.datePublished === 'string') datePublished = node.datePublished;
+      if (!dateModified && typeof node.dateModified === 'string') dateModified = node.dateModified;
+      if (Array.isArray(node['@graph'])) node['@graph'].forEach(collectNode);
+    };
+
+    blocks.each((_, el) => {
+      const raw = $(el).text().trim();
+      if (!raw) return;
+      try {
+        collectNode(JSON.parse(raw));
+      } catch {
+        invalidBlocks++;
+      }
+    });
+
+    return {
+      blockCount: blocks.length,
+      invalidBlocks,
+      types: [...types].slice(0, 20),
+      hasStructuredData: types.size > 0,
+      datePublished,
+      dateModified,
+    };
+  }
+
+  /**
+   * Page fundamentals: html lang, viewport meta, URL quality (G10)
+   */
+  extractFundamentals($, url) {
+    const htmlEl = $('html').first();
+    const lang = htmlEl.length ? (htmlEl.attr('lang') || '').trim() : '';
+    const hasViewport = $('meta').filter(
+      (_, el) => (el.attribs.name || '').trim().toLowerCase() === 'viewport'
+    ).length > 0;
+
+    let urlHasUnderscores = false;
+    try {
+      urlHasUnderscores = new URL(url).pathname.includes('_');
+    } catch {
+      /* keep default */
+    }
+
+    return {
+      htmlLang: lang || null,
+      hasViewport,
+      urlLength: url.length,
+      urlTooLong: url.length > 100,
+      urlHasUnderscores,
+    };
+  }
+
+  /**
+   * Content freshness signals: OG article dates, JSON-LD dates, Last-Modified header (G14)
+   */
+  extractFreshness($, structuredData, lastModifiedHeader) {
+    const publishedTime =
+      this.findMetaContent($, 'article:published_time', 'property') ||
+      structuredData.datePublished ||
+      null;
+    const modifiedTime =
+      this.findMetaContent($, 'article:modified_time', 'property') ||
+      structuredData.dateModified ||
+      null;
+
+    // Staleness prefers content-level signals; Last-Modified header is the
+    // weakest (often just deploy time) and only used when nothing else exists.
+    const basis = modifiedTime || publishedTime || lastModifiedHeader || null;
+    let ageMonths = null;
+    let isStale = false;
+    if (basis) {
+      const parsed = new Date(basis);
+      if (!Number.isNaN(parsed.getTime())) {
+        const months = (Date.now() - parsed.getTime()) / (30.44 * 24 * 3600 * 1000);
+        if (months >= 0) {
+          ageMonths = Math.round(months);
+          isStale = months > 12;
+        }
+      }
+    }
+
+    return {
+      publishedTime,
+      modifiedTime,
+      lastModifiedHeader: lastModifiedHeader || null,
+      ageMonths,
+      isStale,
     };
   }
 
@@ -306,6 +531,108 @@ export class LightweightSEODetector {
     if (!seoData.canonicalUrl) {
       score -= 5;
       issues.push({ type: 'minor', message: 'Missing canonical URL' });
+    }
+
+    // --- Deeper signals (doc 04 §G batch) ---
+    const signals = seoData.signals || {};
+
+    // G2: indexability directives — a perfect page that is noindexed is invisible
+    if (signals.robots?.noindex) {
+      score -= 15;
+      issues.push({
+        type: 'critical',
+        message: `Page is noindexed (${signals.robots.noindexSource}) — excluded from search results`,
+      });
+    }
+
+    // G15: robots.txt — blocked pages can't even be crawled, whatever their score
+    if (signals.robotsTxt?.disallowed) {
+      score -= 15;
+      issues.push({
+        type: 'critical',
+        message: `Blocked by robots.txt rule "${signals.robotsTxt.matchedRule}" — invisible to Google`,
+      });
+    }
+
+    // G9: heading outline structure (replaces the old multiple-H1 penalty)
+    if (seoData.headings.skippedLevels) {
+      score -= 4;
+      issues.push({
+        type: 'warning',
+        message: `Heading level skipped in outline (${seoData.headings.skippedLevels})`,
+      });
+    }
+    if (!seoData.headings.hasNoH1 && seoData.headings.headingsBeforeH1) {
+      score -= 3;
+      issues.push({
+        type: 'minor',
+        message: `Content headings appear before the first H1 (outline starts at ${seoData.headings.firstHeading})`,
+      });
+    }
+
+    // G3: social preview tags
+    if (signals.social) {
+      if (!signals.social.hasOpenGraph) {
+        score -= 3;
+        issues.push({
+          type: 'minor',
+          message: 'No Open Graph tags — shared links render generic previews',
+        });
+      } else if (signals.social.missingOpenGraph.length > 0) {
+        score -= 2;
+        issues.push({
+          type: 'minor',
+          message: `Incomplete social preview tags (missing ${signals.social.missingOpenGraph.join(', ')})`,
+        });
+      }
+    }
+
+    // G8: structured data
+    if (signals.structuredData) {
+      if (signals.structuredData.invalidBlocks > 0) {
+        score -= 3;
+        issues.push({
+          type: 'warning',
+          message: `${signals.structuredData.invalidBlocks} JSON-LD block(s) failed to parse`,
+        });
+      } else if (!signals.structuredData.hasStructuredData) {
+        score -= 2;
+        issues.push({
+          type: 'minor',
+          message: 'No structured data (JSON-LD) — not eligible for rich results',
+        });
+      }
+    }
+
+    // G10: page fundamentals
+    if (signals.fundamentals) {
+      if (!signals.fundamentals.htmlLang) {
+        score -= 2;
+        issues.push({ type: 'minor', message: 'Missing lang attribute on <html>' });
+      }
+      if (!signals.fundamentals.hasViewport) {
+        score -= 5;
+        issues.push({
+          type: 'warning',
+          message: 'Missing viewport meta tag — page may not be mobile-friendly',
+        });
+      }
+      const urlProblems = [];
+      if (signals.fundamentals.urlTooLong) urlProblems.push('over 100 chars');
+      if (signals.fundamentals.urlHasUnderscores) urlProblems.push('contains underscores');
+      if (urlProblems.length > 0) {
+        score -= 2;
+        issues.push({ type: 'minor', message: `URL quality: ${urlProblems.join(', ')}` });
+      }
+    }
+
+    // G14: content freshness
+    if (signals.freshness?.isStale) {
+      score -= 2;
+      issues.push({
+        type: 'minor',
+        message: `Content not updated in over 12 months (last signal ~${signals.freshness.ageMonths} months old)`,
+      });
     }
 
     seoData.score = Math.max(0, score);

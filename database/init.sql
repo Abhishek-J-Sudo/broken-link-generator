@@ -104,6 +104,9 @@ CREATE TABLE IF NOT EXISTS seo_analysis (
     seo_grade          CHAR(1) CHECK (seo_grade IN ('A', 'B', 'C', 'D', 'F')),
     issues_count       INTEGER DEFAULT 0,
     issues             JSONB DEFAULT '[]'::jsonb,
+    -- Deeper per-page signals (doc 04 §G): robots, social, structured data,
+    -- heading outline, fundamentals, freshness, robots.txt audit
+    signals            JSONB,
     -- Timestamps
     analyzed_at        TIMESTAMPTZ DEFAULT NOW(),
     created_at         TIMESTAMPTZ DEFAULT NOW(),
@@ -114,6 +117,7 @@ CREATE TABLE IF NOT EXISTS seo_analysis (
 -- Idempotent column additions (for existing installs upgrading in place)
 -- ---------------------------------------------------------------------------
 ALTER TABLE crawl_jobs ADD COLUMN IF NOT EXISTS ai_narrative JSONB;
+ALTER TABLE seo_analysis ADD COLUMN IF NOT EXISTS signals JSONB;
 
 -- ---------------------------------------------------------------------------
 -- Indexes
