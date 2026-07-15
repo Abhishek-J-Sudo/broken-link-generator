@@ -12,6 +12,7 @@ import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
 import SecurityNotice from '@/app/components/SecurityNotice';
 import EvidenceTable from '@/app/components/EvidenceTable';
+import GradeHex from '@/app/components/GradeHex';
 import { getCsrfToken } from '@/lib/csrf-client';
 import {
   buildReport,
@@ -817,20 +818,21 @@ export default function AuditReportPage() {
                         <p className={`${microLabel} mb-4 text-text-subtle`}>
                           Link-health grade
                         </p>
-                        <p
-                          className={`font-display text-8xl leading-none ${
-                            score.overall >= 80
-                              ? 'text-success'
-                              : score.overall >= 60
-                              ? 'text-warning'
-                              : 'text-danger'
-                          }`}
-                        >
-                          {score.grade}
-                        </p>
-                        <p className="mt-3 font-mono text-sm text-text-muted">
-                          Link health {score.overall}/100
-                        </p>
+                        <div className="flex justify-center">
+                          <GradeHex
+                            grade={score.grade}
+                            sub={`Link health ${score.overall}/100`}
+                            size={180}
+                            gradeClass="text-8xl"
+                            tone={
+                              score.overall >= 80
+                                ? 'text-success'
+                                : score.overall >= 60
+                                ? 'text-warning'
+                                : 'text-danger'
+                            }
+                          />
+                        </div>
                         <div className="mt-5 space-y-1.5 border-t border-border pt-4">
                           <LeaderRow k="Link integrity" v={`${score.integrity}`} />
                           <LeaderRow k="Response health" v={`${score.response}`} />

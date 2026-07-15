@@ -93,8 +93,26 @@ export function ShareErrorScreen({ error }) {
 
 export function ShareLoadingScreen() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-xl items-center justify-center px-6">
-      <p className={`${microLabel} animate-pulse text-text-subtle`}>Loading report…</p>
+    <main className="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center gap-6 px-6">
+      {/* Brand loading trail: scan pulse traveling the link path */}
+      <svg width="220" height="16" viewBox="0 0 220 16" aria-hidden="true">
+        <line x1="8" y1="8" x2="212" y2="8" stroke="var(--color-border)" strokeWidth="1" />
+        <line
+          x1="8"
+          y1="8"
+          x2="212"
+          y2="8"
+          stroke="var(--color-accent)"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeDasharray="28 176"
+          className="brand-trail"
+        />
+        <circle cx="8" cy="8" r="2.5" fill="var(--color-border-strong)" />
+        <circle cx="110" cy="8" r="2.5" fill="var(--color-border-strong)" />
+        <circle cx="212" cy="8" r="2.5" fill="var(--color-border-strong)" />
+      </svg>
+      <p className={`${microLabel} text-text-subtle`}>Preparing report…</p>
     </main>
   );
 }

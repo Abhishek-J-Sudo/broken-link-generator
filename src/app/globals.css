@@ -394,3 +394,28 @@ body {
     transparent 40px
   );
 }
+
+/* ----------------------------------------------------------------------------
+   Brand loading trail — a scan pulse traveling the link path while a report
+   loads (brand board #2/#10, restrained: hairline + nodes, no bloom).
+   Applied to an SVG stroke with strokeDasharray="28 176" over a 204px line.
+   -------------------------------------------------------------------------- */
+@keyframes brand-trail-sweep {
+  from {
+    stroke-dashoffset: 232;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.brand-trail {
+  animation: brand-trail-sweep 1.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-trail {
+    animation: none;
+    visibility: hidden;
+  }
+}

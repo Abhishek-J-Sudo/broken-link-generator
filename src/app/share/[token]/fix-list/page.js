@@ -24,6 +24,7 @@ import {
   CLASS_SHORT,
 } from '@/lib/auditReport';
 import { buildSeoFixList } from '@/lib/seoChecks';
+import BrandRule from '@/app/components/BrandRule';
 import {
   microLabel,
   reportDate,
@@ -265,7 +266,7 @@ export default function SharedFixListPage() {
             {reportDate(payload.job.timestamps?.completedAt)}
           </p>
         </div>
-        <div className="mt-2 h-px bg-border" />
+        <BrandRule className="mt-2" />
         <h1 className="mt-8 font-display text-4xl leading-tight text-text md:text-5xl">{host}</h1>
         <p className="mt-3 font-mono text-xs text-text-muted">
           {payload.job.url} · depth {payload.job.settings?.maxDepth ?? '—'} ·{' '}

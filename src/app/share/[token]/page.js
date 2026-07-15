@@ -13,6 +13,8 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { buildReport, hostnameOf } from '@/lib/auditReport';
+import BrandRule from '@/app/components/BrandRule';
+import GradeHex from '@/app/components/GradeHex';
 import {
   microLabel,
   reportDate,
@@ -109,7 +111,7 @@ export default function SharedReportPage() {
             {reportDate(payload.job.timestamps?.completedAt)}
           </p>
         </div>
-        <div className="mt-2 h-px bg-border" />
+        <BrandRule className="mt-2" />
         <h1 className="mt-8 font-display text-4xl leading-tight text-text md:text-5xl">{host}</h1>
         <p className="mt-3 text-sm text-text-muted">
           {payload.job.settings?.enableSEO
@@ -123,12 +125,10 @@ export default function SharedReportPage() {
       <section className="mb-12 break-inside-avoid">
         <p className={`${microLabel} mb-5 text-text-subtle`}>{serial()} · The verdict</p>
         <div className="grid gap-8 sm:grid-cols-[auto_1fr]">
-          <div className="border border-border p-6 text-center">
-            <p className="font-display text-6xl leading-none text-text">{report.score.grade}</p>
-            <p className="mt-2 font-mono text-xs text-text-muted">
-              {GRADE_WORD[report.score.grade] || 'Fair'}
-            </p>
-          </div>
+          <GradeHex
+            grade={report.score.grade}
+            sub={GRADE_WORD[report.score.grade] || 'Fair'}
+          />
           <blockquote className="self-center border-l-2 border-action pl-5 font-display text-xl leading-snug text-text">
             {narrative?.headline ?? report.verdict}
           </blockquote>
