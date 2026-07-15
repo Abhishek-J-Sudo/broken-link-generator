@@ -49,6 +49,16 @@ behind Basic Auth with no export of SEO data at all.
 - PDF = browser print of the share page (deliberate: no server-side PDF dependency).
 - Not done (future): custom branding/white-label, expiring links, share analytics.
 
+### ⚠ OPEN — report format redesign (user feedback, 2026-07-15)
+
+User reviewed the share report format and wants clearer separation before this merges:
+a real **broken-links table** (URL / source page / status / link text — not category
+summaries), and a **per-page SEO report grouped by check type** (meta, content,
+structure, indexability, social, freshness) with per-check results, like mainstream
+audit tools. Current page condenses to summaries and pushes detail to CSVs. To be
+redesigned in a dedicated session BEFORE merging `phase2-shareable-reports`. Trends
+(B1–B3) and Core Web Vitals (G7) noted as the next manager-facing content gaps.
+
 ### Pipeline (updated)
 
 1. ~~AI narrative layer~~ ✅ — SEO-aware since 2026-07-15
