@@ -1247,8 +1247,9 @@ export default function AuditReportPage() {
                       <>
                         SEO is scored per analyzed HTML page — {seoPages}{' '}
                         {seoPages === 1 ? 'page' : 'pages'} in this audit — and never feeds the
-                        link-health grade above. Treat it as a snapshot of on-page signals, not
-                        a full SEO audit.
+                        link-health grade above. Content metrics (headings, word count, images)
+                        are measured on the first 50KB of each page. Treat it as a snapshot of
+                        on-page signals, not a full SEO audit.
                       </>
                     ) : (
                       'SEO was not measured in this audit. Run a Full Audit with SEO analysis enabled to add this module.'

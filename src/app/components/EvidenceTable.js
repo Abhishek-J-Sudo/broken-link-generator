@@ -450,7 +450,7 @@ function SeoPageDetails({ row, issueMessages }) {
             </Detail>
           )}
 
-          <Detail label="Images">
+          <Detail label="Images (first 50KB)">
             <span className="font-mono text-text-muted">
               {row.seo_images?.missing_alt || 0} missing alt / {row.seo_images?.total_images || 0}{' '}
               total
@@ -474,7 +474,7 @@ function SeoPageDetails({ row, issueMessages }) {
         </div>
 
         <div className="space-y-4">
-          <Detail label="Structure">
+          <Detail label="Structure (first 50KB)">
             <span className="font-mono text-text-muted">
               H1 {row.seo_headings?.h1_count || 0} · H2 {row.seo_headings?.h2_count || 0} · Words{' '}
               {row.seo_content?.word_count || 0} · Images {row.seo_images?.total_images || 0}

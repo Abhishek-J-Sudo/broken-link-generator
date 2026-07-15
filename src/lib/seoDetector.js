@@ -1,5 +1,7 @@
 // src/lib/seoDetector.js - Lightweight SEO analysis for content pages
-// Designed for minimal resource impact on Railway $5 tier
+// Parses only the first 50KB of each page to bound memory per crawl worker
+
+import * as cheerio from 'cheerio';
 
 export class LightweightSEODetector {
   constructor(options = {}) {
@@ -22,27 +24,38 @@ export class LightweightSEODetector {
       return null;
     }
 
-    // Truncate HTML to save memory (Railway constraint)
+    // Truncate HTML to bound memory; the parser tolerates a mid-tag cut
     const analyzableHtml = html.substring(0, this.options.maxContentLength);
 
     try {
+      const $ = cheerio.load(analyzableHtml);
+
+      // Word count mutates the DOM (strips script/style), so run it last
+      const title = this.extractTitle($);
+      const metaDescription = this.extractMetaDescription($);
+      const metaKeywords = this.extractMetaKeywords($);
+      const canonicalUrl = this.extractCanonical($);
+      const headings = this.analyzeHeadings($);
+      const images = this.analyzeImages($);
+      const wordCount = this.estimateWordCount($);
+
       const seoData = {
         url,
         analyzedAt: new Date().toISOString(),
 
-        // Basic Meta Tags (lightweight extraction)
-        title: this.extractTitle(analyzableHtml),
-        metaDescription: this.extractMetaDescription(analyzableHtml),
-        metaKeywords: this.extractMetaKeywords(analyzableHtml),
-        canonicalUrl: this.extractCanonical(analyzableHtml),
+        // Basic Meta Tags
+        title,
+        metaDescription,
+        metaKeywords,
+        canonicalUrl,
 
-        // Content Structure (regex-based, fast)
-        headings: this.analyzeHeadings(analyzableHtml),
+        // Content Structure (measured on the first 50KB only)
+        headings,
         contentLength: analyzableHtml.length,
-        wordCount: this.estimateWordCount(analyzableHtml),
+        wordCount,
 
-        // Images (lightweight check)
-        images: this.analyzeImages(analyzableHtml),
+        // Images (measured on the first 50KB only)
+        images,
 
         // Technical SEO (from existing data)
         technical: {
@@ -107,60 +120,74 @@ export class LightweightSEODetector {
   }
 
   /**
-   * Extract page title (fast regex)
+   * Extract page title — first <title> that is not inside an inline <svg>
    */
-  extractTitle(html) {
-    const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].trim() : '';
+  extractTitle($) {
+    const titleEl = $('title')
+      .filter((_, el) => $(el).closest('svg').length === 0)
+      .first();
+    const title = titleEl.length ? titleEl.text().replace(/\s+/g, ' ').trim() : '';
 
     return {
       text: title.substring(0, 200), // Limit to save space
       length: title.length,
       isEmpty: !title,
       isTooLong: title.length > 60,
-      isTooShort: title.length < 30,
+      isTooShort: title.length < 50,
     };
+  }
+
+  /**
+   * Find a <meta> tag by its name attribute (case-insensitive, attribute-order independent)
+   */
+  findMetaContent($, name) {
+    const meta = $('meta')
+      .filter((_, el) => (el.attribs.name || '').trim().toLowerCase() === name)
+      .first();
+    return meta.length ? (meta.attr('content') || '').trim() : '';
   }
 
   /**
    * Extract meta description
    */
-  extractMetaDescription(html) {
-    const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)/i);
-    const description = descMatch ? descMatch[1].trim() : '';
+  extractMetaDescription($) {
+    const description = this.findMetaContent($, 'description');
 
     return {
       text: description.substring(0, 300),
       length: description.length,
       isEmpty: !description,
       isTooLong: description.length > 160,
-      isTooShort: description.length < 120,
+      isTooShort: description.length < 150,
     };
   }
 
   /**
    * Extract meta keywords (if present)
    */
-  extractMetaKeywords(html) {
-    const keywordsMatch = html.match(/<meta[^>]*name=["']keywords["'][^>]*content=["']([^"']*)/i);
-    return keywordsMatch ? keywordsMatch[1].trim().substring(0, 200) : null;
+  extractMetaKeywords($) {
+    const keywords = this.findMetaContent($, 'keywords');
+    return keywords ? keywords.substring(0, 200) : null;
   }
 
   /**
    * Extract canonical URL
    */
-  extractCanonical(html) {
-    const canonicalMatch = html.match(/<link[^>]*rel=["']canonical["'][^>]*href=["']([^"']*)/i);
-    return canonicalMatch ? canonicalMatch[1].trim() : null;
+  extractCanonical($) {
+    const canonical = $('link')
+      .filter((_, el) => (el.attribs.rel || '').trim().toLowerCase() === 'canonical')
+      .first();
+    const href = canonical.length ? (canonical.attr('href') || '').trim() : '';
+    return href || null;
   }
 
   /**
    * Analyze heading structure (lightweight)
    */
-  analyzeHeadings(html) {
-    const h1Count = (html.match(/<h1[^>]*>/gi) || []).length;
-    const h2Count = (html.match(/<h2[^>]*>/gi) || []).length;
-    const h3Count = (html.match(/<h3[^>]*>/gi) || []).length;
+  analyzeHeadings($) {
+    const h1Count = $('h1').length;
+    const h2Count = $('h2').length;
+    const h3Count = $('h3').length;
 
     return {
       h1Count,
@@ -173,11 +200,14 @@ export class LightweightSEODetector {
   }
 
   /**
-   * Estimate word count (fast approximation)
+   * Estimate word count from visible text only.
+   * Removes script/style/noscript/template so code never counts as words.
+   * NOTE: mutates the parsed document — call after all other extractions.
    */
-  estimateWordCount(html) {
-    // Remove HTML tags and count words (approximation)
-    const textContent = html.replace(/<[^>]*>/g, ' ');
+  estimateWordCount($) {
+    $('script, style, noscript, template').remove();
+    const body = $('body');
+    const textContent = body.length ? body.text() : $.root().text();
     const words = textContent
       .trim()
       .split(/\s+/)
@@ -188,23 +218,20 @@ export class LightweightSEODetector {
   /**
    * Analyze images (lightweight check)
    */
-  analyzeImages(html) {
-    const imgMatches = html.match(/<img[^>]*>/gi) || [];
+  analyzeImages($) {
+    const imgs = $('img');
 
-    let totalImages = imgMatches.length;
+    const totalImages = imgs.length;
     let missingAlt = 0;
-    let missingTitle = 0;
 
-    // Quick check for alt attributes
-    imgMatches.forEach((img) => {
-      if (!img.includes('alt=')) missingAlt++;
-      if (!img.includes('title=')) missingTitle++;
+    imgs.each((_, el) => {
+      // Attribute present (even empty, for decorative images) counts as having alt
+      if (!Object.prototype.hasOwnProperty.call(el.attribs, 'alt')) missingAlt++;
     });
 
     return {
       totalImages,
       missingAlt,
-      missingTitle,
       hasImages: totalImages > 0,
       altCoverage:
         totalImages > 0 ? Math.round(((totalImages - missingAlt) / totalImages) * 100) : 100,
@@ -227,7 +254,7 @@ export class LightweightSEODetector {
       issues.push({ type: 'warning', message: 'Title too long (>60 chars)' });
     } else if (seoData.title.isTooShort) {
       score -= 5;
-      issues.push({ type: 'warning', message: 'Title too short (<30 chars)' });
+      issues.push({ type: 'warning', message: 'Title too short (<50 chars)' });
     }
 
     // Meta description checks (15 points)
@@ -237,15 +264,15 @@ export class LightweightSEODetector {
     } else if (seoData.metaDescription.isTooLong) {
       score -= 8;
       issues.push({ type: 'warning', message: 'Meta description too long (>160 chars)' });
+    } else if (seoData.metaDescription.isTooShort) {
+      score -= 5;
+      issues.push({ type: 'minor', message: 'Meta description too short (<150 chars)' });
     }
 
-    // Heading checks (15 points)
+    // Heading checks (15 points) — multiple H1s are fine in HTML5, only absence is penalized
     if (seoData.headings.hasNoH1) {
       score -= 15;
       issues.push({ type: 'major', message: 'Missing H1 tag' });
-    } else if (seoData.headings.hasMultipleH1) {
-      score -= 10;
-      issues.push({ type: 'warning', message: 'Multiple H1 tags found' });
     }
 
     // Image checks (10 points)
@@ -266,7 +293,7 @@ export class LightweightSEODetector {
     // Content checks (10 points)
     if (seoData.wordCount < 200) {
       score -= 10;
-      issues.push({ type: 'warning', message: 'Low content word count (<200 words)' });
+      issues.push({ type: 'warning', message: 'Low content word count (<200 words in first 50KB)' });
     }
 
     // Performance checks (10 points)
@@ -275,7 +302,7 @@ export class LightweightSEODetector {
       issues.push({ type: 'warning', message: 'Slow page load time (>3s)' });
     }
 
-    // Canonical checks (10 points)
+    // Canonical checks (5 points)
     if (!seoData.canonicalUrl) {
       score -= 5;
       issues.push({ type: 'minor', message: 'Missing canonical URL' });
@@ -345,7 +372,7 @@ export class LightweightSEODetector {
 
 // Export lightweight instance
 export const seoDetector = new LightweightSEODetector({
-  maxContentLength: 50000, // Railway memory optimization
+  maxContentLength: 50000,
   enableImageChecks: true,
   enableStructureChecks: true,
   enableMetaChecks: true,

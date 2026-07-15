@@ -2,6 +2,71 @@
 
 ---
 
+## 2026-07-15 — G0 + G11: SEO extraction layer fixed (phase 1 of deeper SEO pipeline)
+
+### Branch: `phase2-g0-seo-extraction`
+
+G0 is the correctness fix that gates G2/G3/G8–G14 (doc 04 §G). All regex extraction in
+`seoDetector.js` replaced with cheerio (already a dependency via `linkExtractor.js`) over
+the same 50KB slice. Output shape is unchanged, so `addSEOAnalysis`, the results API, and
+the UI needed no data-layer changes.
+
+### Bugs fixed (G0)
+
+- **Attribute-order dependency** — `<meta content="…" name="description">` reported as
+  "missing"; same bug affected keywords and canonical. Now matched by attribute name,
+  case-insensitive, order-independent.
+- **Multi-line `<title>`** — regex `.` didn't cross newlines; now parsed, whitespace collapsed.
+- **Inline SVG `<title>`** — false-positived as the page title; now excluded via ancestor check.
+- **Word count counted code** — `<script>`/`<style>` contents survived tag-stripping, so the
+  "low word count" deduction fired ~randomly on script-heavy pages. Now strips
+  script/style/noscript/template and counts visible body text only.
+- **Dropped:** multiple-H1 penalty (fine in HTML5 per current Google guidance; flag still
+  recorded in data, no deduction) and the image `title`-attribute check (no SEO relevance,
+  was never persisted).
+
+### Threshold fixes (G11)
+
+- Title "too short" now fires at <50 chars (was <30).
+- Meta description "too short" now fires at <150 chars (was <120, and previously the flag
+  was computed but never deducted — now −5, type minor).
+- Content metrics labeled "first 50KB" in the evidence UI (`EvidenceTable` detail labels),
+  the SEO snapshot lead-in, and the low-word-count issue message.
+
+### Validation
+
+- 18/18 fixture checks passed (temp script, removed): reversed-attr meta/canonical/keywords,
+  multi-line title, SVG title exclusion, script/style word-count exclusion, `alt=""` counted
+  as present, multiple-H1 non-penalty, both G11 thresholds, output-shape compatibility.
+- ESLint clean on all touched files.
+- E2E on real infra: queued an SEO-enabled crawl of `example.com` through the API
+  (job `dd781bbb-5f3e-4ff8-98fd-000d3af96cc2`), worker processed it, stored analysis
+  exactly as predicted: score 65/D = −5 title short (14 chars) −15 no description
+  −10 low word count −5 no canonical; word count 17 **visible** words (old code would
+  have counted example.com's inline CSS as words).
+- Results page `200` on the running dev server after all edits.
+
+### Gotcha (local dev)
+
+`npm run worker` / `worker:dev` does **not** load `.env.local` — it needs `DATABASE_URL` /
+`REDIS_URL` in the shell environment or it dies at startup on the reaper query.
+
+### Pipeline (updated)
+
+USP build — in order:
+
+1. ~~**AI narrative layer**~~ ✅ Done (2026-07-12)
+2. **Deeper SEO pipeline** — in progress:
+   - ~~G0 extraction fix + G11 thresholds~~ ✅ Done (2026-07-15) — unblocks G2/G3/G8–G14
+   - Next: G2 (noindex/X-Robots-Tag), G3 (OG/Twitter cards), G8 (structured data),
+     G9 (heading outline), G10 (lang/viewport/URL), then G12 (SERP preview),
+     G13 (hreflang), G14 (freshness dates), G15 (robots.txt page-level check).
+3. **Shareable client reports** — read-only signed URL per audit (doc 04 B6).
+
+Deploy (VPS + Coolify) deferred to last stage — runbook in the 2026-07-07 entry below.
+
+---
+
 ## 2026-07-12 — AI narrative layer (item 1 of USP build)
 
 ### Branch: `phase2-ui-restructure`
