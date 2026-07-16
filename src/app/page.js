@@ -6,6 +6,7 @@ import Footer from '@/app/components/Footer';
 import LegalTerms from './components/LegalTerms';
 import BrandRule from '@/app/components/BrandRule';
 import GradeHex from '@/app/components/GradeHex';
+import HoneycombMesh from '@/app/components/HoneycombMesh';
 
 const microLabel = 'font-mono text-[11px] uppercase tracking-[0.18em]';
 
@@ -44,10 +45,7 @@ export default function HomePage() {
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
-        <div
-          aria-hidden="true"
-          className="texture-dotgrid pointer-events-none absolute inset-0 text-border opacity-70"
-        />
+        <HoneycombMesh />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 lg:pt-24 lg:pb-28">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-start">
             <div className="lg:col-span-7">
@@ -282,7 +280,7 @@ export default function HomePage() {
       >
         <div
           aria-hidden="true"
-          className="texture-dotgrid pointer-events-none absolute inset-0 text-text-on-inverse opacity-[0.06]"
+          className="texture-honeycomb pointer-events-none absolute inset-0 text-text-on-inverse opacity-[0.05]"
         />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <SectionHeading
@@ -343,10 +341,7 @@ export default function HomePage() {
 
       {/* ── Closing CTA ──────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden border-t border-border">
-        <div
-          aria-hidden="true"
-          className="texture-rules pointer-events-none absolute inset-0 text-border opacity-60"
-        />
+        <HoneycombMesh className="opacity-80" />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <p className={`${microLabel} text-action mb-3`}>&#8470; 05 &middot; Start Now</p>
           <h2 className="font-display text-4xl md:text-5xl text-text mb-8 max-w-2xl">

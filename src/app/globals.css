@@ -255,6 +255,43 @@
 }
 
 /* ----------------------------------------------------------------------------
+   EXPERIMENT (sandbox toggle): teal accent ramp instead of brand green.
+   Set data-accent="teal" on <html> to preview site-wide. Overrides action +
+   accent + focus only — status colors (success/warning/danger) stay put, so
+   judge those separately. Full adoption would also retune success tokens and
+   recolor the logo mark. Blocks sit after all default token blocks so they
+   win the cascade; the dark variants carry higher specificity.
+   -------------------------------------------------------------------------- */
+[data-accent='teal'] {
+  --color-action-primary: #2b8a96;
+  --color-action-primary-hover: #23727c;
+  --color-action-primary-active: #1d5f68;
+  --color-action-primary-subtle: #e6f4f6;
+  --color-accent: #2b8a96;
+  --color-focus: #2b8a96;
+}
+
+[data-theme='dark'][data-accent='teal'] {
+  --color-action-primary: #3ca5b1;
+  --color-action-primary-hover: #2b8a96;
+  --color-action-primary-active: #23727c;
+  --color-action-primary-subtle: rgba(60, 165, 177, 0.14);
+  --color-accent: #3ca5b1;
+  --color-focus: #3ca5b1;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme])[data-accent='teal'] {
+    --color-action-primary: #3ca5b1;
+    --color-action-primary-hover: #2b8a96;
+    --color-action-primary-active: #23727c;
+    --color-action-primary-subtle: rgba(60, 165, 177, 0.14);
+    --color-accent: #3ca5b1;
+    --color-focus: #3ca5b1;
+  }
+}
+
+/* ----------------------------------------------------------------------------
    Bridge: expose semantic tokens as Tailwind utilities. `inline` keeps the
    var() reference in the generated utility, so bg-surface / text-danger /
    rounded-md auto-swap when data-theme changes at runtime.
@@ -393,6 +430,114 @@ body {
     transparent 1px,
     transparent 40px
   );
+}
+
+/* ----------------------------------------------------------------------------
+   Scrub grid — the brand background texture (brand board #1 + #8 dark grid,
+   restrained). The tile is a SITE GRAPH: hexagons are pages, hairlines are
+   the links between them, junction dots are checked URLs. Paths cross the
+   tile edges at fixed anchors (y=140 horizontal, x=300 vertical) so the
+   mesh is continuous across repeats — a connected network, not floating
+   fragments. Secondary elements sit at lower mask alpha for depth. Single
+   color via mask-image: set a text-* utility + opacity on the element.
+   -------------------------------------------------------------------------- */
+.texture-scrubgrid {
+  background-color: currentColor;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='720'%3E%3Cg fill='none' stroke='black' stroke-width='1' stroke-linejoin='round'%3E%3Cpolygon points='140,134 171.2,152 171.2,188 140,206 108.8,188 108.8,152'/%3E%3Cpath d='M147.5,163h-12l-3,7h12l3,7h-12'/%3E%3Cpolygon points='400,98 419.1,109 419.1,131 400,142 380.9,131 380.9,109'/%3E%3Cpolygon points='560,294 582.5,307 582.5,333 560,346 537.5,333 537.5,307'/%3E%3Cpolygon points='240,530 266,545 266,575 240,590 214,575 214,545'/%3E%3Cline x1='0' y1='170' x2='108.8' y2='170'/%3E%3Cpolyline points='171.2,170 250,170 278.9,120 380.9,120'/%3E%3Cpolyline points='419.1,120 500,120 528.9,170 720,170'/%3E%3Cpolyline points='240,0 240,116 171.2,155.7'/%3E%3Cline x1='240' y1='590' x2='240' y2='720'/%3E%3Cline x1='560' y1='0' x2='560' y2='294'/%3E%3Cline x1='560' y1='346' x2='560' y2='720'/%3E%3Cpolyline points='0,520 120,520 143,560 214,560'/%3E%3Cpolyline points='266,560 350,560 419.3,600 447.9,600'/%3E%3Cpolyline points='472.1,600 500,600 546.2,520 720,520'/%3E%3C/g%3E%3Cg fill='none' stroke='black' stroke-width='1' stroke-linejoin='round' opacity='0.55'%3E%3Cpolygon points='605,294 627.5,307 627.5,333 605,346 582.5,333 582.5,307'/%3E%3Cpolygon points='460,586 472.1,593 472.1,607 460,614 447.9,607 447.9,593'/%3E%3Cpolygon points='90,384 103.9,392 103.9,408 90,416 76.1,408 76.1,392'/%3E%3Cpolyline points='140,206 140,320 90,348.9 90,384'/%3E%3Cline x1='90' y1='416' x2='90' y2='520'/%3E%3Cline x1='605' y1='346' x2='628' y2='386'/%3E%3Cline x1='627.5' y1='320' x2='680' y2='320' stroke-dasharray='1 5'/%3E%3Cline x1='400' y1='98' x2='400' y2='40' stroke-dasharray='1 5'/%3E%3C/g%3E%3Cg fill='black'%3E%3Ccircle cx='140' cy='134' r='2'/%3E%3Ccircle cx='250' cy='170' r='1.5'/%3E%3Ccircle cx='560' cy='170' r='1.5'/%3E%3Ccircle cx='350' cy='560' r='1.5'/%3E%3Ccircle cx='560' cy='520' r='1.5'/%3E%3Ccircle cx='90' cy='520' r='1.5'/%3E%3C/g%3E%3Cg fill='black' opacity='0.55'%3E%3Ccircle cx='628' cy='386' r='2'/%3E%3Ccircle cx='680' cy='320' r='1.5'/%3E%3Ccircle cx='400' cy='40' r='1.5'/%3E%3C/g%3E%3Cg fill='none' stroke='black' stroke-width='1' opacity='0.3'%3E%3Cpolygon points='360,300 412,330 412,390 360,420 308,390 308,330'/%3E%3C/g%3E%3Cg fill='black' opacity='0.3'%3E%3Ccircle cx='60' cy='60' r='1.2'/%3E%3Ccircle cx='650' cy='90' r='1.2'/%3E%3Ccircle cx='60' cy='250' r='1.2'/%3E%3Ccircle cx='495' cy='235' r='1.2'/%3E%3Ccircle cx='330' cy='470' r='1.2'/%3E%3Ccircle cx='690' cy='610' r='1.2'/%3E%3Ccircle cx='120' cy='660' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='720'%3E%3Cg fill='none' stroke='black' stroke-width='1' stroke-linejoin='round'%3E%3Cpolygon points='140,134 171.2,152 171.2,188 140,206 108.8,188 108.8,152'/%3E%3Cpath d='M147.5,163h-12l-3,7h12l3,7h-12'/%3E%3Cpolygon points='400,98 419.1,109 419.1,131 400,142 380.9,131 380.9,109'/%3E%3Cpolygon points='560,294 582.5,307 582.5,333 560,346 537.5,333 537.5,307'/%3E%3Cpolygon points='240,530 266,545 266,575 240,590 214,575 214,545'/%3E%3Cline x1='0' y1='170' x2='108.8' y2='170'/%3E%3Cpolyline points='171.2,170 250,170 278.9,120 380.9,120'/%3E%3Cpolyline points='419.1,120 500,120 528.9,170 720,170'/%3E%3Cpolyline points='240,0 240,116 171.2,155.7'/%3E%3Cline x1='240' y1='590' x2='240' y2='720'/%3E%3Cline x1='560' y1='0' x2='560' y2='294'/%3E%3Cline x1='560' y1='346' x2='560' y2='720'/%3E%3Cpolyline points='0,520 120,520 143,560 214,560'/%3E%3Cpolyline points='266,560 350,560 419.3,600 447.9,600'/%3E%3Cpolyline points='472.1,600 500,600 546.2,520 720,520'/%3E%3C/g%3E%3Cg fill='none' stroke='black' stroke-width='1' stroke-linejoin='round' opacity='0.55'%3E%3Cpolygon points='605,294 627.5,307 627.5,333 605,346 582.5,333 582.5,307'/%3E%3Cpolygon points='460,586 472.1,593 472.1,607 460,614 447.9,607 447.9,593'/%3E%3Cpolygon points='90,384 103.9,392 103.9,408 90,416 76.1,408 76.1,392'/%3E%3Cpolyline points='140,206 140,320 90,348.9 90,384'/%3E%3Cline x1='90' y1='416' x2='90' y2='520'/%3E%3Cline x1='605' y1='346' x2='628' y2='386'/%3E%3Cline x1='627.5' y1='320' x2='680' y2='320' stroke-dasharray='1 5'/%3E%3Cline x1='400' y1='98' x2='400' y2='40' stroke-dasharray='1 5'/%3E%3C/g%3E%3Cg fill='black'%3E%3Ccircle cx='140' cy='134' r='2'/%3E%3Ccircle cx='250' cy='170' r='1.5'/%3E%3Ccircle cx='560' cy='170' r='1.5'/%3E%3Ccircle cx='350' cy='560' r='1.5'/%3E%3Ccircle cx='560' cy='520' r='1.5'/%3E%3Ccircle cx='90' cy='520' r='1.5'/%3E%3C/g%3E%3Cg fill='black' opacity='0.55'%3E%3Ccircle cx='628' cy='386' r='2'/%3E%3Ccircle cx='680' cy='320' r='1.5'/%3E%3Ccircle cx='400' cy='40' r='1.5'/%3E%3C/g%3E%3Cg fill='none' stroke='black' stroke-width='1' opacity='0.3'%3E%3Cpolygon points='360,300 412,330 412,390 360,420 308,390 308,330'/%3E%3C/g%3E%3Cg fill='black' opacity='0.3'%3E%3Ccircle cx='60' cy='60' r='1.2'/%3E%3Ccircle cx='650' cy='90' r='1.2'/%3E%3Ccircle cx='60' cy='250' r='1.2'/%3E%3Ccircle cx='495' cy='235' r='1.2'/%3E%3Ccircle cx='330' cy='470' r='1.2'/%3E%3Ccircle cx='690' cy='610' r='1.2'/%3E%3Ccircle cx='120' cy='660' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-size: 720px 720px;
+  mask-size: 720px 720px;
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+}
+
+/* Green accent layer for the scrub grid (board #1 dark version): a few
+   "healthy" nodes and one scanned-link segment per tile. Same 720px tile so
+   it registers exactly with .texture-scrubgrid underneath — render it as a
+   sibling overlay div with text-action + a low opacity. Kept separate so
+   the accent density/strength can be tuned (or dropped) per section. */
+.texture-scrubgrid-accent {
+  background-color: currentColor;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='720'%3E%3Cline x1='419.1' y1='120' x2='500' y2='120' stroke='black' stroke-width='1'/%3E%3Cg fill='black'%3E%3Ccircle cx='171.2' cy='170' r='2'/%3E%3Ccircle cx='500' cy='120' r='2'/%3E%3Ccircle cx='560' cy='346' r='1.5'/%3E%3C/g%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='720'%3E%3Cline x1='419.1' y1='120' x2='500' y2='120' stroke='black' stroke-width='1'/%3E%3Cg fill='black'%3E%3Ccircle cx='171.2' cy='170' r='2'/%3E%3Ccircle cx='500' cy='120' r='2'/%3E%3Ccircle cx='560' cy='346' r='1.5'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-size: 720px 720px;
+  mask-size: 720px 720px;
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+}
+
+/* ----------------------------------------------------------------------------
+   Honeycomb — the MAIN brand texture (pattern lab round 2, user-picked).
+   Static tile: the 90x156 hex lattice as a mask, same API as the other
+   textures (text-* + opacity on the element). For the interactive version
+   (hover-lit cells) use the HoneycombMesh component; these cell styles
+   back it. The scrub-grid classes above stay for low-emphasis surfaces.
+   -------------------------------------------------------------------------- */
+.texture-honeycomb {
+  background-color: currentColor;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='156'%3E%3Cg fill='none' stroke='black' stroke-width='1'%3E%3Cpolygon points='45,-26 90,0 90,52 45,78 0,52 0,0'/%3E%3Cpolygon points='45,130 90,156 90,208 45,234 0,208 0,156'/%3E%3Cpolygon points='0,52 45,78 45,130 0,156 -45,130 -45,78'/%3E%3Cpolygon points='90,52 135,78 135,130 90,156 45,130 45,78'/%3E%3C/g%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='156'%3E%3Cg fill='none' stroke='black' stroke-width='1'%3E%3Cpolygon points='45,-26 90,0 90,52 45,78 0,52 0,0'/%3E%3Cpolygon points='45,130 90,156 90,208 45,234 0,208 0,156'/%3E%3Cpolygon points='0,52 45,78 45,130 0,156 -45,130 -45,78'/%3E%3Cpolygon points='90,52 135,78 135,130 90,156 45,130 45,78'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-size: 90px 156px;
+  mask-size: 90px 156px;
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+}
+
+.hexmesh-cell {
+  fill: transparent;
+  stroke: var(--color-border-strong);
+  stroke-opacity: 0.18;
+  transition:
+    stroke-opacity 1.6s ease,
+    stroke 1.6s ease;
+}
+
+.hexmesh-hi {
+  stroke-opacity: 0.38; /* emphasized cells */
+}
+
+.hexmesh-cell:hover {
+  stroke: var(--color-accent);
+  stroke-opacity: 0.85;
+  transition-duration: 0.05s, 0.05s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hexmesh-cell {
+    transition: none;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   Progress scan sweep — the pattern-lab pulse applied to the audit progress
+   bar: a flat accent segment sweeping the track (over the fill it reads as a
+   pulse, over the empty track as scanning ahead). Parent: relative +
+   overflow-hidden. No gradients, no glow.
+   -------------------------------------------------------------------------- */
+.scan-sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -48px;
+  width: 48px;
+  background: var(--color-accent);
+  opacity: 0.25;
+  animation: scan-sweep 2.4s linear infinite;
+}
+
+@keyframes scan-sweep {
+  from {
+    left: -48px;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-sweep {
+    display: none;
+  }
 }
 
 /* ----------------------------------------------------------------------------
