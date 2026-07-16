@@ -170,7 +170,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
             onChange={handleInputChange}
             placeholder="https://example.com"
             required
-            className="w-full rounded-md border border-border bg-surface px-4 py-3.5 font-mono text-sm text-text placeholder:text-text-subtle focus:border-action focus:outline-none transition-colors"
+            className="w-full rounded-md border border-border bg-surface px-4 py-3.5 font-mono text-sm text-text placeholder:text-text-subtle focus:border-action transition-colors"
           />
           <p className="mt-2 text-xs text-text-muted">
             Enter the complete URL, including http:// or https://
@@ -198,7 +198,7 @@ export default function LargeCrawlForm({ onJobStarted }) {
                 name="maxDepth"
                 value={formData.maxDepth}
                 onChange={handleInputChange}
-                className="w-full rounded-md border border-border bg-surface px-4 py-3 text-sm text-text focus:border-action focus:outline-none"
+                className="w-full rounded-md border border-border bg-surface px-4 py-3 text-sm text-text focus:border-action"
               >
                 <option value={1}>1 — Homepage only</option>
                 <option value={2}>2 — One level deep</option>

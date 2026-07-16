@@ -334,7 +334,7 @@ export default function AuditSetupPage() {
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://example.com"
                   required
-                  className="w-full flex-1 rounded-md border border-border bg-surface px-4 py-3.5 font-mono text-sm text-text transition-colors placeholder:text-text-subtle focus:border-action focus:outline-none"
+                  className="w-full flex-1 rounded-md border border-border bg-surface px-4 py-3.5 font-mono text-sm text-text transition-colors placeholder:text-text-subtle focus:border-action"
                 />
                 <button
                   type="button"
@@ -472,7 +472,7 @@ export default function AuditSetupPage() {
                       name="maxDepth"
                       value={maxDepth}
                       onChange={(e) => setMaxDepth(Number(e.target.value))}
-                      className="w-full rounded-md border border-border bg-surface px-4 py-3 text-sm text-text focus:border-action focus:outline-none"
+                      className="w-full rounded-md border border-border bg-surface px-4 py-3 text-sm text-text focus:border-action"
                     >
                       <option value={1}>1 &mdash; Homepage only</option>
                       <option value={2}>2 &mdash; One level deep</option>

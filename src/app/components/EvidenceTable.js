@@ -166,7 +166,7 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
             onChange={(e) => setSearchDraft(e.target.value)}
             placeholder="Search URLs..."
             aria-label="Search URLs"
-            className="w-44 rounded-md border border-border bg-surface px-3 py-2 font-mono text-xs text-text placeholder:text-text-subtle focus:border-action focus:outline-none sm:w-56"
+            className="w-44 rounded-md border border-border bg-surface px-3 py-2 font-mono text-xs text-text placeholder:text-text-subtle focus:border-action sm:w-56"
           />
           <select
             value={errorType}
@@ -176,7 +176,7 @@ export default function EvidenceTable({ jobId, sharedTargets = [], focusSearch =
             }}
             aria-label="Filter by error type"
             disabled={view !== 'broken'}
-            className="rounded-md border border-border bg-surface px-3 py-2 font-mono text-xs text-text focus:border-action focus:outline-none disabled:cursor-not-allowed disabled:text-text-subtle"
+            className="rounded-md border border-border bg-surface px-3 py-2 font-mono text-xs text-text focus:border-action disabled:cursor-not-allowed disabled:text-text-subtle"
           >
             <option value="all">
               {view === 'broken' ? 'All error types' : 'Error types: broken only'}
