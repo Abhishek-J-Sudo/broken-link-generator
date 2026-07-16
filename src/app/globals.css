@@ -173,9 +173,13 @@
 }
 
 /* ----------------------------------------------------------------------------
-   Tier 2 — DARK overrides. Applied when the user explicitly picks dark, OR
-   (via the media query below) when they've made no choice and the OS is dark.
-   Keep the two blocks identical.
+   Tier 2 — DARK overrides. SINGLE source of truth for dark: the boot script in
+   layout.tsx resolves the theme (saved choice → OS via matchMedia) and pins
+   data-theme on <html> synchronously before first paint, so this attribute is
+   always set for real (JS) users — no separate prefers-color-scheme block is
+   needed, and keeping one would only drift (it did: it went stale on the teal
+   rebrand and the mesh alphas). Base :root supplies the light default when
+   data-theme is 'light' or (no-JS edge) unset.
    -------------------------------------------------------------------------- */
 [data-theme='dark'] {
   color-scheme: dark;
@@ -223,52 +227,6 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 14px 30px rgba(0, 0, 0, 0.5);
-}
-
-/* System default when the user hasn't chosen a theme (no data-theme set). */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    color-scheme: dark;
-
-    --color-bg: var(--ink-950);
-    --color-surface: var(--ink-900);
-    --color-surface-raised: var(--ink-800);
-    --color-surface-subtle: var(--ink-850);
-    /* Keep identical to the [data-theme='dark'] block above. */
-    --color-border: rgba(255, 255, 255, 0.09);
-    --color-border-strong: rgba(255, 255, 255, 0.18);
-
-    --color-text: var(--slate-50);
-    --color-text-muted: var(--slate-400);
-    --color-text-subtle: var(--slate-500);
-    --color-text-inverse: var(--slate-900);
-    --color-text-on-action: var(--slate-900);
-
-    --color-surface-inverse: var(--ink-1000);
-    --color-text-on-inverse: var(--slate-50);
-    --color-text-on-inverse-muted: var(--slate-400);
-    --color-border-inverse: rgba(255, 255, 255, 0.14);
-
-    --color-action-primary: var(--teal-500);
-    --color-action-primary-hover: var(--teal-600);
-    --color-action-primary-active: var(--teal-700);
-    --color-action-primary-subtle: rgba(60, 165, 177, 0.14);
-    --color-accent: var(--teal-500);
-
-    --color-success: var(--green-500);
-    --color-success-subtle: rgba(34, 197, 94, 0.14);
-    --color-warning: var(--amber-400);
-    --color-warning-subtle: rgba(251, 191, 36, 0.14);
-    --color-danger: var(--red-400);
-    --color-danger-subtle: rgba(248, 113, 113, 0.14);
-    --color-info: var(--blue-400);
-    --color-info-subtle: rgba(96, 165, 250, 0.14);
-    --color-focus: var(--teal-500);
-
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
-    --shadow-lg: 0 14px 30px rgba(0, 0, 0, 0.5);
-  }
 }
 
 /* ----------------------------------------------------------------------------
