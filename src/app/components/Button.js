@@ -17,6 +17,10 @@ import Link from 'next/link';
  * the button isn't disabled). Disabled primaries drop to a flat grey; the
  * other variants dim. Extra `className` is appended last for layout add-ons
  * (w-fit, flex-1, shrink-0, …); use `fullWidth` for w-full.
+ *
+ * Deliberate exception: the /share/* client reports keep their own flat,
+ * non-gel toolbar buttons (print-first documents, not app chrome) — do NOT
+ * migrate those to this component. Decided 2026-07-16.
  */
 
 const BASE = 'inline-flex items-center justify-center gap-2 font-medium';
