@@ -13,6 +13,7 @@ import Footer from '@/app/components/Footer';
 import SecurityNotice from '@/app/components/SecurityNotice';
 import EvidenceTable from '@/app/components/EvidenceTable';
 import GradeHex from '@/app/components/GradeHex';
+import Button from '@/app/components/Button';
 import { getCsrfToken } from '@/lib/csrf-client';
 import {
   buildReport,
@@ -566,23 +567,25 @@ export default function AuditReportPage() {
 
                 <div className="flex shrink-0 flex-wrap items-center gap-3">
                   {isRunning && (
-                    <button
+                    <Button
+                      variant="danger"
+                      size="md"
                       type="button"
                       onClick={() => setShowStopConfirm(true)}
                       disabled={isStopping}
-                      className="rounded-md border border-danger/50 px-4 py-2.5 text-sm font-medium text-danger transition-colors hover:bg-danger-subtle disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isStopping ? 'Stopping…' : 'Stop audit'}
-                    </button>
+                    </Button>
                   )}
                   {report && (
                     <>
-                      <button
+                      <Button
+                        variant="primary"
+                        size="md"
                         type="button"
                         onClick={sharePath ? revokeShareLink : createShareLink}
                         disabled={shareBusy}
                         title="Creates a public read-only link to the client report and copies it to the clipboard"
-                        className="btn-gel rounded-lg bg-action px-5 py-2.5 text-sm font-medium text-text-on-action hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {shareBusy
                           ? 'Working…'
@@ -591,36 +594,39 @@ export default function AuditReportPage() {
                               ? 'Link copied ✓ (click to revoke)'
                               : 'Revoke share link'
                             : 'Share client report'}
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="md"
                         type="button"
                         onClick={() => runExport('csv')}
                         disabled={exporting !== null}
                         title="Every checked link with its status — broken rows include severity, error type, and link text"
-                        className="rounded-md border border-border-strong px-4 py-2.5 text-sm font-medium text-text transition-colors hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {exporting === 'csv' ? 'Exporting…' : 'Links CSV'}
-                      </button>
+                      </Button>
                       {job.settings?.enableSEO && (
-                        <button
+                        <Button
+                          variant="secondary"
+                          size="md"
                           type="button"
                           onClick={runSeoExport}
                           disabled={exporting !== null}
                           title="Per-page SEO scores, issues, and signals for every analyzed page"
-                          className="rounded-md border border-border-strong px-4 py-2.5 text-sm font-medium text-text transition-colors hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {exporting === 'seo' ? 'Exporting…' : 'SEO pages CSV'}
-                        </button>
+                        </Button>
                       )}
-                      <button
+                      <Button
+                        variant="secondary"
+                        size="md"
                         type="button"
                         onClick={() => runExport('json')}
                         disabled={exporting !== null}
                         title="Same link data as the Links CSV plus the derived report, for programmatic use"
-                        className="rounded-md border border-border-strong px-4 py-2.5 text-sm font-medium text-text transition-colors hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {exporting === 'json' ? 'Exporting…' : 'Links JSON'}
-                      </button>
+                      </Button>
                     </>
                   )}
                   <Link
@@ -1487,21 +1493,25 @@ export default function AuditReportPage() {
               report is marked as partial.
             </p>
             <div className="mt-6 flex gap-3">
-              <button
+              <Button
+                variant="dangerSolid"
+                size="md"
                 type="button"
                 onClick={handleStop}
                 disabled={isStopping}
-                className="flex-1 rounded-md bg-danger px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex-1"
               >
                 {isStopping ? 'Stopping…' : 'Stop audit'}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
+                size="md"
                 type="button"
                 onClick={() => setShowStopConfirm(false)}
-                className="flex-1 rounded-md border border-border-strong px-4 py-2.5 text-sm text-text transition-colors hover:border-action hover:text-action"
+                className="flex-1"
               >
                 Keep running
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -10,6 +10,7 @@ import Link from 'next/link';
 import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
 import SecurityNotice from '@/app/components/SecurityNotice';
+import Button from '@/app/components/Button';
 import { getCsrfToken } from '@/lib/csrf-client';
 
 const microLabel = 'font-mono text-[11px] uppercase tracking-[0.18em]';
@@ -336,18 +337,16 @@ export default function AuditSetupPage() {
                   required
                   className="w-full flex-1 rounded-md border border-border bg-surface px-4 py-3.5 font-mono text-sm text-text transition-colors placeholder:text-text-subtle focus:border-action"
                 />
-                <button
+                <Button
+                  variant="secondary"
+                  size="lg"
                   type="button"
                   onClick={runEstimate}
                   disabled={isEstimating || !url}
-                  className={`shrink-0 rounded-md border px-5 py-3.5 text-sm font-medium transition-colors ${
-                    isEstimating || !url
-                      ? 'cursor-not-allowed border-border text-text-subtle'
-                      : 'border-border-strong text-text hover:border-action hover:text-action'
-                  }`}
+                  className="shrink-0"
                 >
                   {isEstimating ? 'Sampling…' : 'Estimate scope'}
-                </button>
+                </Button>
               </div>
               <p className="mt-2 text-xs text-text-muted">
                 Include http:// or https://. Estimate scope samples up to 100 pages &mdash;
@@ -553,17 +552,15 @@ export default function AuditSetupPage() {
                 <p className="mt-1 text-sm text-text-muted">{startError}</p>
               </div>
             )}
-            <button
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
               type="submit"
               disabled={isStarting || !url}
-              className={`w-full rounded-lg px-6 py-3.5 font-medium ${
-                isStarting || !url
-                  ? 'cursor-not-allowed bg-surface-subtle text-text-subtle transition-colors'
-                  : 'btn-gel bg-action text-text-on-action hover:bg-action-hover'
-              }`}
             >
               {isStarting ? 'Starting audit…' : 'Start Audit'}
-            </button>
+            </Button>
             <p className="mt-3 text-xs text-text-muted">
               You&rsquo;ll land on the live report page &mdash; progress streams in as the crawl
               runs, and you can stop it at any point.

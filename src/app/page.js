@@ -1,5 +1,6 @@
 // src/app/page.js — Landing page, doc 06 §6 wireframe in the "Typeset Audit" language.
 import Link from 'next/link';
+import Button from '@/app/components/Button';
 import LargeCrawlForm from '@/app/components/LargeCrawlForm';
 import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
@@ -64,13 +65,10 @@ export default function HomePage() {
                 links, redirect chains and SEO defects into one prioritized, client-ready report.
               </p>
               <div className="flex flex-wrap items-center gap-5 mb-10">
-                <Link
-                  href="/analyze"
-                  className="btn-gel inline-flex items-center gap-2 rounded-lg bg-action px-6 py-3 font-medium text-text-on-action hover:bg-action-hover"
-                >
+                <Button href="/analyze" size="lg">
                   Start Full Audit
                   <span aria-hidden="true">&rarr;</span>
-                </Link>
+                </Button>
                 <Link
                   href="#quick-check"
                   className="font-medium text-text underline decoration-action decoration-2 underline-offset-4 hover:text-action transition-colors duration-200"
@@ -227,13 +225,10 @@ export default function HomePage() {
                   Optional SEO checks: titles, meta, headings, alt text
                 </li>
               </ul>
-              <Link
-                href="/analyze"
-                className="btn-gel inline-flex items-center gap-2 rounded-lg bg-action px-5 py-2.5 text-sm font-medium text-text-on-action hover:bg-action-hover"
-              >
+              <Button href="/analyze" size="md">
                 Start Full Audit
                 <span aria-hidden="true">&rarr;</span>
-              </Link>
+              </Button>
             </div>
             <div className="bg-surface p-8">
               <h3 className="font-display text-2xl text-text mb-4">Quick Check</h3>
@@ -354,13 +349,10 @@ export default function HomePage() {
             Ready to see what&rsquo;s broken?
           </h2>
           <div className="flex flex-wrap items-center gap-5">
-            <Link
-              href="/analyze"
-              className="btn-gel inline-flex items-center gap-2 rounded-lg bg-action px-6 py-3 font-medium text-text-on-action hover:bg-action-hover"
-            >
+            <Button href="/analyze" size="lg">
               Start Full Audit
               <span aria-hidden="true">&rarr;</span>
-            </Link>
+            </Button>
             <Link
               href="#quick-check"
               className="font-medium text-text underline decoration-action decoration-2 underline-offset-4 hover:text-action transition-colors duration-200"

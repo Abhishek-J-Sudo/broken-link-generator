@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SecurityNotice from '@/app/components/SecurityNotice';
 import Link from 'next/link';
+import Button from '@/app/components/Button';
 import { getCsrfToken } from '@/lib/csrf-client';
 
 export default function LargeCrawlForm({ onJobStarted }) {
@@ -301,17 +302,15 @@ export default function LargeCrawlForm({ onJobStarted }) {
         )}
 
         {/* Submit */}
-        <button
+        <Button
+          variant="primary"
+          size="lg"
+          fullWidth
           type="submit"
           disabled={isLoading || !formData.url}
-          className={`w-full rounded-lg px-6 py-3.5 font-medium ${
-            isLoading || !formData.url
-              ? 'cursor-not-allowed bg-surface-subtle text-text-subtle transition-colors'
-              : 'btn-gel bg-action text-text-on-action hover:bg-action-hover'
-          }`}
         >
           {isLoading ? currentPhase || 'Processing…' : 'Run Quick Check'}
-        </button>
+        </Button>
 
         {/* Full Audit cross-link */}
         <p className="mt-4 text-sm text-text-muted">

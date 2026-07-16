@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import ThemeToggle from './ThemeToggle';
+import Button from './Button';
 
 export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -45,13 +46,10 @@ export default function Header() {
               </Link>
             ))}
             <ThemeToggle />
-            <Link
-              href="/analyze"
-              className="btn-gel inline-flex items-center gap-2 rounded-lg bg-action px-4 py-2 text-sm font-medium text-text-on-action hover:bg-action-hover"
-            >
+            <Button href="/analyze" size="sm">
               Start Audit
               <span aria-hidden="true">&rarr;</span>
-            </Link>
+            </Button>
           </nav>
 
           {/* Mobile menu button */}
@@ -97,14 +95,15 @@ export default function Header() {
                   {link.label}
                 </Link>
               ))}
-              <Link
+              <Button
                 href="/analyze"
-                className="btn-gel mt-3 inline-flex w-fit items-center gap-2 rounded-lg bg-action px-4 py-2 text-sm font-medium text-text-on-action hover:bg-action-hover"
+                size="sm"
+                className="mt-3 w-fit"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Start Audit
                 <span aria-hidden="true">&rarr;</span>
-              </Link>
+              </Button>
             </div>
           </div>
         )}
