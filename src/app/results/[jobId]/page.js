@@ -680,7 +680,7 @@ export default function AuditReportPage() {
                         </p>
                       </div>
                       <div
-                        className="h-2 w-full overflow-hidden border border-border bg-surface-subtle"
+                        className="relative h-2 w-full overflow-hidden border border-border bg-surface-subtle"
                         role="progressbar"
                         aria-label="Audit completion"
                         aria-valuemin={0}
@@ -691,6 +691,7 @@ export default function AuditReportPage() {
                           className="h-full bg-action transition-[width] duration-500"
                           style={{ width: `${isQueued ? 0 : progressPercent}%` }}
                         />
+                        <span aria-hidden="true" className="scan-sweep" />
                       </div>
                     </div>
 
