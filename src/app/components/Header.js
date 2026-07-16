@@ -20,7 +20,7 @@ export default function Header() {
           {/* Brand */}
           <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
             <Image
-              src="/seo-scrub-app-logo.png"
+              src="/seo-scrub-app-logo-new.png"
               alt=""
               width={93}
               height={113}

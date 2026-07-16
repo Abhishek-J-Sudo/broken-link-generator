@@ -1,25 +1,25 @@
 'use client';
 
-// Accent experiment switch: flips data-accent="teal" on <html> so the whole
-// app renders with the teal ramp (see globals.css). Survives client-side
-// navigation; resets on a hard reload.
+// Accent comparison switch: teal is the brand default (2026-07-16); this
+// flips data-accent="green" on <html> to preview the legacy green ramp
+// site-wide. Survives client-side navigation; resets on a hard reload.
 import { useEffect, useState } from 'react';
 
 export default function AccentToggle() {
-  const [teal, setTeal] = useState(false);
+  const [green, setGreen] = useState(false);
 
   useEffect(() => {
-    setTeal(document.documentElement.dataset.accent === 'teal');
+    setGreen(document.documentElement.dataset.accent === 'green');
   }, []);
 
   const toggle = () => {
-    const next = !teal;
+    const next = !green;
     if (next) {
-      document.documentElement.dataset.accent = 'teal';
+      document.documentElement.dataset.accent = 'green';
     } else {
       delete document.documentElement.dataset.accent;
     }
-    setTeal(next);
+    setGreen(next);
   };
 
   return (
@@ -31,9 +31,9 @@ export default function AccentToggle() {
       <span
         aria-hidden="true"
         className="h-2.5 w-2.5 rounded-full"
-        style={{ background: teal ? '#3ca5b1' : 'var(--green-600)' }}
+        style={{ background: green ? 'var(--green-600)' : 'var(--teal-500)' }}
       />
-      Accent: {teal ? 'Teal (experiment)' : 'Green (default)'} &mdash; click to switch
+      Accent: {green ? 'Green (legacy)' : 'Teal (default)'} &mdash; click to switch
     </button>
   );
 }

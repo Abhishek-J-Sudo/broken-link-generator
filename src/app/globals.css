@@ -21,6 +21,15 @@
   --emerald-600: #059669; /* hover/pressed green */
   --emerald-700: #047857;
 
+  /* Brand teal — PRIMARY BRAND since 2026-07-16 (replaces green for actions/
+     accents; green remains the success/status hue). Grown from the user's
+     pick #3ca5b1. */
+  --teal-500: #3ca5b1; /* dark-mode action / accent */
+  --teal-600: #2b8a96; /* PRIMARY BRAND — CTAs, active states (light) */
+  --teal-700: #23727c;
+  --teal-800: #1d5f68;
+  --teal-50: #e6f4f6;
+
   /* Navy / slate neutrals */
   --white: #ffffff;
   --slate-50: #f8fafc;
@@ -135,11 +144,11 @@
   --color-text-on-action: var(--white);
 
   /* Brand / actions */
-  --color-action-primary: var(--green-600);
-  --color-action-primary-hover: var(--emerald-600);
-  --color-action-primary-active: var(--emerald-700);
-  --color-action-primary-subtle: var(--green-50);
-  --color-accent: var(--green-600);
+  --color-action-primary: var(--teal-600);
+  --color-action-primary-hover: var(--teal-700);
+  --color-action-primary-active: var(--teal-800);
+  --color-action-primary-subtle: var(--teal-50);
+  --color-accent: var(--teal-600);
 
   /* Status (feedback) */
   --color-success: var(--green-600);
@@ -150,7 +159,11 @@
   --color-danger-subtle: #fee2e2;
   --color-info: var(--blue-600);
   --color-info-subtle: #dbeafe;
-  --color-focus: var(--green-600);
+  --color-focus: var(--teal-600);
+
+  /* Honeycomb mesh cell strength — dark surfaces need a lighter hand */
+  --hexmesh-alpha: 0.18;
+  --hexmesh-alpha-hi: 0.38;
 
   /* Elevation — theme-aware (light) */
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
@@ -187,11 +200,11 @@
   --color-text-on-inverse-muted: var(--slate-400);
   --color-border-inverse: rgba(255, 255, 255, 0.14);
 
-  --color-action-primary: var(--green-500);
-  --color-action-primary-hover: var(--green-600);
-  --color-action-primary-active: var(--emerald-600);
-  --color-action-primary-subtle: rgba(34, 197, 94, 0.14);
-  --color-accent: var(--green-500);
+  --color-action-primary: var(--teal-500);
+  --color-action-primary-hover: var(--teal-600);
+  --color-action-primary-active: var(--teal-700);
+  --color-action-primary-subtle: rgba(60, 165, 177, 0.14);
+  --color-accent: var(--teal-500);
 
   --color-success: var(--green-500);
   --color-success-subtle: rgba(34, 197, 94, 0.14);
@@ -201,7 +214,10 @@
   --color-danger-subtle: rgba(248, 113, 113, 0.14);
   --color-info: var(--blue-400);
   --color-info-subtle: rgba(96, 165, 250, 0.14);
-  --color-focus: var(--green-500);
+  --color-focus: var(--teal-500);
+
+  --hexmesh-alpha: 0.1;
+  --hexmesh-alpha-hi: 0.2;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
@@ -255,39 +271,37 @@
 }
 
 /* ----------------------------------------------------------------------------
-   EXPERIMENT (sandbox toggle): teal accent ramp instead of brand green.
-   Set data-accent="teal" on <html> to preview site-wide. Overrides action +
-   accent + focus only — status colors (success/warning/danger) stay put, so
-   judge those separately. Full adoption would also retune success tokens and
-   recolor the logo mark. Blocks sit after all default token blocks so they
-   win the cascade; the dark variants carry higher specificity.
+   LEGACY COMPARISON (sandbox toggle): teal became the brand default on
+   2026-07-16; set data-accent="green" on <html> to preview the previous
+   green ramp site-wide. Overrides action + accent + focus only. Remove once
+   the teal decision has fully settled.
    -------------------------------------------------------------------------- */
-[data-accent='teal'] {
-  --color-action-primary: #2b8a96;
-  --color-action-primary-hover: #23727c;
-  --color-action-primary-active: #1d5f68;
-  --color-action-primary-subtle: #e6f4f6;
-  --color-accent: #2b8a96;
-  --color-focus: #2b8a96;
+[data-accent='green'] {
+  --color-action-primary: var(--green-600);
+  --color-action-primary-hover: var(--emerald-600);
+  --color-action-primary-active: var(--emerald-700);
+  --color-action-primary-subtle: var(--green-50);
+  --color-accent: var(--green-600);
+  --color-focus: var(--green-600);
 }
 
-[data-theme='dark'][data-accent='teal'] {
-  --color-action-primary: #3ca5b1;
-  --color-action-primary-hover: #2b8a96;
-  --color-action-primary-active: #23727c;
-  --color-action-primary-subtle: rgba(60, 165, 177, 0.14);
-  --color-accent: #3ca5b1;
-  --color-focus: #3ca5b1;
+[data-theme='dark'][data-accent='green'] {
+  --color-action-primary: var(--green-500);
+  --color-action-primary-hover: var(--green-600);
+  --color-action-primary-active: var(--emerald-600);
+  --color-action-primary-subtle: rgba(34, 197, 94, 0.14);
+  --color-accent: var(--green-500);
+  --color-focus: var(--green-500);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme])[data-accent='teal'] {
-    --color-action-primary: #3ca5b1;
-    --color-action-primary-hover: #2b8a96;
-    --color-action-primary-active: #23727c;
-    --color-action-primary-subtle: rgba(60, 165, 177, 0.14);
-    --color-accent: #3ca5b1;
-    --color-focus: #3ca5b1;
+  :root:not([data-theme])[data-accent='green'] {
+    --color-action-primary: var(--green-500);
+    --color-action-primary-hover: var(--green-600);
+    --color-action-primary-active: var(--emerald-600);
+    --color-action-primary-subtle: rgba(34, 197, 94, 0.14);
+    --color-accent: var(--green-500);
+    --color-focus: var(--green-500);
   }
 }
 
@@ -486,14 +500,44 @@ body {
 .hexmesh-cell {
   fill: transparent;
   stroke: var(--color-border-strong);
-  stroke-opacity: 0.18;
+  stroke-opacity: var(--hexmesh-alpha, 0.18);
   transition:
     stroke-opacity 1.6s ease,
     stroke 1.6s ease;
 }
 
 .hexmesh-hi {
-  stroke-opacity: 0.38; /* emphasized cells */
+  stroke-opacity: var(--hexmesh-alpha-hi, 0.38); /* emphasized cells */
+}
+
+/* Brand S marks in the mesh: slow staggered fade in/out (delay set inline
+   per instance). Peak 0.12 — whisper-light, never grabs focus. */
+.hexmesh-s {
+  opacity: 0; /* animation drives visibility */
+  animation: hexmesh-s 12s ease-in-out infinite;
+}
+
+@keyframes hexmesh-s {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.12;
+  }
+  45% {
+    opacity: 0.12;
+  }
+  65% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hexmesh-s {
+    animation: none;
+    opacity: 0.12;
+  }
 }
 
 .hexmesh-cell:hover {
@@ -505,6 +549,44 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .hexmesh-cell {
     transition: none;
+  }
+}
+
+/* Slow ambient wave across a honeycomb layer (Quick Check band). Structure:
+   a lattice-masked FRAME (texture-honeycomb + .hex-wave-frame, which kills
+   the frame's own fill) containing a moving BAND whose gradient alpha mask
+   gives it soft sides. The frame's lattice mask clips the band, so only the
+   honeycomb lines light up as the band passes. Band color = currentColor
+   (set text-action + opacity on the frame). */
+.hex-wave-frame {
+  background-color: transparent; /* frame is mask-only; the band paints */
+}
+
+.hex-wave-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -30%;
+  width: 30%;
+  background-color: currentColor;
+  -webkit-mask-image: linear-gradient(to right, transparent, black 35%, black 65%, transparent);
+  mask-image: linear-gradient(to right, transparent, black 35%, black 65%, transparent);
+  animation: hex-wave-band 9s linear infinite;
+}
+
+/* Travel = frame width (100%) + band width (30%) = 433.34% of band width. */
+@keyframes hex-wave-band {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(433.34%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hex-wave-band {
+    display: none;
   }
 }
 

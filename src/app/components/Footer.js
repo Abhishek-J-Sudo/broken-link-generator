@@ -14,7 +14,7 @@ export default function Footer() {
           <div className="md:col-span-6">
             <div className="flex items-center gap-3 mb-4">
               <Image
-                src="/seo-scrub-app-logo.png"
+                src="/seo-scrub-app-logo-new.png"
                 alt=""
                 width={93}
                 height={113}

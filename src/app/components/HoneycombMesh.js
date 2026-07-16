@@ -55,16 +55,27 @@ export default function HoneycombMesh({ className = '' }) {
             points={hexPoints(cx, cy, R)}
           />
         ))}
-        {/* Angular S mark in one cell (logo echo) */}
-        <path
-          d="M416,329h-16l-4,9.5h16l4,9.5h-16"
-          fill="none"
-          stroke="var(--color-border-strong)"
-          strokeWidth="1.25"
-          strokeLinejoin="round"
-          opacity="0.5"
-          pointerEvents="none"
-        />
+        {/* Brand S marks (traced logo SVG) breathing in and out of cells:
+            staggered 12s fades so ~1-2 are faintly visible somewhere at any
+            moment. Positions are lattice cell centers spread across widths. */}
+        {[
+          [405, 338, '0s'],
+          [1305, 494, '3s'],
+          [720, 572, '6s'],
+          [1980, 260, '9s'],
+        ].map(([cx, cy, delay]) => (
+          <image
+            key={`${cx},${cy}`}
+            className="hexmesh-s"
+            style={{ animationDelay: delay }}
+            href="/seoscrub-logo.svg"
+            x={cx - 14.8}
+            y={cy - 18}
+            width="29.6"
+            height="36"
+            pointerEvents="none"
+          />
+        ))}
         {/* Sparse accent apex nodes */}
         <g fill="var(--color-accent)" opacity="0.6" pointerEvents="none">
           <circle cx="405" cy="286" r="2" />

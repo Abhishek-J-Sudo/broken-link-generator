@@ -12,7 +12,7 @@ export default function BrandRule({ className = '' }) {
       <span className="h-1 w-1 rounded-full bg-border-strong" />
       <span className="h-px flex-1 bg-border" />
       <Image
-        src="/seo-scrub-app-logo.png"
+        src="/seo-scrub-app-logo-new.png"
         alt=""
         width={93}
         height={113}

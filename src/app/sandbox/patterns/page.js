@@ -200,8 +200,8 @@ export default function PatternLabPage() {
         <div className="mb-12">
           <AccentToggle />
           <p className={`${microLabel} text-text-subtle mt-2`}>
-            Applies site-wide while you navigate (client-side); hard reload resets. Status colors
-            stay green in the experiment.
+            Teal is the default now; the toggle previews the legacy green ramp. Applies while you
+            navigate (client-side); hard reload resets. Status colors stay green either way.
           </p>
         </div>
 

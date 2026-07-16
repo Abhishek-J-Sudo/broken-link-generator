@@ -280,8 +280,14 @@ export default function HomePage() {
       >
         <div
           aria-hidden="true"
-          className="texture-honeycomb pointer-events-none absolute inset-0 text-text-on-inverse opacity-[0.05]"
+          className="texture-honeycomb pointer-events-none absolute inset-0 text-text-on-inverse opacity-[0.03]"
         />
+        <div
+          aria-hidden="true"
+          className="texture-honeycomb hex-wave-frame pointer-events-none absolute inset-0 text-action opacity-[0.14]"
+        >
+          <div className="hex-wave-band" />
+        </div>
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <SectionHeading
             inverse
