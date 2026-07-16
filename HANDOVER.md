@@ -2,6 +2,82 @@
 
 ---
 
+## 2026-07-16 — Green→teal completion + a11y + token/Button hardening (MERGED to main)
+
+### Branch: `phase2-ui-polish` → **fast-forwarded into `main` (`d52e70f`) and pushed**
+
+Six commits, all validated on the running dev server, then merged (ff `b212bdb..d52e70f`)
+and pushed to `origin/main`. Branch kept (per workflow, not deleted). Picked up from the
+pattern-lab handover below; the open "success-color decision" is settled — **success/status
+stays GREEN, teal = brand/action** (permanent split).
+
+- **`fda0d55` — green→teal migration finished + dead toggle removed.** Real bug found and
+  fixed: the **system-default dark block** (`@media prefers-color-scheme: dark` →
+  `:root:not([data-theme])`) was still green for action/accent/focus while the explicit
+  `[data-theme='dark']` block was teal — OS-dark users who hadn't picked a theme saw green
+  buttons. Removed the `data-accent="green"` legacy toggle (globals.css blocks +
+  `AccentToggle.js` + sandbox usage). Corrected stale "green" wording (primitives header,
+  gel/scrub-grid comments, GradeHex apex = `var(--color-accent)`). **Left untouched
+  deliberately:** `Documentation.js` + `ui-drafts/` (rejected generic-AI template, raw
+  gray/indigo/green, stale "Supabase" copy — need restructure, not a recolor);
+  `Changelog.js` greens are categorical type-coding (feature/patch beside blue/red/orange).
+- **`1b4566c` — a11y: keyboard focus rings restored.** Six form controls (analyze,
+  LargeCrawlForm, EvidenceTable) had `focus:outline-none`, whose `.focus\:outline-none:focus`
+  (0,2,0) overrode the global `:focus-visible` teal ring (0,1,0) — keyboard users got no
+  ring. Removed the suppression; `focus:border-action` kept as the reinforcing affordance.
+- **`d640e19` — dark theme = single source of truth.** The dark palette lived in two
+  hand-synced blocks (`[data-theme='dark']` + the `prefers-color-scheme` fallback) that had
+  drifted **twice** (green + missing dark `--hexmesh-alpha`). The boot script in `layout.tsx`
+  pins `data-theme` synchronously before first paint (saved → OS via matchMedia), so the
+  media block only ever applied with JS disabled — where this fully client-driven app doesn't
+  run. **Deleted it** (−49 lines); dark is now defined once. Kills the drift-bug class.
+- **`2eb6ddd` — dark secondary text de-slated into the ink family** (user picked "ink
+  teal-grey" from 3 tone options). Added light-end ink primitives `--ink-300 #93a5a4` (muted)
+  / `--ink-400 #647a78` (subtle), same lightness as the old slate-400/500 but the cool teal
+  cast of the surfaces. Only dark `--color-text-muted/subtle`; light mode + navy inverse-band
+  muted stay slate deliberately. **Closes the "dark text grays" item pending since 07-15.**
+- **`77720a6` — `Button` primitive extracted + 13 main-app buttons migrated.** New
+  `src/app/components/Button.js`: variants `primary` (gel) / `secondary` (outline) /
+  `danger` (outline red) / `dangerSolid` (filled red); fill+outline size scales reproducing
+  every existing padding (incl. estimate button `py-3.5` = input height); polymorphic
+  (`href`→Next `<Link>`, else `<button>`); unified disabled (primary→flat-grey, others dim).
+  Migrated Header, homepage, analyze, Quick Check form, results toolbar/stop/modal. Zero
+  intended visual change except two disabled-state unifications (results share button
+  flat-grey not dimmed-gel; estimate button shared dim). **Use this for all future app
+  buttons — no inline recipes.**
+- **`d52e70f` — documented the `/share/*` flat-button exception.** User chose to keep the
+  client-report toolbars flat/non-gel (print-first documents, not app chrome). Noted in
+  `Button.js` + the design-direction memory so they aren't "unified" later.
+
+### Verified already-done (no change)
+
+`empty/error states` on analyze + share were on the backlog as a "quick check" — checked:
+share has `ShareErrorScreen`/`ShareLoadingScreen` (404/revoked/generic/network + branded
+loader); analyze ledger has loading/error/empty + estimate/start error messages. Complete.
+
+### Structure/scalability read (user asked mid-session)
+
+The semantic token layer scaled well — the teal rebrand touched ~a handful of token lines and
+every token-consuming surface moved for free. Friction was **duplication-to-hand-sync** (the
+dark blocks — now fixed) and **no shared control components** (button recipe drift — now
+fixed via `Button`), plus **un-migrated legacy pages** (`Documentation.js`, `ui-drafts/` —
+still open). Not architectural dead-ends; normal mid-migration debt.
+
+### Gotcha (recurring)
+
+Turbopack missed a `globals.css` edit again mid-verify (served chunk stale after the dark
+de-dup). Fix as documented: trivial re-save to force recompile, then grep the served chunk.
+Confirmed the served CSS before committing each globals.css change this session.
+
+### Next session
+
+- **Migrate or retire `Documentation.js` (`/documentation`) + `ui-drafts/`** — rejected
+  template, off the token system, stale Supabase/architecture copy; linked in Header/Footer.
+- Then the standing pipeline: deploy (VPS+Coolify — user must provision), accounts/quotas
+  before any open access, §G batch 2 (G1/G12/G13), trends B1–B3 + CWV G7.
+
+---
+
 ## 2026-07-16 — Pattern lab → honeycomb texture + TEAL rebrand (branch open)
 
 ### Branch: `phase2-ui-polish` (continues, UNMERGED — all of today user-validated live)
