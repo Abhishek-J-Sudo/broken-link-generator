@@ -2,6 +2,63 @@
 
 ---
 
+## 2026-07-16 — Pattern lab → honeycomb texture + TEAL rebrand (branch open)
+
+### Branch: `phase2-ui-polish` (continues, UNMERGED — all of today user-validated live)
+
+The "homepage juice" session turned into a texture + brand-color session, driven by
+the user's brand board (now saved at `public/design/seoscrub-elements.png`).
+
+- **`24557d7`/`5f9bbf9` — brand texture system + pattern lab.** Generic dot-grid/rules
+  textures replaced. Iterated through: S-motif scrub-grid tile (v1 "wormy" → v2 chains
+  read as boxes → organic clusters) at **`/sandbox/patterns`** (Basic Auth, unlinked) —
+  a 3-way comparison bench with hover animations. **User picked honeycomb as the MAIN
+  brand texture**; site-graph/constellation textures kept in globals.css for future
+  low-emphasis surfaces. `HoneycombMesh` component = real SVG cells, hover lights a
+  cell accent + slow fade-out ("scrub trail"); used on homepage hero + closing CTA;
+  static `.texture-honeycomb` mask on the Quick Check band.
+- **`da631fd` — scan sweep on the audit progress bar** (`.scan-sweep`): flat accent
+  segment sweeping the track, queued state included, reduced-motion hidden.
+- **`d30aa4a` — TEAL IS THE BRAND COLOR NOW** (user decision; they supplied teal
+  logo/favicon PNGs and a traced SVG mark was generated in a parallel session,
+  committed `c180fc8`). Tokens: `--teal-500 #3ca5b1` (dark action) / `--teal-600
+  #2b8a96` (light) drive action/accent/focus in all three theme blocks.
+  **Success/status colors stay green — open decision** whether success follows teal.
+  `data-accent="green"` previews the legacy ramp (sandbox AccentToggle). Header/
+  Footer/BrandRule use `seo-scrub-app-logo-new.png`; favicon = `src/app/icon.png`.
+- **Honeycomb ambient polish (same commit):** dark mesh toned to ~half strength via
+  `--hexmesh-alpha(-hi)` theme vars; Quick Check band gained a soft-edged teal wave
+  (gradient-masked band in a lattice-masked frame, 9s transform loop); the mesh S
+  mark is now the traced SVG at 4 lattice positions on staggered 12s fades, peak
+  opacity 0.12 (user-tuned down from 0.22).
+- **`da538cf` — worker:dev fix:** `tsx --env-file=.env.local` — the worker no longer
+  dies at startup when run bare (user hit the documented gotcha live).
+
+### Motion rules (user-validated today)
+
+Triggered motion (hover/one-shot) at hairline weight, no glow, reduced-motion safe.
+TWO sanctioned ambient exceptions now exist: the Quick Check band wave and the mesh
+S fade — both slow + whisper-light. Perpetual high-contrast motion stays out.
+
+### Gotcha (local dev, recurring today)
+
+The Turbopack dev watcher intermittently MISSES `src/app/globals.css` edits (JS/JSX
+edits always trigger). Symptom: served CSS chunk stays stale. Fix: make any real
+content change to globals.css (re-save with a tweak) — verify by grepping the served
+chunk. Bit us ~6 times this session.
+
+### Next session
+
+- User will define next polish steps. Open items: success-color decision (green vs
+  teal), Header "Start Audit" button + any remaining green-tinted UI states audit,
+  dark text grays → ink family (pending from 07-15), secondary-button recipe
+  unification, focus-visible rings, EvidenceTable row hover, empty/error states.
+- Site-graph + constellation textures awaiting placement on low-emphasis surfaces.
+- Then the standing pipeline: deploy (VPS+Coolify), accounts/quotas, §G batch 2,
+  trends B1–B3 + CWV G7.
+
+---
+
 ## 2026-07-15 — UI polish: ink dark theme + brand accents (branch open)
 
 ### Branch: `phase2-ui-polish` (off main, UNMERGED — user approved the look so far)
