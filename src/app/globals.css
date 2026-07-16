@@ -44,14 +44,18 @@
   --slate-900: #0d1113;
   --navy-950: #0b1620;
 
-  /* SeoScrub ink — house dark neutrals. Green-cast near-blacks grown from the
-     hand-tuned card color (#0d1113); deliberately NOT Tailwind slate. Dark
+  /* SeoScrub ink — house dark neutrals. Cool teal-cast near-blacks grown from
+     the hand-tuned card color (#0d1113); deliberately NOT Tailwind slate. Dark
      surfaces read this ramp only. */
   --ink-1000: #050809; /* inverse band — deepest, sits below the page bg */
   --ink-950: #090d0e; /* page background */
   --ink-900: #0d1113; /* cards / surface */
   --ink-850: #11171a; /* subtle fills */
   --ink-800: #161d20; /* raised surfaces */
+  /* Light-end ink neutrals — dark-mode secondary/tertiary TEXT. Same cool
+     teal cast as the surfaces above (replaces blue-cast slate 2026-07-16). */
+  --ink-400: #647a78; /* dark subtle text */
+  --ink-300: #93a5a4; /* dark muted text */
 
   /* Status */
   --red-400: #f87171;
@@ -195,8 +199,8 @@
   --color-border-strong: rgba(255, 255, 255, 0.18);
 
   --color-text: var(--slate-50);
-  --color-text-muted: var(--slate-400);
-  --color-text-subtle: var(--slate-500);
+  --color-text-muted: var(--ink-300);
+  --color-text-subtle: var(--ink-400);
   --color-text-inverse: var(--slate-900);
   --color-text-on-action: var(--slate-900);
 
