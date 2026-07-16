@@ -4,8 +4,6 @@
 // choreography, the honeycomb becomes mouse-reactive. Theme tokens throughout;
 // motion is hover-scoped and disabled under prefers-reduced-motion.
 
-import AccentToggle from './AccentToggle';
-
 const microLabel = 'font-mono text-[11px] uppercase tracking-[0.18em]';
 
 /* Pointy-top hexagon polygon points for center (cx,cy), circumradius r. */
@@ -197,14 +195,6 @@ export default function PatternLabPage() {
         <p className={`${microLabel} text-text-subtle mb-6`}>
           Strokes boosted for comparison &mdash; in situ they run far quieter.
         </p>
-        <div className="mb-12">
-          <AccentToggle />
-          <p className={`${microLabel} text-text-subtle mt-2`}>
-            Teal is the default now; the toggle previews the legacy green ramp. Applies while you
-            navigate (client-side); hard reload resets. Status colors stay green either way.
-          </p>
-        </div>
-
         <div className="space-y-16">
           <PatternCard
             serial="A"

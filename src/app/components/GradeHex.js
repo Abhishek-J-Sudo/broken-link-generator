@@ -1,7 +1,7 @@
 /**
  * GradeHex — the brand's one sanctioned exception to square containers:
  * the score that matters sits inside a hairline hexagon (brand board #5).
- * Pointy-top regular hexagon, hairline stroke, single green node on the
+ * Pointy-top regular hexagon, hairline stroke, single brand-accent node on the
  * top vertex. Everything else in a report stays square so this lands.
  */
 export default function GradeHex({

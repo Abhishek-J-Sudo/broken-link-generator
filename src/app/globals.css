@@ -12,13 +12,14 @@
    Tier 1 — primitives (theme-agnostic)
    -------------------------------------------------------------------------- */
 :root {
-  /* Brand green */
+  /* Success / status green — no longer the brand accent (teal took over on
+     2026-07-16); retained only for success/positive feedback states. */
   --green-50: #f0fdf4;
   --green-100: #dcfce7;
-  --green-500: #22c55e; /* success-soft / dark-mode action */
-  --green-600: #16a34a; /* PRIMARY BRAND — CTAs, active states */
+  --green-500: #22c55e; /* success (dark surfaces) */
+  --green-600: #16a34a; /* success (light surfaces) */
   --green-700: #15803d;
-  --emerald-600: #059669; /* hover/pressed green */
+  --emerald-600: #059669;
   --emerald-700: #047857;
 
   /* Brand teal — PRIMARY BRAND since 2026-07-16 (replaces green for actions/
@@ -248,11 +249,11 @@
     --color-text-on-inverse-muted: var(--slate-400);
     --color-border-inverse: rgba(255, 255, 255, 0.14);
 
-    --color-action-primary: var(--green-500);
-    --color-action-primary-hover: var(--green-600);
-    --color-action-primary-active: var(--emerald-600);
-    --color-action-primary-subtle: rgba(34, 197, 94, 0.14);
-    --color-accent: var(--green-500);
+    --color-action-primary: var(--teal-500);
+    --color-action-primary-hover: var(--teal-600);
+    --color-action-primary-active: var(--teal-700);
+    --color-action-primary-subtle: rgba(60, 165, 177, 0.14);
+    --color-accent: var(--teal-500);
 
     --color-success: var(--green-500);
     --color-success-subtle: rgba(34, 197, 94, 0.14);
@@ -262,46 +263,11 @@
     --color-danger-subtle: rgba(248, 113, 113, 0.14);
     --color-info: var(--blue-400);
     --color-info-subtle: rgba(96, 165, 250, 0.14);
-    --color-focus: var(--green-500);
+    --color-focus: var(--teal-500);
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
     --shadow-lg: 0 14px 30px rgba(0, 0, 0, 0.5);
-  }
-}
-
-/* ----------------------------------------------------------------------------
-   LEGACY COMPARISON (sandbox toggle): teal became the brand default on
-   2026-07-16; set data-accent="green" on <html> to preview the previous
-   green ramp site-wide. Overrides action + accent + focus only. Remove once
-   the teal decision has fully settled.
-   -------------------------------------------------------------------------- */
-[data-accent='green'] {
-  --color-action-primary: var(--green-600);
-  --color-action-primary-hover: var(--emerald-600);
-  --color-action-primary-active: var(--emerald-700);
-  --color-action-primary-subtle: var(--green-50);
-  --color-accent: var(--green-600);
-  --color-focus: var(--green-600);
-}
-
-[data-theme='dark'][data-accent='green'] {
-  --color-action-primary: var(--green-500);
-  --color-action-primary-hover: var(--green-600);
-  --color-action-primary-active: var(--emerald-600);
-  --color-action-primary-subtle: rgba(34, 197, 94, 0.14);
-  --color-accent: var(--green-500);
-  --color-focus: var(--green-500);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme])[data-accent='green'] {
-    --color-action-primary: var(--green-500);
-    --color-action-primary-hover: var(--green-600);
-    --color-action-primary-active: var(--emerald-600);
-    --color-action-primary-subtle: rgba(34, 197, 94, 0.14);
-    --color-accent: var(--green-500);
-    --color-focus: var(--green-500);
   }
 }
 
@@ -395,7 +361,7 @@ body {
 
 /* ----------------------------------------------------------------------------
    Gel buttons — squishy liquid-glass treatment for PRIMARY action buttons
-   only (user request 2026-07-10). Fill stays solid brand green; the depth
+   only (user request 2026-07-10). Fill stays solid brand teal; the depth
    comes from inset white/black shadows, and the press squishes. Pair with
    bg-action + rounded-lg in markup.
    -------------------------------------------------------------------------- */
@@ -465,7 +431,7 @@ body {
   mask-repeat: repeat;
 }
 
-/* Green accent layer for the scrub grid (board #1 dark version): a few
+/* Accent layer for the scrub grid (board #1 dark version): a few
    "healthy" nodes and one scanned-link segment per tile. Same 720px tile so
    it registers exactly with .texture-scrubgrid underneath — render it as a
    sibling overlay div with text-action + a low opacity. Kept separate so
