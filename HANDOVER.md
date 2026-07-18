@@ -91,10 +91,16 @@ report) — flagged for the user, not built.
 - **11/11 unit checks** (run under `tsx`, imports resolve via `@/` like the worker): `extractSecurity`
   on the REAL demo page (isHttps ✓, HSTS ✓, CSP ✗, X-Frame ✓, mixed 0) + synthetic mixed-content
   (3 counted, anchors excluded, http page not scanned) + `parsePageSpeed` (score 72, lab, CrUX field).
-- ⚠ **Full worker E2E not done:** the local worker (pid alive, `tsx --watch`) is **not consuming**
-  jobs — a queued test audit sat `queued` 4+ min. NOT caused by these edits (the edited modules load
-  and run fine in-process). Validated crawl-time extraction by running the production `extractSecurity`
-  on real data instead. Restart the worker + run a fresh audit to populate `signals.security` fully.
+- ✅ **Full worker E2E — done (post-commit, same session).** The local worker had been stuck (a
+  queued test audit sat `queued` 4+ min); **restarting `npm run worker:dev` fixed it** (it now
+  consumes; it even drained the stale redis job cleanly). Fresh SEO audit of yourrighttoknow.com
+  completed in ~24s / 7 pages: every page's `signals.security` written correctly, rollup =
+  `7/7 HTTPS · headers_measured 7 · HSTS 7 · CSP 0 · 0 mixed content`. Fresh demo job left in DB:
+  `c2e6e58f-120f-4609-923f-07c372670563` (drop when done).
+- ✅ **PSI verified live.** User created a free `PAGESPEED_API_KEY` (in `.env.local`; `.env.example`
+  stays empty). `/api/performance` on the demo job returned real CWV — score 43/100 mobile, LCP 21.8s
+  lab / 4.9s CrUX field. **Follow-up fix:** the PSI timeout was 30s but real content sites take ~43s,
+  so the first live call returned `unavailable`; bumped `fetchPageSpeed` default **30s → 60s**.
 
 ### Next
 - Restart the worker; run a fresh SEO audit to light up the full Security cell (HSTS/CSP counts) and

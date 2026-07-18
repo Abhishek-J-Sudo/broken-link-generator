@@ -16,7 +16,7 @@ const PSI_ENDPOINT = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed
  * Fetch + parse PSI for one URL. Returns a compact result, or a { reason }
  * marker the UI can explain ('no_key' | 'unavailable'). Never throws.
  */
-export async function fetchPageSpeed(url, { strategy = 'mobile', timeoutMs = 30000 } = {}) {
+export async function fetchPageSpeed(url, { strategy = 'mobile', timeoutMs = 60000 } = {}) {
   const key = process.env.PAGESPEED_API_KEY;
   if (!key) return { reason: 'no_key' };
 
