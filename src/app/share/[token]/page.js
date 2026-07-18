@@ -3,10 +3,13 @@
 /**
  * /share/[token] — public, read-only CLIENT health report.
  *
- * The brief for the site owner: grade, plain-English verdict, a few headline
- * numbers, what was found, and what gets fixed first. Deliberately free of
- * URL tables, jargon, and per-page detail — all of that lives in the team
- * document at /share/[token]/fix-list. Prints to 1–2 clean pages.
+ * Written for a non-technical reader (a client, manager, or director):
+ *   two plainly-labelled scores → what they mean → what we found → what to fix
+ *   first → the team tracker.
+ * The two scores are shown side by side as equal brand hexagons so the
+ * link-health grade and the SEO score never read as a contradiction. No URL
+ * tables, no jargon left unexplained, no per-page detail — the working detail
+ * lives in the team tracker at /share/[token]/fix-list. Prints to one clean page.
  */
 
 import { useMemo } from 'react';
@@ -24,6 +27,15 @@ import {
 } from '../useSharedReport';
 
 const GRADE_WORD = { A: 'Excellent', B: 'Good', C: 'Fair', D: 'Poor', F: 'Critical' };
+
+// Plain-English word for the on-page SEO /100 score, mirroring the grade word.
+function seoWord(score) {
+  if (score >= 90) return 'Excellent';
+  if (score >= 75) return 'Good';
+  if (score >= 60) return 'Fair';
+  if (score >= 40) return 'Needs work';
+  return 'Poor';
+}
 
 export default function SharedReportPage() {
   const { token } = useParams();
@@ -51,30 +63,76 @@ export default function SharedReportPage() {
   const isPartial = payload.job.status === 'stopped';
   const indexability = seoSummary?.indexability || null;
 
+  const issues = report.kpis.issues;
   const healthyShare = report.kpis.totalChecked
     ? Math.round((100 * report.kpis.healthy) / report.kpis.totalChecked)
     : 100;
 
-  // 3–4 headline numbers, no more — this is the whole point of the summary.
-  const stats = [
-    ['URLs checked', report.kpis.totalChecked.toLocaleString()],
-    ['Broken links', report.kpis.issues.toLocaleString()],
-    ['Links working', `${healthyShare}%`],
+  const hasSeo = !!seoSummary && (seoSummary.total_pages || 0) > 0;
+  const seoScore = hasSeo ? Math.round(seoSummary.avg_score || 0) : null;
+  const hidden = indexability?.hidden || 0;
+
+  // The two equal scores — each a brand hexagon with a one-line plain meaning.
+  const scores = [
+    {
+      label: 'Link health',
+      value: report.score.grade,
+      sub: GRADE_WORD[report.score.grade] || 'Fair',
+      meaning:
+        issues === 0
+          ? 'Every link on your site works — no dead ends for your visitors.'
+          : `${issues.toLocaleString()} link${issues === 1 ? '' : 's'} lead nowhere — some visitors will hit dead ends.`,
+    },
   ];
-  if (indexability) {
-    stats.push(['Pages hidden from search', String(indexability.hidden)]);
-  } else if (report.kpis.pagesAnalyzed > 0) {
-    stats.push(['Pages reviewed for SEO', report.kpis.pagesAnalyzed.toLocaleString()]);
+  if (hasSeo) {
+    scores.push({
+      label: 'SEO health',
+      value: String(seoScore),
+      sub: `out of 100 · ${seoWord(seoScore)}`,
+      meaning:
+        seoScore >= 80
+          ? 'Your pages are well set up to be found on Google and shared online.'
+          : seoScore >= 60
+            ? 'Your pages are missing some details that help them show up on Google.'
+            : 'Your pages are missing details that search engines and social sites look for.',
+    });
   }
 
-  // What gets fixed first: the AI plan when it exists, else the derived tasks.
-  const fixFirst =
-    narrative?.priorityActions?.length > 0
-      ? narrative.priorityActions
-      : report.tasks.slice(0, 5).map((t) => t.action);
+  // Slim, plain headline numbers under the scores.
+  const stats = [
+    ['URLs checked', report.kpis.totalChecked.toLocaleString()],
+    ['Broken links', issues.toLocaleString()],
+    ['Links working', `${healthyShare}%`],
+  ];
+  if (hasSeo) stats.push(['Pages reviewed', seoSummary.total_pages.toLocaleString()]);
+
+  // "What this means" — 2–3 plain sentences, composed from the data (no AI call).
+  const meaningSentences = [
+    issues === 0
+      ? 'Your site is easy to move around — every link we checked works.'
+      : `We found ${issues.toLocaleString()} broken link${issues === 1 ? '' : 's'} that send visitors to pages which no longer exist.`,
+  ];
+  if (hasSeo) {
+    meaningSentences.push(
+      `Your pages score ${seoScore} out of 100 for on-page SEO — they're missing details that help search engines understand and rank them` +
+        (hidden > 0
+          ? `, and ${hidden} ${hidden === 1 ? 'page is' : 'pages are'} currently hidden from search altogether.`
+          : '.')
+    );
+  }
+  meaningSentences.push(
+    'None of this means your site is broken — most of it is missed opportunity that is quick to fix, and the priorities are listed below.'
+  );
 
   // What we found: AI findings as prose, else the rule-generated takeaways.
   const found = narrative?.findings?.length > 0 ? narrative.findings : null;
+
+  // What to fix first: the AI plan when it exists, else derived tasks. Top 3 only.
+  const fixFirst = (
+    narrative?.priorityActions?.length > 0
+      ? narrative.priorityActions
+      : report.tasks.map((t) => t.action)
+  ).slice(0, 3);
 
   let sectionNo = 0;
   const serial = () => String(++sectionNo).padStart(2, '0');
@@ -98,7 +156,7 @@ export default function SharedReportPage() {
             href={`/share/${token}/fix-list`}
             className="rounded-lg border border-border bg-surface px-4 py-2 text-sm text-text transition-colors hover:border-border-strong"
           >
-            SEO team fix list →
+            SEO fix tracker →
           </Link>
         </div>
       </div>
@@ -121,25 +179,30 @@ export default function SharedReportPage() {
         </p>
       </header>
 
-      {/* 01 · Verdict */}
+      {/* 01 · Your scores — two equal hexagons, the fix for the grade-vs-score clash */}
       <section className="mb-12 break-inside-avoid">
-        <p className={`${microLabel} mb-5 text-text-subtle`}>{serial()} · The verdict</p>
-        <div className="grid gap-8 sm:grid-cols-[auto_1fr]">
-          <GradeHex
-            grade={report.score.grade}
-            sub={GRADE_WORD[report.score.grade] || 'Fair'}
-          />
-          <blockquote className="self-center border-l-2 border-action pl-5 font-display text-xl leading-snug text-text">
-            {narrative?.headline ?? report.verdict}
-          </blockquote>
+        <p className={`${microLabel} mb-6 text-text-subtle`}>{serial()} · Your scores</p>
+        <div className={`grid items-start gap-10 ${scores.length > 1 ? 'sm:grid-cols-2' : ''}`}>
+          {scores.map((s) => (
+            <div key={s.label} className="flex flex-col items-center gap-4 text-center">
+              <p className={`${microLabel} text-text-subtle`}>{s.label}</p>
+              <GradeHex grade={s.value} sub={s.sub} />
+              <p className="max-w-[30ch] text-sm leading-relaxed text-text-muted">{s.meaning}</p>
+            </div>
+          ))}
         </div>
         <div
-          className={`mt-8 grid border-y border-border ${
+          className={`mt-10 grid border-y border-border ${
             stats.length === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'
           }`}
         >
           {stats.map(([label, value], i) => (
-            <div key={label} className={`py-5 ${i > 0 ? 'sm:border-l sm:border-border sm:pl-6' : ''}`}>
+            <div
+              key={label}
+              className={`py-5 text-center sm:text-left ${
+                i > 0 ? 'sm:border-l sm:border-border sm:pl-6' : ''
+              }`}
+            >
               <p className="font-display text-3xl text-text">{value}</p>
               <p className={`${microLabel} mt-1.5 text-text-subtle`}>{label}</p>
             </div>
@@ -147,7 +210,17 @@ export default function SharedReportPage() {
         </div>
       </section>
 
-      {/* 02 · What we found */}
+      {/* 02 · What this means */}
+      <section className="mb-12 break-inside-avoid">
+        <p className={`${microLabel} mb-5 text-text-subtle`}>{serial()} · What this means</p>
+        <div className="space-y-3 text-lg leading-relaxed text-text">
+          {meaningSentences.map((sentence, i) => (
+            <p key={i}>{sentence}</p>
+          ))}
+        </div>
+      </section>
+
+      {/* 03 · What we found */}
       <section className="mb-12 break-inside-avoid">
         <p className={`${microLabel} mb-5 text-text-subtle`}>{serial()} · What we found</p>
         {found ? (
@@ -170,10 +243,10 @@ export default function SharedReportPage() {
         )}
       </section>
 
-      {/* 03 · What gets fixed first */}
+      {/* 04 · What to fix first */}
       {fixFirst.length > 0 && (
         <section className="mb-12 break-inside-avoid">
-          <p className={`${microLabel} mb-5 text-text-subtle`}>{serial()} · What gets fixed first</p>
+          <p className={`${microLabel} mb-5 text-text-subtle`}>{serial()} · What to fix first</p>
           <ol className="space-y-3">
             {fixFirst.map((action, i) => (
               <li key={i} className="flex gap-4 text-base leading-relaxed text-text">
@@ -184,53 +257,16 @@ export default function SharedReportPage() {
               </li>
             ))}
           </ol>
-          <p className="mt-5 text-sm text-text-muted">
-            The complete work order — every broken link and every page-level SEO item — is in the
-            accompanying SEO team fix list.
+          <p className="mt-6 text-sm leading-relaxed text-text-muted">
+            Every item — each broken link and page-level fix — is listed in the{' '}
+            <Link
+              href={`/share/${token}/fix-list`}
+              className="text-action underline-offset-2 hover:underline"
+            >
+              SEO fix tracker
+            </Link>
+            , where the team can assign an owner and tick each one off.
           </p>
-        </section>
-      )}
-
-      {/* 04 · Search visibility */}
-      {seoSummary && (
-        <section className="mb-12 break-inside-avoid">
-          <p className={`${microLabel} mb-5 text-text-subtle`}>{serial()} · Search visibility</p>
-          <div className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-2">
-            <div className="bg-surface p-5">
-              <p className={`${microLabel} text-text-subtle`}>On-page SEO</p>
-              <p className="mt-3 font-display text-3xl text-text">
-                {Math.round(seoSummary.avg_score || 0)}
-                <span className="text-lg text-text-muted">/100</span>
-              </p>
-              <p className="mt-1 text-sm text-text-muted">
-                average across {seoSummary.total_pages || 0} pages reviewed
-              </p>
-            </div>
-            <div className="bg-surface p-5">
-              <p className={`${microLabel} text-text-subtle`}>Visible to search engines</p>
-              {indexability ? (
-                <>
-                  <p
-                    className={`mt-3 font-display text-3xl ${
-                      indexability.hidden > 0 ? 'text-danger' : 'text-text'
-                    }`}
-                  >
-                    {indexability.indexable}
-                    <span className="text-lg text-text-muted">
-                      /{indexability.measured_pages}
-                    </span>
-                  </p>
-                  <p className="mt-1 text-sm text-text-muted">
-                    {indexability.hidden > 0
-                      ? `${indexability.hidden} page${indexability.hidden === 1 ? ' is' : 's are'} currently invisible to Google`
-                      : 'every reviewed page can appear in results'}
-                  </p>
-                </>
-              ) : (
-                <p className="mt-3 text-sm text-text-muted">Not measured in this audit.</p>
-              )}
-            </div>
-          </div>
         </section>
       )}
 

@@ -38,6 +38,55 @@ job `11111111-1111-1111-1111-111111111111`.
 
 ---
 
+## 2026-07-18 — Step 3 (new order): client/exec report → non-technical (two-score header)
+
+### Branch: `phase2-g-batch2-signals` (same flat branch). Committed, NOT pushed/merged.
+
+Third step of the core-first order: rewrote the public CLIENT report `/share/[token]` for a
+non-technical reader, and resolved the flagged **grade-vs-score contradiction** (the decision in
+`project-report-structure-open`). **Single file changed:** `src/app/share/[token]/page.js` — no
+overlap with Step 1/Step 2 (those touched the operator pages, not `share/`). `GradeHex` was reused
+as-is (its `grade` prop renders any string), so the results page stays untouched.
+
+- **The fix — two equal scores up top.** The page used to open with ONE big link-health hexagon
+  (**A**) while the AI verdict beside it said "…average score of **57**/100," and the SEO score was
+  buried in a bottom "Search visibility" section → read as "A but 57?". Now section **01 · Your
+  scores** shows **two equal brand hexagons side by side** — Link health (**A** / grade word) and
+  SEO health (**57** / "out of 100 · <word>") — each with a one-line plain meaning. Same neutral
+  tone on both so neither dominates (user picked "two equal cards, hexagons for both"). The old
+  bottom SEO section was deleted (folded up top).
+- **Decided section order** (per `project-report-structure-open`): masthead → **01** two scores +
+  slim plain numbers strip (URLs checked / broken / working % / pages reviewed) → **02 · What this
+  means** (2–3 plain sentences composed from the data, NO AI call — link state + SEO score +
+  hidden-pages) → **03 · What we found** (AI findings prose, unchanged) → **04 · What to fix first**
+  (trimmed 5→**3** actions + a real link to the **SEO fix tracker**) → plain footer.
+- **Plain-language helpers (module-level, pure):** `seoWord(score)` maps /100 → Excellent/Good/
+  Fair/Needs work/Poor (mirrors the letter-grade word); the meaning lines and "what this means"
+  sentences branch on `issues`, `seoScore`, and `hidden`. Degrades correctly for a **link-only
+  audit** (no `seoSummary`): single centered hexagon, no SEO sentence, 3-col numbers strip.
+- **Toolbar/label:** "SEO team fix list →" → **"SEO fix tracker →"**; section 04 links inline to the
+  tracker ("assign an owner and tick each one off").
+
+### Validation
+- **ESLint clean** on the file; demo client report serves **200** on :3100
+  (`/share/demo2382e97c4ca37540`).
+- Report body is client-rendered post-fetch → curl can't see it; the rendered output was shown to
+  the user as a plain text mock against the REAL demo payload (grade A / SEO 57 / 48 links / 8
+  pages) and **user-reviewed in-browser + approved** before commit.
+
+### Next (Step 4 of the agreed order): fill the two empty SEO Snapshot cells
+Performance = Core Web Vitals via the free Google PageSpeed Insights API (doc 04 G7); Security =
+HTTPS coverage (`is_https` per page) + mixed content + security headers HSTS/CSP (doc 04 G16). Both
+should also feed the two reports. This is the last item in the core-first order.
+
+### Open notes carried over (both still open)
+- Home "Choose Your Mode" still uses the two-card layout (both → `/audit`); collapse to one card if
+  wanted.
+- Results-page source has shallow indentation from Step 2's in-place edits (render + lint fine); no
+  Prettier in the project to auto-tidy.
+
+---
+
 ## 2026-07-18 — Step 2 (new order): RESULTS page cleanup — hand-off + collapsed detail
 
 ### Branch: `phase2-g-batch2-signals` (same flat branch). Committed, NOT pushed/merged.
