@@ -6,10 +6,11 @@
 
 `phase2-g-batch2-signals` (9 commits: §G batch 2 signals + dev-port pin + Steps 1–4 of the
 core-first order + the PSI timeout fix) **fast-forwarded into `main`** (`53db10c` → `2bb08b2`).
-Branch kept (not deleted). **NOT yet pushed** to `origin/main` — local `main` is 9 ahead, awaiting
-the user's push decision. Everything validated on the running dev server; both new SEO Snapshot
-cells (Security G16 / Performance G7) verified live end-to-end (fresh worker audit + live PSI with a
-real key). The "Committed, NOT pushed/merged" lines in the per-step entries below predate this merge.
+Branch kept (not deleted). **`origin/main` = `2bb08b2`** — the batch is on the remote (pushed;
+Claude did the local ff-merge but not the push). Everything validated on the running dev server;
+both new SEO Snapshot cells (Security G16 / Performance G7) verified live end-to-end (fresh worker
+audit + live PSI with a real key). The "Committed, NOT pushed/merged" lines in the per-step entries
+below predate this merge.
 
 ---
 
