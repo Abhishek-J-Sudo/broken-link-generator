@@ -2,6 +2,80 @@
 
 ---
 
+## 2026-07-18 — §G batch 2: presentation/query layer (G1/G12/G13) + dev port pin
+
+### Branch: `phase2-g-batch2-signals` (flat, off main — UNMERGED)
+
+Batch 1 built per-page SEO *extraction*; batch 2 is the lighter aggregation/UI layer
+over data already stored. Three items, all user-validated on the running dev server.
+Scope decisions (user, via question): G1 presentation-only, G13 reciprocity = sitewide
+critical finding (no per-page deduction), everything in the main results view only
+(share report untouched this batch).
+
+- **G13 — hreflang.** New `extractHreflang($, url)` in `seoDetector.js` → `signals.hreflang`
+  `{ present, count, entries[{lang,href,valid}], hasXDefault, selfReferences, invalidCodes[] }`.
+  Hrefs stored **absolute** (resolved against the page URL) so the rollup can match
+  reciprocal links. Lightweight BCP-47 check (`isValidHreflang`); invalid code → minor −2.
+  New exported `normalizeCompareUrl(u, base)` (trailing-slash/case/relative-safe) used by
+  both the detector (self-ref) and the sitewide rollup.
+- **G1 — duplicate titles/descriptions.** `detectDuplicates(rows)` in `supabase.js` groups
+  pages by whitespace-collapsed, lowercased title / description; 2+ URLs = a set. **No score
+  impact.**
+- **G13 reciprocity + rollup.** `summarizeHreflang(measured)` in `supabase.js`: broken
+  return-tags (only asserted between two crawled pages that BOTH carry hreflang — uncrawled/
+  external targets skipped, no false positives) + invalid-code pages. Both `detectDuplicates`
+  and `summarizeHreflang` are exported (unit-testable; may feed the share report later).
+- **Wiring.** `calculateSEOSummary` SELECT gained `url, title_text, meta_description`; returns
+  `duplicates` + `hreflang` alongside `indexability`. This JS path is the LIVE one — the
+  `/api/seo/summary` route calls `calculateSEOSummary` directly, NOT the `seo_job_summary`
+  view (view is legacy/unused). **No schema change** — hreflang nests in the existing
+  `signals` JSONB; rollups compute in JS.
+- **G12 — SERP preview.** New `SerpPreview.js` (`use client`): canvas-measured Arial
+  truncation at ~600px title / ~920px description (Google's boundaries), rendered per-page in
+  the EvidenceTable expanded row. **Title link is brand teal, not literal Google-blue** — a
+  deliberate on-brand call; flagged for the user, trivially switchable if they want realism.
+- **UI.** EvidenceTable: "Search result preview" block + an "hreflang" deeper-signal row.
+  Results page SEO Snapshot: "Duplicate content" + "International · hreflang" cells.
+- **Chore:** dev server pinned to **:3100** (`next dev -p 3100`, README updated) to stop
+  colliding with the separate `edmgen` Docker stack that owns host :3000.
+
+### UX fix mid-session (user hit it)
+
+The dup/hreflang block was first gated on `(duplicates || hreflang)` — so a clean/single-
+language site rendered NOTHING and looked broken. Changed to always render when SEO ran
+(`seoSummary && seoPages > 0`) with explicit "none found" states, so a clean result still
+confirms the checks executed.
+
+### Validation
+
+- **35/35 fixture checks** (temp `scripts/_tmp_g_batch2_test.mjs`, removed): BCP-47 valid/
+  invalid, extraction (abs-href resolution, x-default, self-ref, invalid codes), invalid-code
+  scoring, duplicate grouping (case/space-insensitive, empties skipped, single not flagged),
+  reciprocity (reciprocal clean / broken flagged / uncrawled skipped / single-lang null),
+  `normalizeCompareUrl`.
+- **ESLint clean** on all touched files.
+- **E2E:** real 24-page textfiles.com job surfaced real duplicate titles (7× "TEXTFILES DOT
+  COM"); synthetic multilingual job (`1111…`) flagged `/de` broken return tags + invalid
+  code `deutsch`; user's own yourrighttoknow run (`9994b42c`, 8 pages) came back clean on all
+  three. Results pages `200`.
+
+### Gotcha (recurring, hit again)
+
+After editing `supabase.js`, the running dev server served a STALE compiled summary (missing
+the new keys) until a **dev-server restart**. JS server modules don't always hot-swap;
+restart `npm run dev` when an API response shape looks wrong.
+
+### Next session
+
+- Commit is done on the branch (NOT merged, NOT pushed — awaiting user). Local dev has a
+  synthetic job `11111111-1111-1111-1111-111111111111` in Postgres (demo hreflang); drop it
+  when no longer needed: `DELETE FROM crawl_jobs WHERE id='1111…'`.
+- Standing pipeline (unchanged): deploy (VPS+Coolify — user provisions), accounts/quotas
+  before open access, §G remaining (G4 orphans, G5 internal links, G6 broken-link fix
+  suggestions, G7 CWV/PSI), trends B1–B3.
+
+---
+
 ## 2026-07-16 — Green→teal completion + a11y + token/Button hardening (MERGED to main)
 
 ### Branch: `phase2-ui-polish` → **fast-forwarded into `main` (`d52e70f`) and pushed**

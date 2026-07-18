@@ -8,6 +8,7 @@ import {
   pathOf,
   CLASS_SHORT,
 } from '@/lib/auditReport';
+import SerpPreview from './SerpPreview';
 
 const microLabel = 'font-mono text-[11px] uppercase tracking-[0.18em]';
 
@@ -502,6 +503,19 @@ function SeoPageDetails({ row, issueMessages }) {
         </div>
       </div>
 
+      {(row.seo_title || row.seo_metaDescription) && (
+        <div className="border-t border-border pt-4">
+          <span className={`${microLabel} text-text-subtle`}>Search result preview</span>
+          <div className="mt-3">
+            <SerpPreview
+              url={row.url}
+              title={row.seo_title?.text}
+              description={row.seo_metaDescription?.text}
+            />
+          </div>
+        </div>
+      )}
+
       {row.seo_signals && <SignalsDetails signals={row.seo_signals} />}
     </div>
   );
@@ -527,6 +541,13 @@ function SignalsDetails({ signals }) {
   const freshness = signals.freshness;
   const freshnessDate = freshness?.modifiedTime || freshness?.publishedTime || freshness?.lastModifiedHeader;
   const fundamentals = signals.fundamentals;
+
+  const hreflang = signals.hreflang;
+  const hreflangSummary = !hreflang?.present
+    ? null
+    : `${hreflang.count} alternate${hreflang.count === 1 ? '' : 's'}${
+        hreflang.hasXDefault ? ' · x-default' : ''
+      }${hreflang.selfReferences ? '' : ' · no self-reference'}`;
 
   return (
     <div className="border-t border-border pt-4">
@@ -591,6 +612,17 @@ function SignalsDetails({ signals }) {
             {freshness?.isStale ? <span className="text-danger"> · stale</span> : null}
           </span>
         </Detail>
+
+        {hreflangSummary && (
+          <Detail label="hreflang">
+            <span className="font-mono text-text-muted">
+              {hreflangSummary}
+              {hreflang.invalidCodes?.length > 0 ? (
+                <span className="text-danger"> · invalid: {hreflang.invalidCodes.join(', ')}</span>
+              ) : null}
+            </span>
+          </Detail>
+        )}
       </div>
     </div>
   );

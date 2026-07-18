@@ -1474,6 +1474,107 @@ export default function AuditReportPage() {
                       </div>
                     ))}
                   </div>
+
+                  {/* G1 duplicate content + G13 hreflang — always shown when SEO
+                      ran, so a clean site still confirms the checks executed. */}
+                  {seoSummary && seoPages > 0 && (
+                    <div className="mt-px grid grid-cols-1 gap-px border border-t-0 border-border bg-border lg:grid-cols-2">
+                      <div className="bg-surface p-5">
+                        <p className={`${microLabel} text-text-subtle`}>Duplicate content</p>
+                        {seoSummary.duplicates ? (
+                          <div className="mt-3 space-y-4">
+                            {[
+                              ['Titles', seoSummary.duplicates.titles],
+                              ['Meta descriptions', seoSummary.duplicates.descriptions],
+                            ]
+                              .filter(([, sets]) => sets.length > 0)
+                              .map(([label, sets]) => (
+                                <div key={label}>
+                                  <p className="font-mono text-xs text-danger">
+                                    {sets.length} duplicated {label.toLowerCase()}
+                                  </p>
+                                  <ul className="mt-2 space-y-2">
+                                    {sets.slice(0, 3).map((set) => (
+                                      <li key={set.value}>
+                                        <p className="truncate text-xs italic text-text-muted" title={set.value}>
+                                          “{set.value}”
+                                        </p>
+                                        <p className="font-mono text-[11px] text-text-subtle">
+                                          {set.count} pages · {set.urls.slice(0, 3).map(pathOf).join(', ')}
+                                          {set.urls.length > 3 ? ` +${set.urls.length - 3}` : ''}
+                                        </p>
+                                      </li>
+                                    ))}
+                                    {sets.length > 3 ? (
+                                      <li className="font-mono text-[11px] text-text-subtle">
+                                        +{sets.length - 3} more
+                                      </li>
+                                    ) : null}
+                                  </ul>
+                                </div>
+                              ))}
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-xs leading-relaxed text-text-subtle">
+                            No duplicate titles or descriptions across analyzed pages.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="bg-surface p-5">
+                        <p className={`${microLabel} text-text-subtle`}>International · hreflang</p>
+                        {seoSummary.hreflang ? (
+                          <div className="mt-3 space-y-3">
+                            <p className="font-mono text-xs text-text-muted">
+                              {seoSummary.hreflang.pages_with_hreflang} page
+                              {seoSummary.hreflang.pages_with_hreflang === 1 ? '' : 's'} declare hreflang
+                            </p>
+                            {seoSummary.hreflang.broken_return_tags.length > 0 && (
+                              <div>
+                                <p className="font-mono text-xs text-danger">
+                                  {seoSummary.hreflang.broken_return_tags.length} page
+                                  {seoSummary.hreflang.broken_return_tags.length === 1 ? '' : 's'} with
+                                  missing return tags
+                                </p>
+                                <p className="mt-1 text-xs leading-relaxed text-text-subtle">
+                                  Return tags must be reciprocal — Google ignores the whole set when a
+                                  linked page doesn&rsquo;t link back.
+                                </p>
+                                <ul className="mt-2 space-y-1">
+                                  {seoSummary.hreflang.broken_return_tags.slice(0, 5).map((b) => (
+                                    <li key={b.url} className="break-all font-mono text-[11px] text-text-muted">
+                                      {pathOf(b.url)}
+                                      <span className="text-text-subtle">
+                                        {' ↛ '}
+                                        {b.missingReturnFrom.map(pathOf).join(', ')}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {seoSummary.hreflang.invalid_code_pages.length > 0 && (
+                              <p className="font-mono text-xs text-danger">
+                                {seoSummary.hreflang.invalid_code_pages.length} page
+                                {seoSummary.hreflang.invalid_code_pages.length === 1 ? '' : 's'} with
+                                invalid language codes
+                              </p>
+                            )}
+                            {seoSummary.hreflang.broken_return_tags.length === 0 &&
+                              seoSummary.hreflang.invalid_code_pages.length === 0 && (
+                                <p className="font-mono text-xs text-text-muted">
+                                  return tags reciprocal · codes valid
+                                </p>
+                              )}
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-xs leading-relaxed text-text-subtle">
+                            No hreflang tags found — single-language site or not internationalized.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </section>
               </>
             )}

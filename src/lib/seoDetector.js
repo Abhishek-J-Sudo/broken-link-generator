@@ -3,6 +3,21 @@
 
 import * as cheerio from 'cheerio';
 
+/**
+ * Normalize a URL for equality comparison (hreflang reciprocity, self-reference):
+ * resolve relative to `base`, lowercase origin, drop trailing slash + hash.
+ * Falls back to a trimmed lowercase string when the URL can't be parsed.
+ */
+export function normalizeCompareUrl(u, base) {
+  try {
+    const parsed = base ? new URL(u, base) : new URL(u);
+    const path = parsed.pathname.replace(/\/+$/, '') || '/';
+    return (parsed.origin + path + parsed.search).toLowerCase();
+  } catch {
+    return (u || '').trim().toLowerCase();
+  }
+}
+
 export class LightweightSEODetector {
   constructor(options = {}) {
     this.options = {
@@ -46,6 +61,7 @@ export class LightweightSEODetector {
       const structuredData = this.extractStructuredData($);
       const fundamentals = this.extractFundamentals($, url);
       const freshness = this.extractFreshness($, structuredData, context.headers?.['last-modified']);
+      const hreflang = this.extractHreflang($, url);
       const wordCount = this.estimateWordCount($);
 
       const seoData = {
@@ -82,6 +98,7 @@ export class LightweightSEODetector {
           structuredData,
           fundamentals,
           freshness,
+          hreflang,
           robotsTxt: context.robotsTxt || null,
           // outline lives here because seo_analysis only has h1–h3 count columns
           headings: {
@@ -387,6 +404,64 @@ export class LightweightSEODetector {
   }
 
   /**
+   * hreflang alternate-language tags (G13). Extraction + per-tag BCP-47 validity;
+   * return-tag reciprocity is a cross-page property, resolved in the sitewide rollup.
+   * `entries[].href` is stored absolute (resolved against the page URL) so the rollup
+   * can match reciprocal links without re-resolving relative paths.
+   */
+  extractHreflang($, url) {
+    const links = $('link').filter(
+      (_, el) =>
+        (el.attribs.rel || '').trim().toLowerCase() === 'alternate' &&
+        (el.attribs.hreflang || '').trim() !== ''
+    );
+
+    const entries = [];
+    const invalidCodes = [];
+    let hasXDefault = false;
+    let selfReferences = false;
+    const selfNorm = normalizeCompareUrl(url);
+
+    links.each((_, el) => {
+      const lang = (el.attribs.hreflang || '').trim();
+      const langLower = lang.toLowerCase();
+      const rawHref = (el.attribs.href || '').trim();
+      const absHref = rawHref ? normalizeCompareUrl(rawHref, url) : '';
+      const valid = this.isValidHreflang(langLower);
+
+      if (langLower === 'x-default') hasXDefault = true;
+      else if (!valid) invalidCodes.push(lang.substring(0, 20));
+      if (absHref && absHref === selfNorm) selfReferences = true;
+
+      entries.push({
+        lang: lang.substring(0, 20),
+        href: (absHref || rawHref).substring(0, 500),
+        valid: valid || langLower === 'x-default',
+      });
+    });
+
+    return {
+      present: entries.length > 0,
+      count: entries.length,
+      entries: entries.slice(0, 40),
+      hasXDefault,
+      selfReferences,
+      invalidCodes: invalidCodes.slice(0, 10),
+    };
+  }
+
+  /**
+   * Lightweight BCP-47 check for hreflang values (Google's accepted shape):
+   * language (2–3 alpha) + optional script (4 alpha) + optional region (2 alpha / 3 digit).
+   * `x-default` is handled by the caller.
+   */
+  isValidHreflang(code) {
+    if (!code) return false;
+    if (code === 'x-default') return true;
+    return /^[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|\d{3}))?$/.test(code);
+  }
+
+  /**
    * Content freshness signals: OG article dates, JSON-LD dates, Last-Modified header (G14)
    */
   extractFreshness($, structuredData, lastModifiedHeader) {
@@ -632,6 +707,16 @@ export class LightweightSEODetector {
       issues.push({
         type: 'minor',
         message: `Content not updated in over 12 months (last signal ~${signals.freshness.ageMonths} months old)`,
+      });
+    }
+
+    // G13: hreflang — invalid BCP-47 codes are ignored by Google. Missing return
+    // tags (reciprocity) is a cross-page property, flagged sitewide not here.
+    if (signals.hreflang?.invalidCodes?.length > 0) {
+      score -= 2;
+      issues.push({
+        type: 'minor',
+        message: `Invalid hreflang code(s): ${signals.hreflang.invalidCodes.join(', ')} — ignored by search engines`,
       });
     }
 

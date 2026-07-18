@@ -3,11 +3,88 @@
 // ./pg.js that implements the query-builder subset this app uses. The exports
 // below keep the historical `supabase` / `db` names so route code is unchanged.
 import { pgClient, query } from './pg.js';
+import { normalizeCompareUrl } from './seoDetector.js';
 
 // `supabase` / `supabaseAdmin` are the same plain-Postgres client. There is no
 // anon/service split anymore — the app is server-only and owns the database.
 export const supabase = pgClient;
 export const supabaseAdmin = pgClient;
+
+/**
+ * G1: group SEO rows by whitespace-collapsed, lowercased title / description and
+ * return the sets shared by 2+ URLs. Empty values are skipped (already flagged as
+ * "missing" per page). Presentation-only — never touches per-page scores.
+ */
+export function detectDuplicates(rows) {
+  const norm = (s) => (s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const group = (field) => {
+    const map = new Map();
+    for (const r of rows) {
+      const key = norm(r[field]);
+      if (!key) continue;
+      if (!map.has(key)) map.set(key, { value: r[field].trim().replace(/\s+/g, ' '), urls: [] });
+      map.get(key).urls.push(r.url);
+    }
+    return [...map.values()]
+      .filter((g) => g.urls.length > 1)
+      .map((g) => ({ value: g.value.substring(0, 300), count: g.urls.length, urls: g.urls.slice(0, 25) }))
+      .sort((a, b) => b.count - a.count);
+  };
+
+  const titles = group('title_text');
+  const descriptions = group('meta_description');
+  return titles.length || descriptions.length ? { titles, descriptions } : null;
+}
+
+/**
+ * G13: sitewide hreflang rollup — invalid BCP-47 codes and broken return-tag
+ * reciprocity. Reciprocity is only assertable between two crawled pages that both
+ * carry hreflang; a link to an uncrawled/external target is skipped rather than
+ * flagged (avoids false positives on partial crawls). Returns null for
+ * single-language sites so it adds no noise.
+ */
+export function summarizeHreflang(measured) {
+  const pages = measured.filter(
+    (d) => d.signals.hreflang?.present && d.signals.hreflang.entries?.length
+  );
+  if (pages.length === 0) return null;
+
+  // normalized page URL -> { url, targets: Set<normalized href> }
+  const pageMap = new Map();
+  for (const d of pages) {
+    const self = normalizeCompareUrl(d.url);
+    const targets = new Set();
+    for (const e of d.signals.hreflang.entries) {
+      if ((e.lang || '').toLowerCase() === 'x-default') continue;
+      const t = normalizeCompareUrl(e.href, d.url);
+      if (t && t !== self) targets.add(t);
+    }
+    pageMap.set(self, { url: d.url, targets });
+  }
+
+  const brokenReturnTags = [];
+  for (const [self, info] of pageMap) {
+    const missingReturnFrom = [];
+    for (const t of info.targets) {
+      const other = pageMap.get(t);
+      if (!other) continue; // target not in this crawl — can't assert reciprocity
+      if (!other.targets.has(self)) missingReturnFrom.push(other.url);
+    }
+    if (missingReturnFrom.length > 0) {
+      brokenReturnTags.push({ url: info.url, missingReturnFrom: missingReturnFrom.slice(0, 15) });
+    }
+  }
+
+  const invalidCodePages = measured
+    .filter((d) => d.signals.hreflang?.invalidCodes?.length)
+    .map((d) => ({ url: d.url, codes: d.signals.hreflang.invalidCodes.slice(0, 10) }));
+
+  return {
+    pages_with_hreflang: pages.length,
+    invalid_code_pages: invalidCodePages.slice(0, 25),
+    broken_return_tags: brokenReturnTags.slice(0, 25),
+  };
+}
 
 // Database helper functions
 export const db = {
@@ -456,7 +533,9 @@ export const db = {
     try {
       const { data, error } = await supabase
         .from('seo_analysis')
-        .select('seo_score, seo_grade, is_https, response_time, issues_count, signals')
+        .select(
+          'url, title_text, meta_description, seo_score, seo_grade, is_https, response_time, issues_count, signals'
+        )
         .eq('job_id', jobId);
 
       if (error) throw error;
@@ -472,6 +551,8 @@ export const db = {
           https_pages: 0,
           avg_response_time: 0,
           indexability: null,
+          duplicates: null,
+          hreflang: null,
         };
       }
 
@@ -493,6 +574,16 @@ export const db = {
               indexable: measured.length - hidden,
             }
           : null;
+
+      // G1: sitewide duplicate title / meta description detection (presentation
+      // only — no score impact). Group pages by whitespace-collapsed, lowercased
+      // value; a group of 2+ URLs is a duplicate set.
+      const duplicates = detectDuplicates(data);
+
+      // G13: hreflang return-tag reciprocity + invalid-code rollup. Reciprocity is
+      // only assertable between two crawled pages that both carry hreflang; a page
+      // pointing to an uncrawled/external target is skipped (can't prove a fault).
+      const hreflang = summarizeHreflang(measured);
 
       const gradeDistribution = {
         grade_a_count: data.filter((d) => d.seo_grade === 'A').length,
@@ -518,6 +609,8 @@ export const db = {
               data.filter((d) => d.response_time).length
           ) || 0,
         indexability,
+        duplicates,
+        hreflang,
       };
     } catch (error) {
       console.error('❌ Error calculating SEO summary:', error);
