@@ -1,7 +1,7 @@
 // src/app/page.js — Landing page, doc 06 §6 wireframe in the "Typeset Audit" language.
 import Link from 'next/link';
 import Button from '@/app/components/Button';
-import LargeCrawlForm from '@/app/components/LargeCrawlForm';
+import HeroUrlForm from '@/app/components/HeroUrlForm';
 import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
 import LegalTerms from './components/LegalTerms';
@@ -64,18 +64,7 @@ export default function HomePage() {
                 SeoScrub crawls every page, link and asset on your site &mdash; then writes broken
                 links, redirect chains and SEO defects into one prioritized, client-ready report.
               </p>
-              <div className="flex flex-wrap items-center gap-5 mb-10">
-                <Button href="/analyze" size="lg">
-                  Start Full Audit
-                  <span aria-hidden="true">&rarr;</span>
-                </Button>
-                <Link
-                  href="#quick-check"
-                  className="font-medium text-text underline decoration-action decoration-2 underline-offset-4 hover:text-action transition-colors duration-200"
-                >
-                  or run a Quick Check below
-                </Link>
-              </div>
+              <HeroUrlForm />
               <p className={`${microLabel} text-text-subtle`}>
                 1,000+ pages per crawl &mdash; HTTP &middot; Redirects &middot; SEO &mdash; CSV /
                 JSON export
@@ -191,7 +180,7 @@ export default function HomePage() {
           <SectionHeading
             serial="&#8470; 02"
             label="Choose Your Mode"
-            title="Two ways in. One report out."
+            title="Two modes. One report out."
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-border border border-border">
             <div className="bg-surface p-8">
@@ -225,7 +214,7 @@ export default function HomePage() {
                   Optional SEO checks: titles, meta, headings, alt text
                 </li>
               </ul>
-              <Button href="/analyze" size="md">
+              <Button href="/audit" size="md">
                 Start Full Audit
                 <span aria-hidden="true">&rarr;</span>
               </Button>
@@ -233,8 +222,8 @@ export default function HomePage() {
             <div className="bg-surface p-8">
               <h3 className="font-display text-2xl text-text mb-4">Quick Check</h3>
               <p className="text-sm text-text-muted leading-relaxed mb-6">
-                A straight crawl, right from this page &mdash; best for smaller sites, fast
-                validation, and technical users who already know what they&rsquo;re looking for.
+                A straight crawl &mdash; best for smaller sites, fast validation, and technical
+                users who already know what they&rsquo;re looking for.
               </p>
               <ul className="space-y-2 mb-8 text-sm text-text-muted">
                 <li className="flex gap-3">
@@ -257,45 +246,13 @@ export default function HomePage() {
                 </li>
               </ul>
               <Link
-                href="#quick-check"
+                href="/audit"
                 className="inline-flex items-center gap-2 rounded-md border border-border-strong px-5 py-2.5 text-sm font-medium text-text hover:border-action hover:text-action transition-colors duration-200"
               >
                 Run a Quick Check
-                <span aria-hidden="true">&darr;</span>
+                <span aria-hidden="true">&rarr;</span>
               </Link>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Quick Check (working form) — emphasized dark band ────────────── */}
-      <section
-        id="quick-check"
-        className="relative overflow-hidden border-t border-border bg-surface-inverse scroll-mt-16"
-      >
-        <div
-          aria-hidden="true"
-          className="texture-honeycomb pointer-events-none absolute inset-0 text-text-on-inverse opacity-[0.03]"
-        />
-        <div
-          aria-hidden="true"
-          className="texture-honeycomb hex-wave-frame pointer-events-none absolute inset-0 text-action opacity-[0.14]"
-        >
-          <div className="hex-wave-band" />
-        </div>
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <SectionHeading
-            inverse
-            serial="&#8470; 03"
-            label="Quick Check"
-            title="Run it right here."
-          />
-          <p className="-mt-4 mb-10 max-w-xl text-sm leading-relaxed text-text-on-inverse-muted">
-            Point it at a site and go &mdash; live progress the whole way, results as a full
-            evidence table you can export.
-          </p>
-          <div className="border border-border-inverse bg-surface p-6 sm:p-8">
-            <LargeCrawlForm />
           </div>
         </div>
       </section>
@@ -305,7 +262,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
             <div className="lg:col-span-4">
-              <SectionHeading serial="&#8470; 04" label="Methodology" title="Common questions" />
+              <SectionHeading serial="&#8470; 03" label="Methodology" title="Common questions" />
               <p className="text-sm text-text-muted leading-relaxed">
                 Built for developers shipping fixes, SEO consultants writing recommendations, and
                 agencies sending client-ready reports.
@@ -344,17 +301,17 @@ export default function HomePage() {
       <section className="relative overflow-hidden border-t border-border">
         <HoneycombMesh className="opacity-80" />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <p className={`${microLabel} text-action mb-3`}>&#8470; 05 &middot; Start Now</p>
+          <p className={`${microLabel} text-action mb-3`}>&#8470; 04 &middot; Start Now</p>
           <h2 className="font-display text-4xl md:text-5xl text-text mb-8 max-w-2xl">
             Ready to see what&rsquo;s broken?
           </h2>
           <div className="flex flex-wrap items-center gap-5">
-            <Button href="/analyze" size="lg">
-              Start Full Audit
+            <Button href="/audit" size="lg">
+              Start Audit
               <span aria-hidden="true">&rarr;</span>
             </Button>
             <Link
-              href="#quick-check"
+              href="/audit"
               className="font-medium text-text underline decoration-action decoration-2 underline-offset-4 hover:text-action transition-colors duration-200"
             >
               Quick Check

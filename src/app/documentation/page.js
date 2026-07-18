@@ -184,15 +184,13 @@ export default function DocumentationPage() {
             >
               <ol className="space-y-8">
                 <Step n="01" title="Point it at a site">
-                  Enter a complete URL, including https://. The Quick Check form on the{' '}
-                  <Link href="/#quick-check" className="text-action hover:underline">
-                    homepage
-                  </Link>{' '}
-                  starts a crawl immediately; the{' '}
-                  <Link href="/analyze" className="text-action hover:underline">
-                    Full Audit setup
-                  </Link>{' '}
-                  gives you the full set of controls.
+                  Enter a complete URL, including https://, on the{' '}
+                  <Link href="/audit" className="text-action hover:underline">
+                    audit setup page
+                  </Link>
+                  . Pick <span className="text-text">Quick Check</span> for a fast straight crawl,
+                  or <span className="text-text">Full Audit</span> for the full set of controls and
+                  the optional SEO review.
                 </Step>
                 <Step n="02" title="Choose depth and checks">
                   Crawl depth (1&ndash;5) decides how far from the start page the crawler follows
@@ -217,15 +215,15 @@ export default function DocumentationPage() {
               id="modes"
               serial="&sect; 02"
               label="Modes &amp; Settings"
-              title="Two ways in, and what the knobs do"
+              title="Two modes, and what the knobs do"
             >
               <div className="mb-8 grid grid-cols-1 gap-px border border-border bg-border md:grid-cols-2">
                 <div className="bg-surface p-6 sm:p-8">
                   <h3 className="mb-3 font-display text-2xl text-text">Full Audit</h3>
                   <p className="mb-5 text-sm leading-relaxed text-text-muted">
-                    The complete workflow at{' '}
-                    <Link href="/analyze" className="text-action hover:underline">
-                      /analyze
+                    The complete workflow on the{' '}
+                    <Link href="/audit" className="text-action hover:underline">
+                      audit setup page
                     </Link>
                     : estimate the scope before committing, tune every setting, and review
                     previous audits in the ledger below the form.
@@ -241,9 +239,9 @@ export default function DocumentationPage() {
                 <div className="bg-surface p-6 sm:p-8">
                   <h3 className="mb-3 font-display text-2xl text-text">Quick Check</h3>
                   <p className="mb-5 text-sm leading-relaxed text-text-muted">
-                    The form on the{' '}
-                    <Link href="/#quick-check" className="text-action hover:underline">
-                      homepage
+                    The Quick Check mode on the{' '}
+                    <Link href="/audit" className="text-action hover:underline">
+                      audit setup page
                     </Link>
                     : a straight crawl with the two settings that matter most, for fast validation
                     on smaller sites.
@@ -434,15 +432,15 @@ export default function DocumentationPage() {
             <div>
               <BrandRule className="mb-10" />
               <div className="flex flex-wrap items-center gap-5">
-                <Button href="/analyze" size="md">
-                  Start Full Audit
+                <Button href="/audit" size="md">
+                  Start an Audit
                   <span aria-hidden="true">&rarr;</span>
                 </Button>
                 <Link
-                  href="/#quick-check"
+                  href="/audits"
                   className="font-medium text-text underline decoration-action decoration-2 underline-offset-4 transition-colors duration-200 hover:text-action"
                 >
-                  or run a Quick Check
+                  or review past audits
                 </Link>
               </div>
             </div>

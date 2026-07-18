@@ -34,18 +34,18 @@ export default function Footer() {
             <ul className="space-y-3 text-sm">
               <li>
                 <Link
-                  href="/analyze"
+                  href="/audit"
                   className="text-text-muted hover:text-text transition-colors duration-200"
                 >
-                  Full Audit
+                  Start Audit
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/#quick-check"
+                  href="/audits"
                   className="text-text-muted hover:text-text transition-colors duration-200"
                 >
-                  Quick Check
+                  My audits
                 </Link>
               </li>
               <li>

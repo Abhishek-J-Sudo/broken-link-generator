@@ -157,7 +157,7 @@ export default function AuditReportPage() {
   const [exporting, setExporting] = useState(null); // 'csv' | 'json' | 'seo' | null
   const [sharePath, setSharePath] = useState(null); // '/share/<token>' once created
   const [shareBusy, setShareBusy] = useState(false);
-  const [shareCopied, setShareCopied] = useState(false);
+  const [copiedWhich, setCopiedWhich] = useState(null); // 'client' | 'fixlist' | null
 
   const [aiNarrative, setAiNarrative] = useState(null);
 
@@ -303,6 +303,16 @@ export default function AuditReportPage() {
     }
   };
 
+  const copyLink = async (path, which) => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
+      setCopiedWhich(which);
+      setTimeout(() => setCopiedWhich((w) => (w === which ? null : w)), 2000);
+    } catch {
+      // clipboard blocked — the link is still visible to copy manually
+    }
+  };
+
   const createShareLink = async () => {
     setShareBusy(true);
     try {
@@ -313,9 +323,7 @@ export default function AuditReportPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not create the share link');
       setSharePath(data.path);
-      await navigator.clipboard.writeText(`${window.location.origin}${data.path}`);
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2500);
+      copyLink(data.path, 'client'); // copy the client link straight away as a convenience
     } catch (err) {
       setFindingsError(err.message);
     } finally {
@@ -332,6 +340,7 @@ export default function AuditReportPage() {
       });
       if (!response.ok) throw new Error('Could not revoke the share link');
       setSharePath(null);
+      setCopiedWhich(null);
     } catch (err) {
       setFindingsError(err.message);
     } finally {
@@ -511,7 +520,7 @@ export default function AuditReportPage() {
             <p className={`${microLabel} text-danger`}>Report unavailable</p>
             <p className="mt-2 text-sm leading-relaxed text-text">{fatalError}</p>
             <Link
-              href="/analyze"
+              href="/audit"
               className="mt-4 inline-block font-mono text-xs text-text underline decoration-border-strong underline-offset-4 hover:text-action hover:decoration-action"
             >
               &larr; Back to audit setup
@@ -585,15 +594,9 @@ export default function AuditReportPage() {
                         type="button"
                         onClick={sharePath ? revokeShareLink : createShareLink}
                         disabled={shareBusy}
-                        title="Creates a public read-only link to the client report and copies it to the clipboard"
+                        title="Creates a public, read-only share link. The client report and the SEO fix list share the same link."
                       >
-                        {shareBusy
-                          ? 'Working…'
-                          : sharePath
-                            ? shareCopied
-                              ? 'Link copied ✓ (click to revoke)'
-                              : 'Revoke share link'
-                            : 'Share client report'}
+                        {shareBusy ? 'Working…' : sharePath ? 'Revoke share link' : 'Share report'}
                       </Button>
                       <Button
                         variant="secondary"
@@ -630,7 +633,7 @@ export default function AuditReportPage() {
                     </>
                   )}
                   <Link
-                    href="/analyze"
+                    href="/audit"
                     className="font-mono text-xs text-text underline decoration-border-strong underline-offset-4 transition-colors hover:text-action hover:decoration-action"
                   >
                     New audit <span aria-hidden="true">&rarr;</span>
@@ -638,6 +641,66 @@ export default function AuditReportPage() {
                 </div>
               </div>
             </div>
+
+            {/* ── Share links — one token, two views (client + SEO team) ─ */}
+            {sharePath && (
+              <section className="mb-14 border border-border bg-surface p-5 sm:p-6">
+                <div className="mb-4 flex items-center gap-4">
+                  <p className={`${microLabel} shrink-0 text-action`}>Share links</p>
+                  <span className="h-px flex-1 bg-border" aria-hidden="true" />
+                  <button
+                    type="button"
+                    onClick={revokeShareLink}
+                    disabled={shareBusy}
+                    className="shrink-0 font-mono text-xs text-text-subtle underline decoration-border-strong underline-offset-4 transition-colors hover:text-danger hover:decoration-danger"
+                  >
+                    revoke
+                  </button>
+                </div>
+                <p className="mb-5 max-w-2xl text-sm leading-relaxed text-text-muted">
+                  One link, two views — the same read-only token. Send the client report to
+                  stakeholders; send the SEO fix list to whoever does the work.
+                </p>
+                <div className="grid gap-px border border-border bg-border sm:grid-cols-2">
+                  {[
+                    {
+                      key: 'client',
+                      label: 'Client report',
+                      hint: 'Plain-English health summary for clients and managers.',
+                      path: sharePath,
+                    },
+                    {
+                      key: 'fixlist',
+                      label: 'SEO fix list · team tracker',
+                      hint: 'Every broken link and SEO issue as an editable work board.',
+                      path: `${sharePath}/fix-list`,
+                    },
+                  ].map((item) => (
+                    <div key={item.key} className="bg-surface p-4">
+                      <p className="text-sm font-medium text-text">{item.label}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-text-muted">{item.hint}</p>
+                      <div className="mt-3 flex flex-wrap items-center gap-4">
+                        <Link
+                          href={item.path}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-xs text-text underline decoration-border-strong underline-offset-4 transition-colors hover:text-action hover:decoration-action"
+                        >
+                          Open <span aria-hidden="true">&rarr;</span>
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => copyLink(item.path, item.key)}
+                          className="font-mono text-xs text-action underline decoration-action/40 underline-offset-4 transition-colors hover:decoration-action"
+                        >
+                          {copiedWhich === item.key ? 'Copied ✓' : 'Copy link'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* ── Live progress (running / queued) ────────────────────── */}
             {isRunning && (
@@ -769,7 +832,7 @@ export default function AuditReportPage() {
                     'The crawl hit an error it could not recover from. Run a fresh audit — transient network problems account for most failures.'}
                 </p>
                 <Link
-                  href="/analyze"
+                  href="/audit"
                   className="mt-4 inline-block font-mono text-xs text-text underline decoration-border-strong underline-offset-4 hover:text-action hover:decoration-action"
                 >
                   Run a new audit &rarr;

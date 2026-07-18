@@ -38,6 +38,54 @@ job `11111111-1111-1111-1111-111111111111`.
 
 ---
 
+## 2026-07-18 — Step 1 (new order): journey map + routing fixes
+
+### Branch: `phase2-g-batch2-signals` (same flat branch — user: keep everything here). Committed, NOT pushed/merged.
+
+Picked up the **"map the journey → fix routing"** step (per `project-product-priorities`). Mapped
+every page + its audience, showed the user the current-state map, they confirmed **four** routing
+problems and settled **two** forks (Quick Check → "one door via setup"; `/analyze` → rename to
+`/audit`). Then mid-build the user sanity-checked removing the homepage form — we reconciled with a
+hero URL box instead of a full revert. All validated on the running dev server (:3100).
+
+1. **`/analyze` → `/audit` (route rename).** Folder `git mv`'d; `/analyze` now **308-redirects** to
+   `/audit` (`next.config.js` `redirects()`); every internal link + documentation copy updated.
+   `/api/analyze` (the URL sampler) is unchanged — only the *page* route moved. The "analyze" name
+   was a ghost: the page has been Audit Setup since the 3-step wizard was removed.
+2. **One door (home consolidation).** Removed the inline Quick Check form and **deleted the now-unused
+   `LargeCrawlForm.js`**; all `#quick-check` anchors gone. Replaced the hero CTAs with a single
+   **URL box (`components/HeroUrlForm.js`)** that hands off to **`/audit?url=…`** (bare domain
+   auto-`https`'d); `/audit` prefills the field from `?url=` on mount (client `useEffect`, no SSR
+   window access). Keeps ONE place to configure/start an audit while restoring the homepage
+   "paste & go" hook — the user flagged pure-removal as a regression, this box (no competing
+   settings) was the agreed fix. Home section serials renumbered (§04→§03, §05→§04).
+3. **Audit history route.** Extracted the "Previous Audits" ledger into shared
+   **`components/PreviousAudits.js`** (props: `heading`, `className`); new **`/audits`** page
+   (Header/Footer + ledger + "New audit" CTA). "My audits" added to header nav + footer Product
+   column (replaced the redundant second Quick Check link). Setup page now imports the shared
+   component instead of defining it inline.
+4. **Tracker un-buried.** `/results/[jobId]` button **"Share client report" → "Share report"**;
+   once a token exists a new **Share-links panel** reveals BOTH `/share/[token]` (client report)
+   and `/share/[token]/fix-list` (SEO team tracker), each with Open + Copy. `shareCopied` bool →
+   `copiedWhich` (`'client'|'fixlist'`), new `copyLink(path, which)` helper. Both views share the
+   same read-only token (no new endpoint).
+
+### Validation
+- **ESLint clean** on all touched/new files.
+- Live on :3100 (Basic Auth `admin` / `seoscrub@2026`): `/`, `/audit`, `/audits`, `/documentation`,
+  `/results/[job]`, `/share/[token]`, `/share/[token]/fix-list`, `/audit?url=…` all **`200`**;
+  `/analyze` → **`308 → /audit`**; `/api/jobs/recent` `200`.
+- **No browser driver** in the project (fetch-based crawler, no Playwright/Puppeteer) — routes
+  verified via curl; the UI itself was left for the user's in-browser review.
+
+### Open / next
+- One judgment call flagged to the user: home "Choose Your Mode" keeps the two-card (Full/Quick)
+  layout, both cards → `/audit`. Collapsible to one card if they want.
+- **Next (Step 2 of the agreed order): clean up the RESULTS page.** Then Step 3 (non-tech client
+  report — see `project-report-structure-open`), Step 4 (fill Performance G7 / Security G16 cells).
+
+---
+
 ## 2026-07-18 — Item #1: SEO fix-list → editable TRACKER + results-500 fix
 
 ### Branch: `phase2-g-batch2-signals` (user: keep everything on this ONE branch — "we cant have

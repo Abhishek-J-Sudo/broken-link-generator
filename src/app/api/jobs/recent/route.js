@@ -1,5 +1,5 @@
 /**
- * Recent crawl jobs — feeds the "Previous Audits" ledger on /analyze.
+ * Recent crawl jobs — feeds the "Previous Audits" ledger on /audit and /audits.
  * Read-only, gated by the app-wide Basic Auth middleware like every route.
  */
 

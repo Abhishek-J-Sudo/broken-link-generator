@@ -104,6 +104,12 @@ const nextConfig = {
         destination: '/',
         permanent: false,
       },
+      {
+        // Audit Setup used to live at /analyze; keep old links working.
+        source: '/analyze',
+        destination: '/audit',
+        permanent: true,
+      },
     ];
   },
 

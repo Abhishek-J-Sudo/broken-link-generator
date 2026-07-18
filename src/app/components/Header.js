@@ -11,6 +11,7 @@ export default function Header() {
 
   const navLinks = [
     { href: '/#how-it-works', label: 'How It Works' },
+    { href: '/audits', label: 'My audits' },
     { href: '/documentation', label: 'Documentation' },
   ];
 
@@ -46,7 +47,7 @@ export default function Header() {
               </Link>
             ))}
             <ThemeToggle />
-            <Button href="/analyze" size="sm">
+            <Button href="/audit" size="sm">
               Start Audit
               <span aria-hidden="true">&rarr;</span>
             </Button>
@@ -96,7 +97,7 @@ export default function Header() {
                 </Link>
               ))}
               <Button
-                href="/analyze"
+                href="/audit"
                 size="sm"
                 className="mt-3 w-fit"
                 onClick={() => setIsMobileMenuOpen(false)}

@@ -1,4 +1,4 @@
-// src/app/analyze/page.js — Audit setup (doc 06 §7) in the "Typeset Audit" language.
+// src/app/audit/page.js — Audit setup (doc 06 §7) in the "Typeset Audit" language.
 // Setup only: starting an audit navigates to /results/[jobId], where progress
 // and the report live. The old three-step wizard (analyze → crawl → results)
 // is gone; the URL pre-scan survives as an optional "Estimate scope" step.
@@ -6,11 +6,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
 import SecurityNotice from '@/app/components/SecurityNotice';
 import Button from '@/app/components/Button';
+import PreviousAudits from '@/app/components/PreviousAudits';
 import { getCsrfToken } from '@/lib/csrf-client';
 
 const microLabel = 'font-mono text-[11px] uppercase tracking-[0.18em]';
@@ -21,14 +21,6 @@ function hostnameOf(url) {
   } catch {
     return url;
   }
-}
-
-function ledgerDate(value) {
-  const d = new Date(value);
-  if (!value || isNaN(d)) return '—';
-  return d
-    .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    .toUpperCase();
 }
 
 function depthBand(maxDepth) {
@@ -73,105 +65,20 @@ function SidebarHeading({ children }) {
   );
 }
 
-/* ── Previous audits ledger ─────────────────────────────────────────── */
-const STATUS_TONE = {
-  completed: 'text-success',
-  running: 'text-info',
-  queued: 'text-info',
-  failed: 'text-danger',
-  stopped: 'text-warning',
-};
-
-function brokenReadout(job) {
-  if (job.status === 'completed' || job.status === 'stopped') return `${job.brokenCount} broken`;
-  if (job.status === 'running') return `${job.brokenCount} so far`;
-  return '—';
-}
-
-function PreviousAudits() {
-  const [state, setState] = useState({ status: 'loading', jobs: [] });
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const response = await fetch('/api/jobs/recent');
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to load');
-        if (!cancelled) setState({ status: 'done', jobs: data.jobs || [] });
-      } catch {
-        if (!cancelled) setState({ status: 'error', jobs: [] });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return (
-    <section className="mt-16 lg:mt-20">
-      <div className="mb-6 flex items-center gap-4">
-        <p className={`${microLabel} shrink-0 text-text-subtle`}>Previous Audits</p>
-        <span className="h-px flex-1 bg-border" aria-hidden="true" />
-      </div>
-
-      {state.status === 'loading' && (
-        <p className="font-mono text-xs text-text-subtle">Loading the ledger&hellip;</p>
-      )}
-      {state.status === 'error' && (
-        <p className="text-sm text-text-muted">Couldn&rsquo;t load recent audits.</p>
-      )}
-      {state.status === 'done' && state.jobs.length === 0 && (
-        <p className="text-sm text-text-muted">
-          No audits yet &mdash; your first report will appear here.
-        </p>
-      )}
-
-      {state.jobs.length > 0 && (
-        <div className="divide-y divide-border border-y border-border">
-          {state.jobs.map((job) => (
-            <Link
-              key={job.id}
-              href={`/results/${job.id}`}
-              className="group flex flex-wrap items-baseline gap-x-4 gap-y-1 px-1 py-3.5 transition-colors hover:bg-surface-subtle sm:flex-nowrap sm:gap-x-6"
-            >
-              <span className="min-w-0 truncate font-mono text-sm text-text">
-                {hostnameOf(job.url)}
-              </span>
-              <span
-                className="hidden flex-1 border-b border-dotted border-border-strong sm:block"
-                aria-hidden="true"
-              />
-              <span className="shrink-0 font-mono text-xs text-text-subtle">
-                {ledgerDate(job.createdAt)}
-              </span>
-              <span
-                className={`shrink-0 font-mono text-xs ${
-                  STATUS_TONE[job.status] || 'text-text-muted'
-                }`}
-              >
-                {job.status}
-              </span>
-              <span className="shrink-0 font-mono text-xs text-text-muted sm:w-20 sm:text-right">
-                {brokenReadout(job)}
-              </span>
-              <span className="shrink-0 font-mono text-xs text-text underline decoration-border-strong underline-offset-4 transition-colors group-hover:text-action group-hover:decoration-action">
-                View report <span aria-hidden="true">&rarr;</span>
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
 /* ── Page ───────────────────────────────────────────────────────────── */
 export default function AuditSetupPage() {
   const router = useRouter();
 
   const [url, setUrl] = useState('');
   const [auditType, setAuditType] = useState('full');
+
+  // Pre-fill the URL when arriving from the homepage hero box (/audit?url=…).
+  // Read on the client after mount to avoid touching window during SSR.
+  useEffect(() => {
+    const prefill = new URLSearchParams(window.location.search).get('url');
+    if (prefill) setUrl(prefill);
+  }, []);
+
   const [maxDepth, setMaxDepth] = useState(3);
   const [includeExternal, setIncludeExternal] = useState(false);
   const [enableSEO, setEnableSEO] = useState(true);
