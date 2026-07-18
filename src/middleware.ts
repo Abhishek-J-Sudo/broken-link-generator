@@ -21,7 +21,7 @@ const PUBLIC_PATHS = ['/api/health'];
 
 // Prefix-matched public paths: shareable client reports are read-only and
 // gated by their own unguessable token (validated in the route, not here).
-const PUBLIC_PREFIXES = ['/share/', '/api/share/view/'];
+const PUBLIC_PREFIXES = ['/share/', '/api/share/view/', '/api/share/tracker/'];
 
 // Paths using their own token — don't double-gate with Basic Auth.
 const TOKEN_AUTH_PATHS = ['/api/admin/cleanup'];

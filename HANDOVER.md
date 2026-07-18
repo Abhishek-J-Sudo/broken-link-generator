@@ -9,7 +9,8 @@ Mid-session the user redirected priorities away from the "standing pipeline." **
 new north star is **the two-audience report system + filling the hollow core**, to be tackled
 **one item per new chat** (user's plan). Ordered backlog:
 
-1. **SEO-team fix-list → a real TRACKER (the user's "REAL MAIN THING").** A two-report split
+1. **SEO-team fix-list → a real TRACKER (the user's "REAL MAIN THING").** ✅ DONE 2026-07-18
+   (see the session entry directly below this banner). A two-report split
    ALREADY EXISTS and the user hadn't seen it: `/share/[token]` (client report) +
    `/share/[token]/fix-list` ("SEO Team Fix List", `buildSeoFixList` in `seoChecks.js`). The
    gap: the fix-list is a findings *list*, not a *tracker*. The SEO/content team must be able
@@ -34,6 +35,77 @@ the core cells** the product visibly promises. Sequence future work core-first.
 Demo assets left in local Postgres for the next chat (drop when done):
 `share_token='demo2382e97c4ca37540'` on job `9994b42c` → view both reports; synthetic hreflang
 job `11111111-1111-1111-1111-111111111111`.
+
+---
+
+## 2026-07-18 — Item #1: SEO fix-list → editable TRACKER + results-500 fix
+
+### Branch: `phase2-g-batch2-signals` (user: keep everything on this ONE branch — "we cant have
+1000 branches for minor features"). Committed, NOT pushed, NOT merged.
+
+The `/share/[token]/fix-list` SEO section is now a **shared, editable work board** — one row per
+issue with the user's own 15-column spec. Everyone on the share link sees/edits the same board;
+edits save straight to the report.
+
+**Scope the user pinned:** SEO tracker only — the broken-**links** report is UNTOUCHED. Notices
+(Twitter card / "no date signals" — unscored observations) are EXCLUDED from the board (real
+issues only: 56 not 71 on the demo). Column order (their spec, verbatim): `Issue ID · Priority ·
+Status · Owner · Severity · Category · Issue · Full Page URL · Measured Value · Recommended Fix ·
+Target Date · Fixed Date · Validation Status · Notes · Evidence`. Grey/derived columns are
+read-only; the 8 white ones are team-editable (Priority/Status/Owner/Target/Fixed/Validation/
+Notes/Evidence).
+
+**Persistence.** New `crawl_jobs.seo_tracker JSONB DEFAULT '{}'` (CREATE + idempotent ALTER in
+`database/init.sql`; applied to the local DB). Map of **stable key `${checkId}::${url}`** →
+team fields (stable so a saved Status/Owner stays attached even if row order changes; the
+displayed `SEO-00n` id is positional/cosmetic). Served as `seoTracker` in the
+`/api/share/view/[token]` payload. Share-view `Cache-Control` changed `private,max-age=300` →
+**`no-store`** so a saved edit shows on reload (stale cache looked like "my edit vanished").
+
+**Write endpoint (new).** `POST /api/share/tracker/[token]` — **public, token-gated** (same
+trust model as viewing: whoever holds the link can tick off the board). Saves ONE field/call via
+`jsonb_set(... || patch)` merge so concurrent edits to different fields don't clobber. Validates
+field allow-list + enum options (Priority/Status/Validation) + per-field length caps; rate-limited
+(`results` bucket); only `completed`/`stopped` jobs. Middleware `PUBLIC_PREFIXES` gained
+`'/api/share/tracker/'` (verified other `/api/*` still 401).
+
+**Shared derivation (new) `src/lib/seoTracker.js`.** `buildSeoTrackerRows(pages)` flattens
+`buildSeoFixList` → ordered rows (notices dropped, `SEO-00n` id + stable key). Also exports the
+field list, dropdown options (Priority High/Medium/Low · Status To-do/Doing/Done · Validation
+Not checked/Passed/Failed), defaults, and length caps. **Used by BOTH the board and the CSV** so
+they always agree.
+
+**UI.** New `src/app/share/[token]/fix-list/SeoFixTracker.js` — presentational 15-col table
+(`overflow-x-auto`, `print:hidden`). `fix-list/page.js` owns the edit state: optimistic update +
+autosave (selects/dates immediate, free-text 600 ms debounce) + a save-error line. The old
+"On-page SEO — by check type" grouped list was **replaced** by the tracker (the pages-measured
+score table above it is kept). Toolbar **"SEO pages CSV" → "SEO tracker CSV"**: now one row per
+issue with all 15 columns, carries the team's current edits, opens in Excel/Google Sheets.
+Removed the now-unused `SEO_TONE`.
+
+### Validation
+- **ESLint clean** on all 6 touched/new files.
+- Live on `:3100`: save `200`; invalid enum/field `400`; `jsonb` merge persists two fields into
+  one item and is served back in the payload; `/share/*` summary+fix-list, `/results/*` all
+  `200`; unauthed `/api/results` still `401`. Demo board reset to `{}`.
+- CSV re-generated from the real `buildSeoTrackerRows` against the demo job = 56 rows × 15 cols,
+  matching the on-screen board.
+
+### Results-page 500 (user hit it live: "Couldn't load the findings. Unexpected token '<'")
+NOT a code bug — a crashed **Turbopack compile worker** (`jest-worker`) left `/api/results` and
+`/api/share/view` returning Next's HTML error page while lighter routes stayed JSON. Fixed by
+**killing the dev server + deleting `.next` + restarting** `npm run dev` (:3100). Both routes back
+to `200`. (Recurring gotcha — restart the dev server when a route's response shape looks wrong.)
+
+### Process note (user feedback this session — see memory `feedback-keep-user-in-loop`)
+User felt "left in the blind" by too-autonomous, too-technical work with unasked-for features.
+Adopted: plain language, SHOW the real output (generated the actual CSV from real data for review)
+BEFORE wiring/committing, build only what's asked, workflow = build → user reviews real output →
+docs → commit.
+
+### Next (one item per chat, per the banner above)
+- **Item #2** — client/exec report → genuinely non-technical (`/share/[token]` rewrite).
+- **Item #3** — fill the hollow Performance (PSI) + Security snapshot cells.
 
 ---
 

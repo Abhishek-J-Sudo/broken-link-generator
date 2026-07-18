@@ -29,7 +29,7 @@ export async function GET(request, { params }) {
     }
 
     const jobResult = await query(
-      `SELECT id, url, status, settings, created_at, completed_at, ai_narrative
+      `SELECT id, url, status, settings, created_at, completed_at, ai_narrative, seo_tracker
        FROM crawl_jobs WHERE share_token = $1`,
       [token]
     );
@@ -126,12 +126,15 @@ export async function GET(request, { params }) {
         seoSummary,
         seoPages: seoPagesResult.rows,
         narrative: job.ai_narrative || null,
+        seoTracker: job.seo_tracker || {},
       },
       {
         headers: {
           // Public but unlisted: keep crawlers out of client reports
           'X-Robots-Tag': 'noindex, nofollow',
-          'Cache-Control': 'private, max-age=300',
+          // Always fresh so the team's saved tracker edits show on reload
+          // (a stale cache would look like their change vanished).
+          'Cache-Control': 'no-store',
         },
       }
     );

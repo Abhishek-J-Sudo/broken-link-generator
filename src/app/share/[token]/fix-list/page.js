@@ -10,7 +10,7 @@
  * The client-friendly summary lives one level up at /share/[token].
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
@@ -24,6 +24,8 @@ import {
   CLASS_SHORT,
 } from '@/lib/auditReport';
 import { buildSeoFixList } from '@/lib/seoChecks';
+import { buildSeoTrackerRows } from '@/lib/seoTracker';
+import SeoFixTracker from './SeoFixTracker';
 import BrandRule from '@/app/components/BrandRule';
 import {
   microLabel,
@@ -38,14 +40,6 @@ import {
 const MAX_ROWS_PER_CLASS = 200;
 
 const SEVERITY_RANK = { critical: 0, major: 1, minor: 2 };
-
-const SEO_TONE = {
-  critical: 'text-danger',
-  major: 'text-danger',
-  warning: 'text-warning',
-  minor: 'text-text-muted',
-  notice: 'text-text-subtle',
-};
 
 const thCell = `${microLabel} py-2 pr-4 text-left font-normal text-text-subtle`;
 
@@ -117,6 +111,49 @@ export default function SharedFixListPage() {
     [payload]
   );
 
+  // The editable work board: one row per issue, plus the team's saved edits.
+  const trackerRows = useMemo(
+    () => (payload?.seoPages?.length ? buildSeoTrackerRows(payload.seoPages) : []),
+    [payload]
+  );
+  const [trackerState, setTrackerState] = useState({});
+  const [trackerSaveError, setTrackerSaveError] = useState('');
+  useEffect(() => {
+    if (payload?.seoTracker) setTrackerState(payload.seoTracker);
+  }, [payload]);
+
+  const saveTimers = useRef({});
+  const persistField = useCallback(
+    async (key, field, value) => {
+      try {
+        const res = await fetch(`/api/share/tracker/${token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, field, value }),
+        });
+        if (!res.ok) throw new Error('save failed');
+        setTrackerSaveError('');
+      } catch {
+        setTrackerSaveError(
+          'Some changes could not be saved — check your connection and try again.'
+        );
+      }
+    },
+    [token]
+  );
+  // Optimistic: update the board immediately; persist dropdowns/dates at once and
+  // debounce free-text so we don't POST on every keystroke.
+  const handleTrackerChange = useCallback(
+    (key, field, value, immediate = false) => {
+      setTrackerState((prev) => ({ ...prev, [key]: { ...(prev[key] || {}), [field]: value } }));
+      const id = `${key}:${field}`;
+      if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
+      if (immediate) persistField(key, field, value);
+      else saveTimers.current[id] = setTimeout(() => persistField(key, field, value), 600);
+    },
+    [persistField]
+  );
+
   if (error) return <ShareErrorScreen error={error} />;
   if (!payload || !report) return <ShareLoadingScreen />;
 
@@ -175,44 +212,47 @@ export default function SharedFixListPage() {
     );
   };
 
+  // The SEO tracker as a spreadsheet — one row per issue, carrying the team's
+  // current edits so the exported file is itself a ready-to-run tracker
+  // (opens in Excel or Google Sheets). Mirrors the on-screen board exactly.
   const exportSeoCsv = () => {
+    const val = (key, field) => (trackerState?.[key]?.[field] ?? '') || '';
     csvDownload(
-      `seoscrub-seo-fixlist-${host}.csv`,
+      `seoscrub-seo-tracker-${host}.csv`,
       [
-        'Page URL',
-        'Score',
-        'Grade',
-        'Title',
-        'Title Length',
-        'Meta Description Length',
-        'Issues',
-        'Noindex',
-        'Blocked by robots.txt',
-        'Open Graph',
-        'Structured Data',
-        'Lang',
-        'Viewport',
-        'Stale Content',
+        'Issue ID',
+        'Priority',
+        'Status',
+        'Owner',
+        'Severity',
+        'Category',
+        'Issue',
+        'Full Page URL',
+        'Measured Value',
+        'Recommended Fix',
+        'Target Date',
+        'Fixed Date',
+        'Validation Status',
+        'Notes',
+        'Evidence',
       ],
-      seoPages.map((p) => {
-        const s = p.signals || {};
-        return [
-          p.url,
-          p.seo_score,
-          p.seo_grade,
-          p.title_text || '',
-          p.title_length || 0,
-          p.description_length || 0,
-          (p.issues || []).map((i) => i.message).join(' | '),
-          s.robots?.noindex ? 'YES' : 'no',
-          s.robotsTxt?.disallowed ? 'YES' : 'no',
-          s.social?.hasOpenGraph ? 'present' : 'MISSING',
-          s.structuredData?.hasStructuredData ? s.structuredData.types.join('; ') : 'MISSING',
-          s.fundamentals?.htmlLang || 'MISSING',
-          s.fundamentals?.hasViewport ? 'present' : 'MISSING',
-          s.freshness?.isStale ? 'YES' : 'no',
-        ];
-      })
+      trackerRows.map((r) => [
+        r.issueId,
+        val(r.key, 'priority'),
+        trackerState?.[r.key]?.status ?? 'To-do',
+        val(r.key, 'owner'),
+        r.severity,
+        r.category,
+        r.issue,
+        r.url,
+        r.value,
+        r.hint,
+        val(r.key, 'targetDate'),
+        val(r.key, 'fixedDate'),
+        val(r.key, 'validationStatus'),
+        val(r.key, 'notes'),
+        val(r.key, 'evidence'),
+      ])
     );
   };
 
@@ -249,10 +289,10 @@ export default function SharedFixListPage() {
             <button
               type="button"
               onClick={exportSeoCsv}
-              title="Per-page SEO scores, issues, and signals for every analyzed page"
+              title="The SEO fix tracker as a spreadsheet — one row per issue with your Priority/Status/Owner/Notes. Opens in Excel or Google Sheets."
               className="rounded-lg border border-border bg-surface px-4 py-2 text-sm text-text transition-colors hover:border-border-strong"
             >
-              SEO pages CSV
+              SEO tracker CSV
             </button>
           )}
         </div>
@@ -401,7 +441,7 @@ export default function SharedFixListPage() {
       {/* 03 · On-page SEO, by check type */}
       <section id="on-page-seo" className="mb-12">
         <p className={`${microLabel} mb-5 text-text-subtle`}>
-          {serial()} · On-page SEO — by check type
+          {serial()} · On-page SEO — fix tracker
         </p>
         {!seoFixList ? (
           <p className="text-sm text-text-muted">
@@ -443,78 +483,30 @@ export default function SharedFixListPage() {
               </tbody>
             </table>
 
-            {/* Check groups */}
-            <div className="mt-8 space-y-8">
-              {seoFixList.categories.map((cat) => (
-                <div key={cat.key}>
-                  <p className={`${microLabel} mb-3 text-text`}>{cat.label}</p>
-                  <div className="space-y-4">
-                    {cat.checks.map((check) => {
-                      if (check.status === 'fail') {
-                        return (
-                          <div key={check.id} className="break-inside-avoid border-l-2 border-border pl-4">
-                            <p className="text-sm text-text">
-                              <span className={`mr-2 font-mono ${SEO_TONE[check.severity]}`}>✕</span>
-                              {check.label}
-                              <span className={`ml-3 font-mono text-[11px] uppercase ${SEO_TONE[check.severity]}`}>
-                                {check.severity}
-                              </span>
-                              <span className="ml-3 font-mono text-xs text-text-muted">
-                                {check.affected.length} of{' '}
-                                {check.affected.length + check.passCount} page
-                                {check.affected.length + check.passCount === 1 ? '' : 's'}
-                              </span>
-                            </p>
-                            <p className="mt-0.5 text-xs leading-relaxed text-text-subtle">
-                              Fix: {check.hint}
-                            </p>
-                            <div className="mt-2 space-y-1">
-                              {check.affected.map((a) => (
-                                <p key={a.url} className="flex items-baseline gap-2 font-mono text-xs">
-                                  <a
-                                    href={a.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="min-w-0 break-all text-text-muted hover:text-action"
-                                  >
-                                    {pathOf(a.url)}
-                                  </a>
-                                  <span className="flex-1 border-b border-dotted border-border" />
-                                  <span className="shrink-0 text-text">{a.value}</span>
-                                </p>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      }
-                      return (
-                        <p key={check.id} className="pl-4 text-xs text-text-muted">
-                          {check.status === 'pass' ? (
-                            <>
-                              <span className="mr-2 font-mono text-success">✓</span>
-                              {check.label} — {check.passCount} page
-                              {check.passCount === 1 ? '' : 's'} pass
-                              {check.naCount > 0 ? ` (${check.naCount} not applicable)` : ''}
-                            </>
-                          ) : (
-                            <>
-                              <span className="mr-2 font-mono text-text-subtle">·</span>
-                              <span className="text-text-subtle">
-                                {check.label} — not measured in this audit
-                              </span>
-                            </>
-                          )}
-                        </p>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+            {/* Fix tracker — one editable row per issue, saved to the shared report */}
+            <div className="mt-8 print:hidden">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <p className={`${microLabel} text-text`}>
+                  Fix tracker · {trackerRows.length} issue{trackerRows.length === 1 ? '' : 's'}
+                </p>
+                <p className="font-mono text-[11px] text-text-subtle">
+                  Grey columns come from the audit · white columns are yours — saved automatically
+                </p>
+              </div>
+              {trackerSaveError && <p className="mb-3 text-xs text-danger">{trackerSaveError}</p>}
+              {trackerRows.length === 0 ? (
+                <p className="text-sm text-text-muted">
+                  No issues to track — every SEO check passed on the measured pages.
+                </p>
+              ) : (
+                <SeoFixTracker rows={trackerRows} state={trackerState} onChange={handleTrackerChange} />
+              )}
             </div>
             <p className="mt-6 text-xs text-text-subtle">
               SEO is scored per analyzed HTML page and never feeds the link-health grade. Content
-              metrics are measured on the first 50KB of each page. The SEO fix list CSV mirrors
-              this section in spreadsheet form.
+              metrics are measured on the first 50KB of each page. The SEO tracker CSV mirrors this
+              board in spreadsheet form — assign owners, set status, and it stays saved on this
+              report.
             </p>
           </>
         )}

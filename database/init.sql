@@ -32,7 +32,10 @@ CREATE TABLE IF NOT EXISTS crawl_jobs (
     completed_at  TIMESTAMPTZ,
     error_message TEXT,
     heartbeat_at  TIMESTAMPTZ,
-    ai_narrative  JSONB
+    ai_narrative  JSONB,
+    -- SEO Fix Tracker: team-editable state per issue on the shared fix list
+    -- (Priority/Status/Owner/Target/Fixed/Validation/Notes/Evidence), keyed by issue.
+    seo_tracker   JSONB DEFAULT '{}'::jsonb
 );
 
 -- ---------------------------------------------------------------------------
@@ -121,6 +124,8 @@ ALTER TABLE seo_analysis ADD COLUMN IF NOT EXISTS signals JSONB;
 -- Shareable client reports: unguessable read-only token per audit
 ALTER TABLE crawl_jobs ADD COLUMN IF NOT EXISTS share_token TEXT;
 ALTER TABLE crawl_jobs ADD COLUMN IF NOT EXISTS shared_at TIMESTAMPTZ;
+-- SEO Fix Tracker: team-editable per-issue state on the shared fix list
+ALTER TABLE crawl_jobs ADD COLUMN IF NOT EXISTS seo_tracker JSONB DEFAULT '{}'::jsonb;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_crawl_jobs_share_token
     ON crawl_jobs (share_token) WHERE share_token IS NOT NULL;
 
