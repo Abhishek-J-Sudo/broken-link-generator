@@ -31,7 +31,7 @@ self-contained Docker image on Coolify. Live at [seoscrub.in](https://seoscrub.i
 ```bash
 npm install
 cp .env.example .env.local   # then fill in real values
-npm run dev                  # http://localhost:3000
+npm run dev                  # http://localhost:3100
 ```
 
 `npm run build` produces the standalone server; `npm start` runs it.
