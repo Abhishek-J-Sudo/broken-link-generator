@@ -553,6 +553,7 @@ export const db = {
           indexability: null,
           duplicates: null,
           hreflang: null,
+          security: null,
         };
       }
 
@@ -585,6 +586,26 @@ export const db = {
       // pointing to an uncrawled/external target is skipped (can't prove a fault).
       const hreflang = summarizeHreflang(measured);
 
+      // G16: security snapshot. HTTPS coverage is available on every audit (is_https
+      // is stored per page); header hygiene + mixed content only exist on pages
+      // crawled after the security signals shipped, so they roll up over the
+      // signals.security subset and read "not measured" on older jobs.
+      const secMeasured = measured.filter((d) => d.signals.security);
+      const security = {
+        total_pages: data.length,
+        https_pages: data.filter((d) => d.is_https).length,
+        headers_measured: secMeasured.length,
+        hsts_pages: secMeasured.filter((d) => d.signals.security.headers?.hsts).length,
+        csp_pages: secMeasured.filter((d) => d.signals.security.headers?.csp).length,
+        mixed_content_pages: secMeasured.filter(
+          (d) => (d.signals.security.mixedContent?.count || 0) > 0
+        ).length,
+        total_mixed_content: secMeasured.reduce(
+          (sum, d) => sum + (d.signals.security.mixedContent?.count || 0),
+          0
+        ),
+      };
+
       const gradeDistribution = {
         grade_a_count: data.filter((d) => d.seo_grade === 'A').length,
         grade_b_count: data.filter((d) => d.seo_grade === 'B').length,
@@ -611,6 +632,7 @@ export const db = {
         indexability,
         duplicates,
         hreflang,
+        security,
       };
     } catch (error) {
       console.error('❌ Error calculating SEO summary:', error);

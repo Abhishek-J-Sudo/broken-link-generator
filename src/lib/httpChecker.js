@@ -270,6 +270,15 @@ export class HttpChecker {
                 headers: {
                   'x-robots-tag': response.headers.get('x-robots-tag') || null,
                   'last-modified': response.headers.get('last-modified') || null,
+                  // Security headers (G16) — presence rolled up into the Security cell
+                  'strict-transport-security':
+                    response.headers.get('strict-transport-security') || null,
+                  'content-security-policy':
+                    response.headers.get('content-security-policy') || null,
+                  'x-frame-options': response.headers.get('x-frame-options') || null,
+                  'x-content-type-options': response.headers.get('x-content-type-options') || null,
+                  'referrer-policy': response.headers.get('referrer-policy') || null,
+                  'permissions-policy': response.headers.get('permissions-policy') || null,
                 },
                 robotsTxt: options.robotsRules ? evaluateRobots(options.robotsRules, url) : null,
               };

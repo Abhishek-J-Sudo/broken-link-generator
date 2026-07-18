@@ -34,7 +34,10 @@ export class LightweightSEODetector {
    * Reuses the HTML content already fetched for link checking
    *
    * context (all optional):
-   *   headers   — { 'x-robots-tag', 'last-modified' } from the page response
+   *   headers   — response headers used by signals: 'x-robots-tag',
+   *               'last-modified', and the security set ('strict-transport-security',
+   *               'content-security-policy', 'x-frame-options',
+   *               'x-content-type-options', 'referrer-policy', 'permissions-policy')
    *   robotsTxt — result of robotsAudit.evaluateRobots() for this URL
    */
   analyzePage(html, url, statusCode, responseTime, context = {}) {
@@ -62,6 +65,7 @@ export class LightweightSEODetector {
       const fundamentals = this.extractFundamentals($, url);
       const freshness = this.extractFreshness($, structuredData, context.headers?.['last-modified']);
       const hreflang = this.extractHreflang($, url);
+      const security = this.extractSecurity($, url, context.headers);
       const wordCount = this.estimateWordCount($);
 
       const seoData = {
@@ -99,6 +103,7 @@ export class LightweightSEODetector {
           fundamentals,
           freshness,
           hreflang,
+          security,
           robotsTxt: context.robotsTxt || null,
           // outline lives here because seo_analysis only has h1–h3 count columns
           headings: {
@@ -447,6 +452,63 @@ export class LightweightSEODetector {
       hasXDefault,
       selfReferences,
       invalidCodes: invalidCodes.slice(0, 10),
+    };
+  }
+
+  /**
+   * Security signals (G16): transport + header hygiene + mixed content.
+   *   - HTTPS on the page itself (from the URL scheme).
+   *   - Presence of the common security headers (from the response, via context).
+   *   - Mixed content: subresources requested over http:// on an https page —
+   *     the browser blocks active ones (scripts, css, iframes) and warns on the
+   *     rest. Scanned on the first 50KB only (same slice as every other signal),
+   *     so deep-body assets can be missed; head/hero assets are covered.
+   * Anchor links (<a href>) are deliberately NOT counted — they are navigation,
+   * not subresources, so an http link is not mixed content.
+   */
+  extractSecurity($, url, headers = {}) {
+    const isHttps = url.startsWith('https://');
+    const has = (name) => Boolean(headers && headers[name]);
+
+    let mixedCount = 0;
+    const mixedSamples = [];
+    if (isHttps) {
+      const subresources = [
+        ['script[src]', 'src'],
+        ['img[src]', 'src'],
+        ['iframe[src]', 'src'],
+        ['source[src]', 'src'],
+        ['video[src]', 'src'],
+        ['audio[src]', 'src'],
+        ['embed[src]', 'src'],
+        ['object[data]', 'data'],
+        ['link[rel="stylesheet"]', 'href'],
+      ];
+      for (const [selector, attr] of subresources) {
+        $(selector).each((_, el) => {
+          const value = (el.attribs[attr] || '').trim();
+          if (/^http:\/\//i.test(value)) {
+            mixedCount++;
+            if (mixedSamples.length < 5) mixedSamples.push(value.substring(0, 300));
+          }
+        });
+      }
+    }
+
+    return {
+      isHttps,
+      headers: {
+        hsts: has('strict-transport-security'),
+        csp: has('content-security-policy'),
+        xFrameOptions: has('x-frame-options'),
+        xContentTypeOptions: has('x-content-type-options'),
+        referrerPolicy: has('referrer-policy'),
+        permissionsPolicy: has('permissions-policy'),
+      },
+      mixedContent: {
+        count: mixedCount,
+        samples: mixedSamples,
+      },
     };
   }
 

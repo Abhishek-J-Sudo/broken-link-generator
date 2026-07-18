@@ -183,6 +183,7 @@ export default function AuditReportPage() {
   const [copiedWhich, setCopiedWhich] = useState(null); // 'client' | 'fixlist' | null
 
   const [aiNarrative, setAiNarrative] = useState(null);
+  const [performance, setPerformance] = useState(null);
 
   const [appendixFocus, setAppendixFocus] = useState(null);
   const [evidenceOpen, setEvidenceOpen] = useState(false);
@@ -305,6 +306,25 @@ export default function AuditReportPage() {
       cancelled = true;
     };
   }, [jobId, report]);
+
+  /* ── Core Web Vitals (PageSpeed Insights), lazy once the report is ready ── */
+  useEffect(() => {
+    if (!reportReady || !jobId) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/performance/${jobId}`);
+        if (!res.ok || res.status === 204) return;
+        const data = await res.json();
+        if (!cancelled && data) setPerformance(data);
+      } catch {
+        // the Performance cell simply stays unmeasured
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, reportReady]);
 
   /* ── Actions ────────────────────────────────────────────────────────── */
 
@@ -1536,14 +1556,96 @@ export default function AuditReportPage() {
                         </p>
                       )}
                     </div>
-                    {['Performance', 'Security'].map((name) => (
-                      <div key={name} className="bg-surface p-5">
-                        <p className={`${microLabel} text-text-subtle`}>{name}</p>
+                    <div className="bg-surface p-5">
+                      <p className={`${microLabel} text-text-subtle`}>Performance</p>
+                      {performance?.score != null ? (
+                        <>
+                          <p
+                            className={`mt-3 font-mono text-2xl ${
+                              performance.score >= 90
+                                ? 'text-text'
+                                : performance.score >= 50
+                                  ? 'text-warning'
+                                  : 'text-danger'
+                            }`}
+                          >
+                            {performance.score}/100
+                          </p>
+                          <p className="mt-1 font-mono text-xs text-text-muted">
+                            {performance.strategy} &middot; Core Web Vitals
+                          </p>
+                          {performance.lab && (
+                            <p className="mt-1 font-mono text-xs text-text-muted">
+                              LCP {performance.lab.lcp || '—'} &middot; CLS{' '}
+                              {performance.lab.cls || '—'} &middot; TBT{' '}
+                              {performance.lab.tbt || '—'}
+                            </p>
+                          )}
+                          <p className="mt-3 text-xs leading-relaxed text-text-subtle">
+                            Google PageSpeed on the homepage
+                            {performance.field ? ', with real-user field data' : ' (lab data)'}.
+                          </p>
+                        </>
+                      ) : performance?.reason === 'no_key' ? (
                         <p className="mt-3 text-xs leading-relaxed text-text-subtle">
-                          Not yet measured — reserved for a future audit revision.
+                          Not measured — add a free PageSpeed Insights key
+                          (PAGESPEED_API_KEY) to enable Core Web Vitals.
                         </p>
-                      </div>
-                    ))}
+                      ) : (
+                        <p className="mt-3 text-xs leading-relaxed text-text-subtle">
+                          Not measured in this audit.
+                        </p>
+                      )}
+                    </div>
+                    <div className="bg-surface p-5">
+                      <p className={`${microLabel} text-text-subtle`}>Security</p>
+                      {seoSummary?.security ? (
+                        <>
+                          {(() => {
+                            const s = seoSummary.security;
+                            const httpsPct = s.total_pages
+                              ? Math.round((100 * s.https_pages) / s.total_pages)
+                              : 0;
+                            const flagged = httpsPct < 100 || s.mixed_content_pages > 0;
+                            return (
+                              <>
+                                <p
+                                  className={`mt-3 font-mono text-2xl ${
+                                    flagged ? 'text-danger' : 'text-text'
+                                  }`}
+                                >
+                                  {httpsPct}% HTTPS
+                                </p>
+                                <p className="mt-1 font-mono text-xs text-text-muted">
+                                  {s.https_pages}/{s.total_pages} pages served securely
+                                </p>
+                                {s.headers_measured > 0 ? (
+                                  <p className="mt-1 font-mono text-xs text-text-muted">
+                                    HSTS {s.hsts_pages}/{s.headers_measured} &middot; CSP{' '}
+                                    {s.csp_pages}/{s.headers_measured}
+                                    {s.mixed_content_pages > 0 &&
+                                      ` · ${s.mixed_content_pages} page${
+                                        s.mixed_content_pages === 1 ? '' : 's'
+                                      } with mixed content`}
+                                  </p>
+                                ) : (
+                                  <p className="mt-1 font-mono text-xs text-text-subtle">
+                                    security headers not measured — re-run the audit
+                                  </p>
+                                )}
+                                <p className="mt-3 text-xs leading-relaxed text-text-subtle">
+                                  HTTPS coverage, security headers (HSTS/CSP) and mixed content.
+                                </p>
+                              </>
+                            );
+                          })()}
+                        </>
+                      ) : (
+                        <p className="mt-3 text-xs leading-relaxed text-text-subtle">
+                          Not measured in this audit — enable SEO analysis at setup.
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   {/* G1 duplicate content + G13 hreflang — always shown when SEO

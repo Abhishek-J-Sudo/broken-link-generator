@@ -38,6 +38,73 @@ job `11111111-1111-1111-1111-111111111111`.
 
 ---
 
+## 2026-07-18 — Step 4 (new order): fill the SEO Snapshot cells — Security (G16) + Performance (G7)
+
+### Branch: `phase2-g-batch2-signals` (same flat branch). Committed, NOT pushed/merged.
+
+Final core-first step: the two "reserved — not yet measured" cells in the results-page SEO Snapshot
+now carry real data. This is a **data-pipeline** change (crawler → signals → rollup → API → UI), not
+just a page edit. User chose **Option 1** for Performance (real Core Web Vitals via a free PSI key)
+after we confirmed keyless PSI is dead (429 daily-quota) and the key is genuinely free (no billing).
+
+**Security (G16) — mostly from data we already had + new capture:**
+- `httpChecker.js`: the SEO `context.headers` now also carries the 6 security headers
+  (strict-transport-security, content-security-policy, x-frame-options, x-content-type-options,
+  referrer-policy, permissions-policy).
+- `seoDetector.js`: new `extractSecurity($, url, headers)` → `signals.security`
+  `{ isHttps, headers:{hsts,csp,xFrameOptions,xContentTypeOptions,referrerPolicy,permissionsPolicy},
+  mixedContent:{count,samples} }`. Mixed content = http:// **subresources** (script/img/iframe/
+  source/video/audio/embed/object/link[stylesheet]) on an https page; **anchors excluded** (they're
+  navigation, not subresources). Scanned on the first 50KB slice (deep-body assets can be missed).
+  Nests in the existing `signals` JSONB — no schema change; persists via the wholesale `signals` write.
+- `supabase.js` `calculateSEOSummary`: new `security` rollup — `https_pages`/`total_pages` (available
+  on EVERY audit via stored `is_https`) + `headers_measured`/`hsts_pages`/`csp_pages`/
+  `mixed_content_pages`/`total_mixed_content` (only over the `signals.security` subset, so pre-change
+  jobs read "headers not measured — re-run the audit").
+- Results-page **Security cell**: `NN% HTTPS · x/y served securely · HSTS a/n · CSP b/n · N pages
+  mixed content`; danger colour when HTTPS < 100% or mixed content present.
+
+**Performance (G7) — PSI, lazy + cached, degrades to nothing without a key:**
+- New `src/lib/pageSpeed.js`: `fetchPageSpeed(url)` (needs `PAGESPEED_API_KEY`; returns
+  `{reason:'no_key'|'unavailable'}` on any miss — never throws) + pure `parsePageSpeed(data)`
+  (Lighthouse score + lab LCP/CLS/TBT/FCP/SI display strings + CrUX field data when present).
+- New `crawl_jobs.performance JSONB` column (CREATE + idempotent ALTER in `init.sql`; applied to local
+  DB via `db:init`). New `src/app/api/performance/[jobId]/route.js` — mirrors the ai/narrative route:
+  returns the cached measurement, else runs ONE PSI call on the **homepage** (mobile) and caches it.
+  Only caches a real result or the deterministic `no_key` state (transient failures can retry).
+- Results page: new `performance` state + a lazy fetch effect (once report is ready). **Performance
+  cell**: `NN/100 · mobile · Core Web Vitals` + `LCP · CLS · TBT`; without a key it reads "add a free
+  PageSpeed Insights key (PAGESPEED_API_KEY)".
+- `.env.example`: documented `PAGESPEED_API_KEY` (free, no billing; note that PSI fetches the URL
+  from Google's servers).
+
+### Scope note
+Only the results-page Snapshot cells were filled (the literal ask). Feeding Security/Performance into
+the two `/share/*` reports was deliberately deferred (would re-technicalise the just-simplified client
+report) — flagged for the user, not built.
+
+### Validation
+- **ESLint clean** on all 8 files; migration applied; `performance` column confirmed jsonb.
+- Live: `/api/performance/<job>` → `{"reason":"no_key"}` (graceful, no key set);
+  `/api/seo/summary/<job>` → `security` block `{https_pages:8,total_pages:8,headers_measured:0,…}`
+  (correct on the pre-change demo job).
+- **11/11 unit checks** (run under `tsx`, imports resolve via `@/` like the worker): `extractSecurity`
+  on the REAL demo page (isHttps ✓, HSTS ✓, CSP ✗, X-Frame ✓, mixed 0) + synthetic mixed-content
+  (3 counted, anchors excluded, http page not scanned) + `parsePageSpeed` (score 72, lab, CrUX field).
+- ⚠ **Full worker E2E not done:** the local worker (pid alive, `tsx --watch`) is **not consuming**
+  jobs — a queued test audit sat `queued` 4+ min. NOT caused by these edits (the edited modules load
+  and run fine in-process). Validated crawl-time extraction by running the production `extractSecurity`
+  on real data instead. Restart the worker + run a fresh audit to populate `signals.security` fully.
+
+### Next
+- Restart the worker; run a fresh SEO audit to light up the full Security cell (HSTS/CSP counts) and
+  optionally drop a free `PAGESPEED_API_KEY` for real CWV.
+- Core-first backlog is now COMPLETE (journey → results → client report → snapshot cells). Standing
+  items remain: feed Security/Performance into the `/share/*` reports (deferred), deploy (VPS+Coolify),
+  accounts/quotas, monitoring B1–B3 (deprioritised).
+
+---
+
 ## 2026-07-18 — Step 3 (new order): client/exec report → non-technical (two-score header)
 
 ### Branch: `phase2-g-batch2-signals` (same flat branch). Committed, NOT pushed/merged.

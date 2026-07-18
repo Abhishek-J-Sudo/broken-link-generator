@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS crawl_jobs (
     error_message TEXT,
     heartbeat_at  TIMESTAMPTZ,
     ai_narrative  JSONB,
+    -- Core Web Vitals from Google PageSpeed Insights (G7), cached per job.
+    performance   JSONB,
     -- SEO Fix Tracker: team-editable state per issue on the shared fix list
     -- (Priority/Status/Owner/Target/Fixed/Validation/Notes/Evidence), keyed by issue.
     seo_tracker   JSONB DEFAULT '{}'::jsonb
@@ -120,6 +122,8 @@ CREATE TABLE IF NOT EXISTS seo_analysis (
 -- Idempotent column additions (for existing installs upgrading in place)
 -- ---------------------------------------------------------------------------
 ALTER TABLE crawl_jobs ADD COLUMN IF NOT EXISTS ai_narrative JSONB;
+-- Core Web Vitals (PageSpeed Insights, G7), cached per job
+ALTER TABLE crawl_jobs ADD COLUMN IF NOT EXISTS performance JSONB;
 ALTER TABLE seo_analysis ADD COLUMN IF NOT EXISTS signals JSONB;
 -- Shareable client reports: unguessable read-only token per audit
 ALTER TABLE crawl_jobs ADD COLUMN IF NOT EXISTS share_token TEXT;
