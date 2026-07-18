@@ -138,6 +138,29 @@ function ColumnHeading({ children }) {
   );
 }
 
+/* ── Appendix accordion — a deep section, collapsed by default ───────── */
+// No `open` prop → uncontrolled + closed (React resets a controlled
+// `open={false}` on re-render, which would trap it shut). The evidence
+// section needs to open programmatically, so it renders its own controlled
+// <details> instead of using this.
+function AccordionSection({ label, count, children }) {
+  return (
+    <details className="group border-t border-border">
+      <summary className="flex cursor-pointer list-none items-baseline gap-3 py-5 [&::-webkit-details-marker]:hidden">
+        <span className="font-display text-2xl text-text">{label}</span>
+        {count != null && <span className="font-mono text-sm text-text-muted">{count}</span>}
+        <span className="ml-auto font-mono text-xs text-text-subtle underline decoration-border-strong underline-offset-4 group-open:hidden">
+          show
+        </span>
+        <span className="ml-auto hidden font-mono text-xs text-text-subtle underline decoration-border-strong underline-offset-4 group-open:inline">
+          hide
+        </span>
+      </summary>
+      <div className="pb-8">{children}</div>
+    </details>
+  );
+}
+
 /* ── Page ───────────────────────────────────────────────────────────── */
 
 export default function AuditReportPage() {
@@ -162,6 +185,7 @@ export default function AuditReportPage() {
   const [aiNarrative, setAiNarrative] = useState(null);
 
   const [appendixFocus, setAppendixFocus] = useState(null);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const appendixRef = useRef(null);
 
   const isRunning = job && RUNNING_STATUSES.includes(job.status);
@@ -488,8 +512,11 @@ export default function AuditReportPage() {
   };
 
   const focusEvidence = (term) => {
+    setEvidenceOpen(true); // the evidence table lives in a collapsed accordion — open it
     setAppendixFocus({ term: term || '', at: Date.now() });
-    appendixRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    requestAnimationFrame(() =>
+      appendixRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    );
   };
 
   /* ── Render ─────────────────────────────────────────────────────────── */
@@ -586,52 +613,6 @@ export default function AuditReportPage() {
                       {isStopping ? 'Stopping…' : 'Stop audit'}
                     </Button>
                   )}
-                  {report && (
-                    <>
-                      <Button
-                        variant="primary"
-                        size="md"
-                        type="button"
-                        onClick={sharePath ? revokeShareLink : createShareLink}
-                        disabled={shareBusy}
-                        title="Creates a public, read-only share link. The client report and the SEO fix list share the same link."
-                      >
-                        {shareBusy ? 'Working…' : sharePath ? 'Revoke share link' : 'Share report'}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="md"
-                        type="button"
-                        onClick={() => runExport('csv')}
-                        disabled={exporting !== null}
-                        title="Every checked link with its status — broken rows include severity, error type, and link text"
-                      >
-                        {exporting === 'csv' ? 'Exporting…' : 'Links CSV'}
-                      </Button>
-                      {job.settings?.enableSEO && (
-                        <Button
-                          variant="secondary"
-                          size="md"
-                          type="button"
-                          onClick={runSeoExport}
-                          disabled={exporting !== null}
-                          title="Per-page SEO scores, issues, and signals for every analyzed page"
-                        >
-                          {exporting === 'seo' ? 'Exporting…' : 'SEO pages CSV'}
-                        </Button>
-                      )}
-                      <Button
-                        variant="secondary"
-                        size="md"
-                        type="button"
-                        onClick={() => runExport('json')}
-                        disabled={exporting !== null}
-                        title="Same link data as the Links CSV plus the derived report, for programmatic use"
-                      >
-                        {exporting === 'json' ? 'Exporting…' : 'Links JSON'}
-                      </Button>
-                    </>
-                  )}
                   <Link
                     href="/audit"
                     className="font-mono text-xs text-text underline decoration-border-strong underline-offset-4 transition-colors hover:text-action hover:decoration-action"
@@ -641,66 +622,6 @@ export default function AuditReportPage() {
                 </div>
               </div>
             </div>
-
-            {/* ── Share links — one token, two views (client + SEO team) ─ */}
-            {sharePath && (
-              <section className="mb-14 border border-border bg-surface p-5 sm:p-6">
-                <div className="mb-4 flex items-center gap-4">
-                  <p className={`${microLabel} shrink-0 text-action`}>Share links</p>
-                  <span className="h-px flex-1 bg-border" aria-hidden="true" />
-                  <button
-                    type="button"
-                    onClick={revokeShareLink}
-                    disabled={shareBusy}
-                    className="shrink-0 font-mono text-xs text-text-subtle underline decoration-border-strong underline-offset-4 transition-colors hover:text-danger hover:decoration-danger"
-                  >
-                    revoke
-                  </button>
-                </div>
-                <p className="mb-5 max-w-2xl text-sm leading-relaxed text-text-muted">
-                  One link, two views — the same read-only token. Send the client report to
-                  stakeholders; send the SEO fix list to whoever does the work.
-                </p>
-                <div className="grid gap-px border border-border bg-border sm:grid-cols-2">
-                  {[
-                    {
-                      key: 'client',
-                      label: 'Client report',
-                      hint: 'Plain-English health summary for clients and managers.',
-                      path: sharePath,
-                    },
-                    {
-                      key: 'fixlist',
-                      label: 'SEO fix list · team tracker',
-                      hint: 'Every broken link and SEO issue as an editable work board.',
-                      path: `${sharePath}/fix-list`,
-                    },
-                  ].map((item) => (
-                    <div key={item.key} className="bg-surface p-4">
-                      <p className="text-sm font-medium text-text">{item.label}</p>
-                      <p className="mt-1 text-xs leading-relaxed text-text-muted">{item.hint}</p>
-                      <div className="mt-3 flex flex-wrap items-center gap-4">
-                        <Link
-                          href={item.path}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-mono text-xs text-text underline decoration-border-strong underline-offset-4 transition-colors hover:text-action hover:decoration-action"
-                        >
-                          Open <span aria-hidden="true">&rarr;</span>
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={() => copyLink(item.path, item.key)}
-                          className="font-mono text-xs text-action underline decoration-action/40 underline-offset-4 transition-colors hover:decoration-action"
-                        >
-                          {copiedWhich === item.key ? 'Copied ✓' : 'Copy link'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
 
             {/* ── Live progress (running / queued) ────────────────────── */}
             {isRunning && (
@@ -865,6 +786,150 @@ export default function AuditReportPage() {
             {/* ══ The report ═══════════════════════════════════════════ */}
             {report && (
               <>
+                {/* Hand-off — the whole point of landing here: send it on ── */}
+                <section className="mb-16 border border-border bg-surface lg:mb-20">
+                  <div className="border-b border-border px-6 py-5 sm:px-8">
+                    <div className="flex items-center gap-4">
+                      <p className={`${microLabel} shrink-0 text-action`}>Hand-off</p>
+                      <span className="h-px flex-1 bg-border" aria-hidden="true" />
+                      <p className={`${microLabel} shrink-0 text-text-subtle`}>
+                        {job.status === 'stopped' ? 'Audit stopped' : 'Audit complete'}
+                      </p>
+                    </div>
+                    <h2 className="mt-4 font-display text-2xl text-text md:text-3xl">Send it on.</h2>
+                    <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-muted">
+                      Two audiences, one audit — a plain-English report for the client, and a
+                      working fix list for the SEO / content team. Or take the raw data.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-px bg-border lg:grid-cols-2">
+                    {/* Share a link */}
+                    <div className="bg-surface p-6 sm:p-8">
+                      <div className="mb-4 flex items-center gap-4">
+                        <p className={`${microLabel} shrink-0 text-text-subtle`}>Share a link</p>
+                        <span className="h-px flex-1 bg-border" aria-hidden="true" />
+                        {sharePath && (
+                          <button
+                            type="button"
+                            onClick={revokeShareLink}
+                            disabled={shareBusy}
+                            className="shrink-0 font-mono text-xs text-text-subtle underline decoration-border-strong underline-offset-4 transition-colors hover:text-danger hover:decoration-danger"
+                          >
+                            revoke
+                          </button>
+                        )}
+                      </div>
+                      {sharePath ? (
+                        <div className="grid gap-px border border-border bg-border">
+                          {[
+                            {
+                              key: 'client',
+                              label: 'Client report',
+                              hint: 'Plain-English health summary for clients and managers.',
+                              path: sharePath,
+                            },
+                            {
+                              key: 'fixlist',
+                              label: 'SEO fix list · team tracker',
+                              hint: 'Every broken link and SEO issue as an editable work board.',
+                              path: `${sharePath}/fix-list`,
+                            },
+                          ].map((item) => (
+                            <div key={item.key} className="bg-surface p-4">
+                              <p className="text-sm font-medium text-text">{item.label}</p>
+                              <p className="mt-1 text-xs leading-relaxed text-text-muted">
+                                {item.hint}
+                              </p>
+                              <div className="mt-3 flex flex-wrap items-center gap-4">
+                                <Link
+                                  href={item.path}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-mono text-xs text-text underline decoration-border-strong underline-offset-4 transition-colors hover:text-action hover:decoration-action"
+                                >
+                                  Open <span aria-hidden="true">&rarr;</span>
+                                </Link>
+                                <button
+                                  type="button"
+                                  onClick={() => copyLink(item.path, item.key)}
+                                  className="font-mono text-xs text-action underline decoration-action/40 underline-offset-4 transition-colors hover:decoration-action"
+                                >
+                                  {copiedWhich === item.key ? 'Copied ✓' : 'Copy link'}
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <>
+                          <p className="mb-5 text-sm leading-relaxed text-text-muted">
+                            Creates one public, read-only link. It opens as the client report; the
+                            SEO team&rsquo;s fix list is the same link with{' '}
+                            <span className="font-mono text-text-subtle">/fix-list</span> — one
+                            token, two views.
+                          </p>
+                          <Button
+                            variant="primary"
+                            size="md"
+                            type="button"
+                            onClick={createShareLink}
+                            disabled={shareBusy}
+                          >
+                            {shareBusy ? 'Working…' : 'Create share link'}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Export the data */}
+                    <div className="bg-surface p-6 sm:p-8">
+                      <div className="mb-4 flex items-center gap-4">
+                        <p className={`${microLabel} shrink-0 text-text-subtle`}>Export the data</p>
+                        <span className="h-px flex-1 bg-border" aria-hidden="true" />
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <Button
+                          variant="secondary"
+                          size="md"
+                          type="button"
+                          onClick={() => runExport('csv')}
+                          disabled={exporting !== null}
+                          title="Every checked link with its status — broken rows include severity, error type, and link text"
+                        >
+                          {exporting === 'csv' ? 'Exporting…' : 'Links CSV'}
+                        </Button>
+                        {job.settings?.enableSEO && (
+                          <Button
+                            variant="secondary"
+                            size="md"
+                            type="button"
+                            onClick={runSeoExport}
+                            disabled={exporting !== null}
+                            title="Per-page SEO scores, issues, and signals for every analyzed page"
+                          >
+                            {exporting === 'seo' ? 'Exporting…' : 'SEO pages CSV'}
+                          </Button>
+                        )}
+                        <Button
+                          variant="secondary"
+                          size="md"
+                          type="button"
+                          onClick={() => runExport('json')}
+                          disabled={exporting !== null}
+                          title="Same link data as the Links CSV plus the derived report, for programmatic use"
+                        >
+                          {exporting === 'json' ? 'Exporting…' : 'Links JSON'}
+                        </Button>
+                      </div>
+                      <p className="mt-4 text-xs leading-relaxed text-text-muted">
+                        CSV opens in Excel or Google Sheets; JSON carries the derived report for
+                        programmatic use.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
                 {/* 01 · Executive summary */}
                 <section className="mb-16 lg:mb-20">
                   <SectionHeading
@@ -1003,56 +1068,6 @@ export default function AuditReportPage() {
                   )}
                 </section>
 
-                {report.environmentExposures.length > 0 && (
-                  <section className="mb-16 lg:mb-20">
-                    <SectionHeading
-                      serial={nextSerial()}
-                      label="Exposure Review"
-                      title="Environment URLs found."
-                    />
-                    <p className="mb-6 max-w-3xl text-sm leading-relaxed text-text-muted">
-                      These checked URLs or source pages look like production, staging, UAT,
-                      development, or internal endpoints. They can still return 200, so they are
-                      tracked separately from broken-link issues.
-                    </p>
-                    <div className="divide-y divide-border border-y border-border">
-                      {report.environmentExposures.slice(0, 12).map((exposure) => (
-                        <div
-                          key={`${exposure.field}:${exposure.url}`}
-                          className="grid gap-2 py-4 text-sm md:grid-cols-[1fr_auto_auto]"
-                        >
-                          <div className="min-w-0">
-                            <p className="break-all font-mono text-xs text-text">
-                              {exposure.url}
-                            </p>
-                            <p className="mt-1 font-mono text-xs text-text-subtle">
-                              {exposure.field === 'source_url' ? 'source page' : 'checked URL'}
-                              {' · '}
-                              {exposure.reasons.join(', ')}
-                            </p>
-                          </div>
-                          <span className="font-mono text-xs text-text-muted md:text-right">
-                            {exposure.statusCode ?? 'no status'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => focusEvidence(exposure.search)}
-                            className="font-mono text-xs text-text underline decoration-border-strong underline-offset-4 transition-colors hover:text-action hover:decoration-action md:text-right"
-                          >
-                            evidence <span aria-hidden="true">&rarr;</span>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    {report.environmentExposures.length > 12 && (
-                      <p className="mt-3 font-mono text-xs text-text-subtle">
-                        + {report.environmentExposures.length - 12} more environment signals in
-                        the appendix.
-                      </p>
-                    )}
-                  </section>
-                )}
-
                 {kpis.issues === 0 && (
                   <section className="mb-16 lg:mb-20">
                     <div className="border border-success/40 bg-success-subtle p-5">
@@ -1096,15 +1111,22 @@ export default function AuditReportPage() {
                   </section>
                 )}
 
-                {/* 04 · Findings by priority */}
-                {kpis.issues > 0 && (
-                  <section className="mb-16 lg:mb-20">
-                    <SectionHeading
-                      serial={nextSerial()}
-                      label="Findings · Priority"
-                      title="What broke, in order of harm."
-                    />
-                    <div className="border-b border-border">
+                {/* ── Full technical detail — everything below, collapsed ── */}
+                <section className="mb-16 lg:mb-20">
+                  <SectionHeading
+                    serial={nextSerial()}
+                    label="Full Technical Detail"
+                    title="Open what you need."
+                  />
+                  <p className="mb-6 max-w-3xl text-sm leading-relaxed text-text-muted">
+                    The complete evidence behind the summary — findings, affected pages, the
+                    remediation checklist, SEO signals and methodology. Collapsed by default; open
+                    any section, or hand it off with the links up top.
+                  </p>
+                  <div className="border-b border-border">
+                    {kpis.issues > 0 && (
+                      <AccordionSection label="Findings · priority" count={kpis.issues}>
+                        <div className="border-b border-border">
                       {report.bySeverity
                         .filter((block) => block.count > 0)
                         .map((block) => {
@@ -1162,19 +1184,13 @@ export default function AuditReportPage() {
                             </details>
                           );
                         })}
-                    </div>
-                  </section>
-                )}
+                        </div>
+                      </AccordionSection>
+                    )}
 
-                {/* 05 · Findings by category */}
-                {kpis.issues > 0 && (
-                  <section className="mb-16 lg:mb-20">
-                    <SectionHeading
-                      serial={nextSerial()}
-                      label="Findings · Category"
-                      title="The shape of the problem."
-                    />
-                    <div className="overflow-x-auto border border-border bg-surface">
+                    {kpis.issues > 0 && (
+                      <AccordionSection label="Findings · category" count={report.categories.length}>
+                        <div className="overflow-x-auto border border-border bg-surface">
                       <table className="w-full min-w-[560px] border-collapse text-left">
                         <thead>
                           <tr className="border-b border-border-strong">
@@ -1219,18 +1235,12 @@ export default function AuditReportPage() {
                         </tbody>
                       </table>
                     </div>
-                  </section>
-                )}
+                      </AccordionSection>
+                    )}
 
-                {/* 06 · Affected pages */}
-                {kpis.issues > 0 && (
-                  <section className="mb-16 lg:mb-20">
-                    <SectionHeading
-                      serial={nextSerial()}
-                      label="Affected Pages"
-                      title="Fix page by page."
-                    />
-                    <div className="divide-y divide-border border-y border-border">
+                    {kpis.issues > 0 && (
+                      <AccordionSection label="Affected pages" count={report.affectedPages.length}>
+                        <div className="divide-y divide-border border-y border-border">
                       {report.affectedPages.slice(0, 15).map((page) => (
                         <div
                           key={page.page}
@@ -1268,22 +1278,16 @@ export default function AuditReportPage() {
                         list.
                       </p>
                     )}
-                  </section>
-                )}
+                      </AccordionSection>
+                    )}
 
-                {/* 07 · Remediation plan */}
-                {report.tasks.length > 0 && (
-                  <section className="mb-16 lg:mb-20">
-                    <SectionHeading
-                      serial={nextSerial()}
-                      label="Remediation Plan"
-                      title="The hand-off checklist."
-                    />
-                    <p className="mb-6 max-w-2xl text-sm leading-relaxed text-text-muted">
-                      Findings rolled up into tasks and ordered by impact against effort — work
-                      top to bottom. Each task links to its evidence rows below.
-                    </p>
-                    <div className="overflow-x-auto border border-border bg-surface">
+                    {report.tasks.length > 0 && (
+                      <AccordionSection label="Remediation plan" count={report.tasks.length}>
+                        <p className="mb-6 max-w-2xl text-sm leading-relaxed text-text-muted">
+                          Findings rolled up into tasks and ordered by impact against effort — work
+                          top to bottom. Each task links to its evidence rows below.
+                        </p>
+                        <div className="overflow-x-auto border border-border bg-surface">
                       <table className="w-full min-w-[760px] border-collapse text-left">
                         <thead>
                           <tr className="border-b border-border-strong">
@@ -1340,31 +1344,37 @@ export default function AuditReportPage() {
                         </tbody>
                       </table>
                     </div>
-                  </section>
-                )}
+                      </AccordionSection>
+                    )}
 
-                {/* 08 · Detailed findings (appendix) */}
-                <section ref={appendixRef} className="mb-16 scroll-mt-24 lg:mb-20">
-                  <SectionHeading
-                    serial={nextSerial()}
-                    label="Detailed Findings"
-                    title="The evidence."
-                  />
-                  <EvidenceTable
-                    jobId={jobId}
-                    sharedTargets={report.sharedTargets}
-                    focusSearch={appendixFocus}
-                  />
-                </section>
+                    {/* Detailed findings — controlled so "view evidence" links can open it */}
+                    <details
+                      ref={appendixRef}
+                      open={evidenceOpen}
+                      onToggle={(e) => setEvidenceOpen(e.currentTarget.open)}
+                      className="group scroll-mt-24 border-t border-border"
+                    >
+                      <summary className="flex cursor-pointer list-none items-baseline gap-3 py-5 [&::-webkit-details-marker]:hidden">
+                        <span className="font-display text-2xl text-text">Detailed findings</span>
+                        <span className="font-mono text-sm text-text-muted">evidence table</span>
+                        <span className="ml-auto font-mono text-xs text-text-subtle underline decoration-border-strong underline-offset-4 group-open:hidden">
+                          show
+                        </span>
+                        <span className="ml-auto hidden font-mono text-xs text-text-subtle underline decoration-border-strong underline-offset-4 group-open:inline">
+                          hide
+                        </span>
+                      </summary>
+                      <div className="pb-8">
+                        <EvidenceTable
+                          jobId={jobId}
+                          sharedTargets={report.sharedTargets}
+                          focusSearch={appendixFocus}
+                        />
+                      </div>
+                    </details>
 
-                {/* 09 · Methodology & scope */}
-                <section className="mb-16 lg:mb-20">
-                  <SectionHeading
-                    serial={nextSerial()}
-                    label="Methodology"
-                    title="How this report was made."
-                  />
-                  <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+                    <AccordionSection label="Methodology">
+                      <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
                     <div>
                       <ColumnHeading>Scope</ColumnHeading>
                       <div className="space-y-1.5">
@@ -1437,17 +1447,15 @@ export default function AuditReportPage() {
                       </div>
                     </div>
                   </div>
-                </section>
+                    </AccordionSection>
 
-                {/* SEO snapshot — its own score system over its own population
-                    (analyzed HTML pages); numeric only, no letter grade until the
-                    deeper SEO pipeline (doc 04 §G) earns one. */}
-                <section className="mb-16 lg:mb-20">
-                  <SectionHeading
-                    serial={nextSerial()}
-                    label="SEO Snapshot"
-                    title="Measured separately."
-                  />
+                    {/* SEO snapshot — its own score system over its own population
+                        (analyzed HTML pages); numeric only, no letter grade until the
+                        deeper SEO pipeline (doc 04 §G) earns one. */}
+                    <AccordionSection
+                      label="SEO snapshot"
+                      count={job.settings?.enableSEO ? seoPages : null}
+                    >
                   <p className="mb-6 max-w-3xl text-sm leading-relaxed text-text-muted">
                     {job.settings?.enableSEO ? (
                       <>
@@ -1638,6 +1646,56 @@ export default function AuditReportPage() {
                       </div>
                     </div>
                   )}
+                    </AccordionSection>
+
+                    {report.environmentExposures.length > 0 && (
+                      <AccordionSection
+                        label="Environment exposures"
+                        count={report.environmentExposures.length}
+                      >
+                        <p className="mb-4 max-w-3xl text-sm leading-relaxed text-text-muted">
+                          These checked URLs or source pages look like production, staging, UAT,
+                          development, or internal endpoints. They can still return 200, so they are
+                          tracked separately from broken-link issues.
+                        </p>
+                        <div className="divide-y divide-border border-y border-border">
+                          {report.environmentExposures.slice(0, 12).map((exposure) => (
+                            <div
+                              key={`${exposure.field}:${exposure.url}`}
+                              className="grid gap-2 py-4 text-sm md:grid-cols-[1fr_auto_auto]"
+                            >
+                              <div className="min-w-0">
+                                <p className="break-all font-mono text-xs text-text">
+                                  {exposure.url}
+                                </p>
+                                <p className="mt-1 font-mono text-xs text-text-subtle">
+                                  {exposure.field === 'source_url' ? 'source page' : 'checked URL'}
+                                  {' · '}
+                                  {exposure.reasons.join(', ')}
+                                </p>
+                              </div>
+                              <span className="font-mono text-xs text-text-muted md:text-right">
+                                {exposure.statusCode ?? 'no status'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => focusEvidence(exposure.search)}
+                                className="font-mono text-xs text-text underline decoration-border-strong underline-offset-4 transition-colors hover:text-action hover:decoration-action md:text-right"
+                              >
+                                evidence <span aria-hidden="true">&rarr;</span>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        {report.environmentExposures.length > 12 && (
+                          <p className="mt-3 font-mono text-xs text-text-subtle">
+                            + {report.environmentExposures.length - 12} more environment signals in
+                            the appendix.
+                          </p>
+                        )}
+                      </AccordionSection>
+                    )}
+                  </div>
                 </section>
               </>
             )}

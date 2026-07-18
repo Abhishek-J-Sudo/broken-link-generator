@@ -38,6 +38,46 @@ job `11111111-1111-1111-1111-111111111111`.
 
 ---
 
+## 2026-07-18 — Step 2 (new order): RESULTS page cleanup — hand-off + collapsed detail
+
+### Branch: `phase2-g-batch2-signals` (same flat branch). Committed, NOT pushed/merged.
+
+Second step of the core-first order: turn `/results/[jobId]` from an 11-section technical wall into
+"audit done → summary → send it on," with the deep tables collapsed into an appendix. User picked
+the **collapsed-accordions** demotion (over tabs / plain reorder).
+
+- **Hand-off band (new focal point).** A prominent bordered band right under the masthead, shown
+  once the report is ready: **Share a link** (Create link → reveals BOTH the client report and the
+  SEO fix-list/tracker, each Open + Copy; revoke inline) + **Export** (Links CSV / SEO pages CSV /
+  Links JSON). The masthead toolbar is now lean — just Stop (while running) + New audit. The old
+  standalone `{sharePath && …}` share panel was folded into this band.
+- **Summary stays up top:** 01 verdict (link-health grade + KPIs), 02 what-it-means (takeaways /
+  AI), plus the "no broken links" note and Quick wins.
+- **"Full Technical Detail" appendix (collapsed).** New module-level `AccordionSection`
+  (uncontrolled `<details>`, closed by default — a controlled `open={false}` would trap it shut on
+  re-render). Seven accordions: Findings·priority / Findings·category / Affected pages /
+  Remediation plan / Methodology / SEO snapshot / Environment exposures — plus the **evidence table**
+  as its own CONTROLLED `<details>` (state `evidenceOpen` + `ref={appendixRef}`) so the
+  `focusEvidence()` cross-links ("view →" / "evidence →") open it and scroll to it
+  (`requestAnimationFrame` before scroll). Environment exposures MOVED out of the summary into the
+  appendix.
+- **Implementation note:** done as in-place seam edits (wrap each `<section>` → `<AccordionSection>`),
+  so inner-block SOURCE indentation is now shallower than its nesting depth. ESLint is clean and the
+  render is unaffected; there's **no Prettier in the project** to auto-normalize (flagged to user —
+  would need adding the dep or a hand-reindent, neither done).
+
+### Validation
+- **ESLint clean**; JSX balanced (7 `AccordionSection` pairs + 1 controlled evidence `<details>`);
+  results page compiles + serves `200` on :3100; summary-before-appendix order confirmed by grep.
+- Report body is client-rendered post-fetch → curl can't see it; **left for user in-browser review**
+  (no browser driver in this fetch-based project).
+
+### Next (Step 3 of the agreed order): client/exec report → genuinely non-technical
+(`/share/[token]` rewrite; the two-score decision lives in `project-report-structure-open`). Then
+Step 4 (fill Performance G7 / Security G16 snapshot cells).
+
+---
+
 ## 2026-07-18 — Step 1 (new order): journey map + routing fixes
 
 ### Branch: `phase2-g-batch2-signals` (same flat branch — user: keep everything here). Committed, NOT pushed/merged.
