@@ -2,6 +2,41 @@
 
 ---
 
+## 2026-07-18 — ⭐ PRODUCT DIRECTION RESET (user) — read before picking next work
+
+Mid-session the user redirected priorities away from the "standing pipeline." **Monitoring
+(B1–B3) is explicitly DE-prioritized** — a valid USP, but "a different thing," not now. The
+new north star is **the two-audience report system + filling the hollow core**, to be tackled
+**one item per new chat** (user's plan). Ordered backlog:
+
+1. **SEO-team fix-list → a real TRACKER (the user's "REAL MAIN THING").** A two-report split
+   ALREADY EXISTS and the user hadn't seen it: `/share/[token]` (client report) +
+   `/share/[token]/fix-list` ("SEO Team Fix List", `buildSeoFixList` in `seoChecks.js`). The
+   gap: the fix-list is a findings *list*, not a *tracker*. The SEO/content team must be able
+   to **use it directly as their tracker without building one** — so it needs working columns:
+   **Priority · Status (To-do/Doing/Done) · Owner · Notes** + **one-click CSV / Google-Sheets
+   export**. Build on the existing fix-list, don't reinvent.
+2. **Client/exec report → genuinely non-technical.** Audience = clients, managers, directors
+   who are non-tech. Plain language, "what it means / what to do," no jargon. Likely a rewrite
+   of `/share/[token]` (and the report-first main results page) copy/structure for that reader.
+3. **Fill the two hollow SEO Snapshot cells** (currently "reserved" placeholders — user is
+   annoyed these shipped empty):
+   - **Performance** = Core Web Vitals via the free Google **PageSpeed Insights API** (doc 04
+     G7). ~S. Nobody wired it.
+   - **Security** = HTTPS coverage (we already store `is_https` per page), mixed content
+     (http asset on https page — see doc 04 C1), security headers (HSTS/CSP). No doc-04 feature
+     item existed for this report cell; added one this session.
+   Both should also feed the two reports above.
+
+User's critique to internalize: prior sessions built **peripheral SEO signals (G1–G15) before
+the core cells** the product visibly promises. Sequence future work core-first.
+
+Demo assets left in local Postgres for the next chat (drop when done):
+`share_token='demo2382e97c4ca37540'` on job `9994b42c` → view both reports; synthetic hreflang
+job `11111111-1111-1111-1111-111111111111`.
+
+---
+
 ## 2026-07-18 — §G batch 2: presentation/query layer (G1/G12/G13) + dev port pin
 
 ### Branch: `phase2-g-batch2-signals` (flat, off main — UNMERGED)
