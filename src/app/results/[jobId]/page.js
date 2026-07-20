@@ -781,6 +781,20 @@ export default function AuditReportPage() {
               </section>
             )}
 
+            {/* ── JavaScript-rendered site caution ────────────────────── */}
+            {job.settings?.jsSiteDetected && job.status !== 'failed' && (
+              <section className="mb-16 border border-warning/40 bg-warning-subtle p-6">
+                <p className={`${microLabel} text-text`}>JavaScript-rendered site</p>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text">
+                  This site builds part of its pages with JavaScript in the browser, which a Quick
+                  Check can&rsquo;t see &mdash; so these results may undercount pages and links. For
+                  fuller coverage, run a <span className="font-medium">Full Audit</span>: its scope
+                  estimate pulls the site&rsquo;s sitemap, which lists pages JavaScript would
+                  otherwise hide.
+                </p>
+              </section>
+            )}
+
             {/* ── Report loading / error ──────────────────────────────── */}
             {reportReady && !report && !findingsError && (
               <p className="py-16 text-center font-mono text-xs text-text-subtle">

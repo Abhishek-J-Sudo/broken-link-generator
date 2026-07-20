@@ -2,6 +2,7 @@ import { LinkExtractor } from '@/lib/linkExtractor';
 import { urlUtils, batchUtils } from '@/lib/utils';
 import { safeFetch } from '@/lib/safeFetch';
 import { db } from '@/lib/supabase';
+import { detectJsRendering } from '@/lib/jsSiteDetector';
 import { checkLinks } from '../linkCheck';
 
 export async function runTraditionalCrawl(jobId, startUrl, settings) {
@@ -83,6 +84,18 @@ export async function runTraditionalCrawl(jobId, startUrl, settings) {
 
             if (pageResponse.status < 500) {
               const pageContent = await pageResponse.text();
+
+              // Quick Check has no scope-estimate step, so JS-rendered sites
+              // would otherwise fail silently with a near-empty report. Flag
+              // the job so the results page can warn about incomplete counts.
+              if (linkData.depth === 0) {
+                const detection = detectJsRendering(pageContent);
+                if (detection.isJavaScriptHeavy) {
+                  console.log(`🎭 TRADITIONAL CRAWL: JS-heavy start page on job ${jobId}`);
+                  await db.mergeJobSettings(jobId, { jsSiteDetected: true });
+                }
+              }
+
               const extractionResult = linkExtractor.extractLinks(pageContent, linkData.url, linkData.depth);
 
               extractionResult.links.forEach((link) => {

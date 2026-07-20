@@ -12,6 +12,8 @@ import { errorHandler, handleValidationError, handleSecurityError } from '@/lib/
 import { getClientIp } from '@/lib/clientIp';
 import { csrfProtect, CsrfError } from '@/lib/csrf';
 import { getDeepSeekRecommendations } from '@/lib/deepseekRecommendations';
+import { detectJsRendering } from '@/lib/jsSiteDetector';
+import { findSitemapUrls } from '@/lib/sitemap';
 
 const securityHeaders = {
   'X-Content-Type-Options': 'nosniff',
@@ -142,7 +144,61 @@ async function analyzeUrlsSmart(startUrl, maxDepth, maxPages) {
     `✅ PRODUCTION: Found ${homepageAnalysis.linkCount} links on homepage, proceeding with crawl`
   );
 
-  return await performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis);
+  const result = await performFullCrawl(startUrl, maxDepth, maxPages, homepageAnalysis);
+
+  // JS-heavy but still crawlable (e.g. a rendered shell with a few nav links):
+  // crawl what the HTML shows, then top up the page list from the sitemap so
+  // client-rendered routes aren't invisible to the audit.
+  if (homepageAnalysis.analysis?.isJavaScriptHeavy) {
+    await supplementWithSitemap(result, startUrl, homepageAnalysis);
+  }
+
+  return result;
+}
+
+async function supplementWithSitemap(result, startUrl, homepageAnalysis) {
+  console.log(`🎭 PRODUCTION: JS-heavy site — supplementing scope from sitemap`);
+
+  result.summary.isJavaScriptSite = true;
+  result.summary.frameworks = homepageAnalysis.analysis?.frameworkDetection || {};
+
+  const sitemapUrls = await findSitemapUrls(startUrl);
+  const known = new Set(
+    [...result.categories.pages, ...(result.discoveredLinks || [])].map((entry) =>
+      entry.url.replace(/\/$/, '')
+    )
+  );
+  const fresh = sitemapUrls.filter((url) => !known.has(url.replace(/\/$/, '')));
+
+  for (const url of fresh) {
+    result.categories.pages.push({
+      url,
+      pattern: 'sitemap-discovered',
+      params: false,
+      sourceUrl: 'sitemap.xml',
+    });
+    result.discoveredLinks.push({
+      url,
+      sourceUrl: 'sitemap.xml',
+      category: 'pages',
+      linkText: 'Sitemap link',
+    });
+  }
+
+  result.summary.totalUrls += fresh.length;
+  result.summary.categories.pages += fresh.length;
+  result.summary.sitemapSupplemented = fresh.length;
+
+  result.summary.recommendations.push({
+    type: 'warning',
+    message:
+      'This site renders part of its content with JavaScript, so the sampler may miss links.' +
+      (fresh.length > 0 ? ` Added ${fresh.length} pages from the sitemap to fill the gaps.` : ''),
+    action:
+      fresh.length > 0
+        ? 'Run a Full Audit — the sitemap pages are included in its scope'
+        : 'No sitemap found — page counts for this site may run low',
+  });
 }
 
 async function analyzeHomepage(url) {
@@ -161,44 +217,25 @@ async function analyzeHomepage(url) {
 
   console.log(`📄 PRODUCTION: Got ${content.length} chars of content`);
 
-  // Analyze content quality
+  // Analyze content quality. Anchor-only counting matters here: the old bare
+  // `href=` regex also matched stylesheet/favicon links, so CSR shells always
+  // passed as "has links" and the JavaScript-site path never fired.
+  const detection = detectJsRendering(content);
   const analysis = {
     hasHtml: content.includes('<html') || content.includes('<!DOCTYPE'),
     hasBody: content.includes('<body'),
-    hasLinks: content.includes('href='),
-    hasScripts: content.includes('<script'),
-    linkCount: (content.match(/href\s*=\s*["']([^"']+)["']/gi) || []).length,
-    isJavaScriptHeavy: false,
-    frameworkDetection: {},
+    hasLinks: detection.anchorCount > 0,
+    hasScripts: detection.hasScripts,
+    linkCount: detection.anchorCount,
+    isJavaScriptHeavy: detection.isJavaScriptHeavy,
+    frameworkDetection: detection.frameworks,
+    hasEmptyAppShell: detection.hasEmptyAppShell,
   };
-
-  // Detect JavaScript frameworks
-  analysis.frameworkDetection = {
-    react: content.includes('react') || content.includes('React') || content.includes('_react'),
-    vue: content.includes('vue') || content.includes('Vue'),
-    angular: content.includes('angular') || content.includes('Angular'),
-    next: content.includes('next') || content.includes('Next') || content.includes('_next'),
-    nuxt: content.includes('nuxt') || content.includes('Nuxt'),
-    svelte: content.includes('svelte') || content.includes('Svelte'),
-  };
-
-  // Check for signs of JavaScript-heavy site
-  const jsIndicators = [
-    content.includes('Loading...'),
-    content.includes('loading...'),
-    content.includes('id="app"'),
-    content.includes('id="root"'),
-    content.includes('class="app"'),
-    analysis.linkCount < 3 && analysis.hasScripts,
-    Object.values(analysis.frameworkDetection).some((v) => v),
-  ];
-
-  analysis.isJavaScriptHeavy = jsIndicators.filter(Boolean).length >= 2;
 
   console.log(`🔍 PRODUCTION: Homepage analysis:`, analysis);
 
   return {
-    hasValidContent: analysis.hasLinks && analysis.linkCount > 0,
+    hasValidContent: analysis.linkCount > 0,
     reason: analysis.isJavaScriptHeavy ? 'javascript_heavy' : 'static_content',
     content,
     linkCount: analysis.linkCount,
@@ -520,7 +557,7 @@ async function createJavaScriptSiteResponse(startUrl, homepageAnalysis) {
   const alternatives = [];
 
   // Try to find alternative sources of URLs
-  const sitemapUrls = await tryFindSitemap(startUrl);
+  const sitemapUrls = await findSitemapUrls(startUrl);
 
   recommendations.push({
     type: 'warning',
@@ -595,41 +632,6 @@ async function createJavaScriptSiteResponse(startUrl, homepageAnalysis) {
       linkText: 'Sitemap link',
     })),
   };
-}
-
-async function tryFindSitemap(baseUrl) {
-  console.log(`🗺️ PRODUCTION: Looking for sitemap at: ${baseUrl}`);
-
-  const sitemapUrls = [
-    new URL('/sitemap.xml', baseUrl).toString(),
-    new URL('/sitemap_index.xml', baseUrl).toString(),
-  ];
-
-  for (const sitemapUrl of sitemapUrls) {
-    try {
-      const response = await safeFetch(sitemapUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 SeoScrub Bot/1.0' },
-        timeout: 10000,
-        readBody: true,
-        maxBodyBytes: 5 * 1024 * 1024,
-      });
-
-      if (response.ok) {
-        const content = await response.text();
-        const urlMatches = content.match(/<loc>([^<]+)<\/loc>/g) || [];
-        const urls = urlMatches.map((match) => match.replace(/<\/?loc>/g, ''));
-
-        if (urls.length > 0) {
-          console.log(`✅ PRODUCTION: Found sitemap with ${urls.length} URLs`);
-          return urls;
-        }
-      }
-    } catch (error) {
-      // Continue to next sitemap
-    }
-  }
-
-  return [];
 }
 
 function analyzeUrlPattern(url, baseUrl) {

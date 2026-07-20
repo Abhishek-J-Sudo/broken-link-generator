@@ -536,8 +536,12 @@ export default function AuditSetupPage() {
                   <div className="mt-4 border border-warning/40 bg-warning-subtle p-3">
                     <p className="text-xs leading-relaxed text-text">
                       <span className="font-medium">JavaScript-heavy site.</span> The sampler only
-                      sees server-rendered HTML, so these counts may run low. The full crawl still
-                      checks every link it can reach.
+                      sees server-rendered HTML, so these counts may run low.{' '}
+                      {summary.sitemapSupplemented > 0
+                        ? `We pulled ${summary.sitemapSupplemented} extra ${
+                            summary.sitemapSupplemented === 1 ? 'page' : 'pages'
+                          } from the site's sitemap into the scope — a Full Audit will check them all.`
+                        : 'No sitemap was found to fill the gaps, so the full crawl checks every link it can reach.'}
                     </p>
                   </div>
                 )}

@@ -2,6 +2,64 @@
 
 ---
 
+## 2026-07-20 — JS-rendered (CSR/SPA) site handling: detection + sitemap fallback made real
+
+### Branch: `phase2-h-js-sites` (new flat branch off main). Committed, NOT pushed/merged.
+
+Session started as a question ("do we support JavaScript-loading sites? is that SSR?") —
+answer given: SSR sites already work; the gap is **CSR/SPA** sites (empty shell, JS builds the
+page). An audit found a v1 of both mitigations existed but **effectively never fired**. User
+approved fixing steps 1–2 (detect + be honest; sitemap fallback). **Step 3 — headless
+rendering (doc 04 B5) — deliberately NOT built.**
+
+**Two root causes found:**
+- `analyzeHomepage` counted bare `href=` matches — which also hit stylesheets/favicons — so
+  every CSR shell "had links" and `createJavaScriptSiteResponse` was near-unreachable.
+- `tryFindSitemap` never recursed sitemap indexes (returned the child **.xml files as
+  "pages"**), and never read robots.txt `Sitemap:` directives.
+
+**What shipped:**
+- **New `src/lib/jsSiteDetector.js`** — `detectJsRendering(html)`: anchor-only link counting,
+  empty app-shell mount-node check (strongest CSR signal — SSR fills it, CSR ships it empty),
+  precise framework markers (react/next/vue/nuxt/angular/svelte/gatsby). Gate: empty shell OR
+  (framework && <10 anchors) OR (scripts && <3 anchors) — SSR Next/Nuxt sites with real link
+  graphs are NOT flagged.
+- **New `src/lib/sitemap.js`** — `findSitemapUrls(baseUrl)`: robots.txt `Sitemap:` directives
+  first, then `/sitemap.xml` + `/sitemap_index.xml`; recurses indexes one level (caps: 10
+  children / 2000 URLs); **allowed-hosts follows the sitemap's own redirects** (canonical
+  migrations — material.angular.io lists all pages on .dev); **UA fallback** — honest
+  `SeoScrub Bot` UA first, one retry with a browser UA on 403 (Cloudflare WAFs 403 "Bot" UAs
+  on sitemap paths; hit live on mubadala.com). All fetches via safeFetch (SSRF guard intact).
+- **Analyze route hybrid path** — a JS-heavy site that still has links now gets crawled AND
+  topped up with sitemap pages (`summary.sitemapSupplemented`, merged into
+  `categories.pages`/`discoveredLinks` → flows into Full Audit `preAnalyzedUrls`); a warning
+  recommendation is pushed. Zero-anchor path unchanged in shape but now actually reachable.
+- **Quick Check honesty** — traditional crawl runs detection on the depth-0 page →
+  `db.mergeJobSettings(jobId, { jsSiteDetected: true })` (new helper in `supabase.js`) →
+  results page shows a warning banner (during + after the run) pointing at Full Audit. The
+  audit-page JS-site banner now states the sitemap top-up count (or "no sitemap found").
+
+### Validation (all live, dev server :3100 + worker)
+- Lib harness (tsx): excalidraw.com flagged (empty shell); vercel.com correctly NOT flagged
+  (Next markers but 162 anchors); yoast.com index → **1,885 pages, 0 .xml leftovers**;
+  Spotify's sitemap found via robots.txt directive at a non-standard path.
+- API E2E: material.angular.io → `isJavaScriptSite:true` + its 4 sitemap pages through the
+  .io→.dev redirect; windy.com → hybrid no-sitemap arm (honest "no sitemap found" wording);
+  mubadala.com (user request) → robots directive + WAF UA fallback → **1,241 pages**.
+- Worker E2E: Quick Check job `3149fac0` on material.angular.io → JS-heavy start page logged,
+  `settings.jsSiteDetected:true` persisted + served by the status API.
+- ESLint: no new errors (analyze route has 10 pre-existing unused-var errors on main; this
+  branch has 9 — one removed with `tryFindSitemap`). All other touched files clean.
+
+### Next
+- Merge to main on user approval (branch kept per workflow).
+- **Step 3 = doc 04 B5** (optional Playwright rendering) — the real fix for in-page link
+  extraction on CSR sites; sequence it when the user asks.
+- Possible later: seed the Quick Check traditional crawl from the sitemap when JS-heavy
+  (today it warns + points at Full Audit, which does use sitemap pages).
+
+---
+
 ## 2026-07-18 — ✅ BATCH MERGED to main (fast-forward)
 
 `phase2-g-batch2-signals` (9 commits: §G batch 2 signals + dev-port pin + Steps 1–4 of the

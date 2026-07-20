@@ -124,6 +124,16 @@ export const db = {
     return data;
   },
 
+  async mergeJobSettings(jobId, patch) {
+    const job = await this.getJob(jobId);
+    const { error } = await supabase
+      .from('crawl_jobs')
+      .update({ settings: { ...(job.settings || {}), ...patch } })
+      .eq('id', jobId);
+
+    if (error) throw error;
+  },
+
   async updateJobStatus(jobId, status, errorMessage = null) {
     const updates = { status };
 
