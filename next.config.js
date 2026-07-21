@@ -56,7 +56,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: https:",
-              "connect-src 'self'",
+              "connect-src 'self' https://api.web3forms.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

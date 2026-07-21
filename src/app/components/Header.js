@@ -12,7 +12,6 @@ export default function Header() {
   const navLinks = [
     { href: '/#how-it-works', label: 'How It Works' },
     { href: '/audits', label: 'My audits' },
-    { href: '/documentation', label: 'Documentation' },
   ];
 
   return (

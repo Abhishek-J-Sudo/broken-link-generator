@@ -73,19 +73,10 @@ export default function Footer() {
               </li>
               <li>
                 <Link
-                  href="/changelog"
+                  href="/contact"
                   className="text-text-muted hover:text-text transition-colors duration-200"
                 >
-                  Changelog
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="https://github.com"
-                  target="_blank"
-                  className="text-text-muted hover:text-text transition-colors duration-200"
-                >
-                  GitHub
+                  Contact
                 </Link>
               </li>
             </ul>
@@ -99,16 +90,22 @@ export default function Footer() {
           </p>
           <div className="flex items-center gap-4 font-mono text-xs">
             <Link
+              href="/privacy"
+              className="text-text-subtle hover:text-text transition-colors duration-200"
+            >
+              Privacy
+            </Link>
+            <Link
+              href="/terms"
+              className="text-text-subtle hover:text-text transition-colors duration-200"
+            >
+              Terms
+            </Link>
+            <Link
               href="/documentation"
               className="text-text-subtle hover:text-text transition-colors duration-200"
             >
               Documentation
-            </Link>
-            <Link
-              href="/changelog"
-              className="text-text-subtle hover:text-text transition-colors duration-200"
-            >
-              Changelog
             </Link>
           </div>
         </div>
