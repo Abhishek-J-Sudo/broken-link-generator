@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-07-21 — ✅ BATCH MERGED to main (fast-forward)
+
+`phase2-h-js-sites` (2 commits: JS/CSR site handling + adaptive rate-limit handling)
+**fast-forwarded into `main`** (`2b73f13` → `ac7c1d5`) on user go-ahead. Branch kept (not
+deleted). **Local only — NOT pushed:** `main` is 2 commits ahead of `origin/main`; push is
+deferred to the user. The "Committed, NOT pushed/merged" lines in the two per-batch entries
+below predate this merge. Both batches were validated (35/35 rate-limit unit checks + live
+JS-site E2E on 6 sites + an iana.org regression crawl) before merging.
+
+---
+
 ## 2026-07-20 — Adaptive rate-limit handling (429/503) — stop mislabelling throttled URLs as broken
 
 ### Branch: `phase2-h-js-sites` (same flat branch — same "robust external-site crawling" theme). Committed, NOT pushed/merged.
