@@ -795,6 +795,24 @@ export default function AuditReportPage() {
               </section>
             )}
 
+            {/* ── Rate-limited caution ────────────────────────────────── */}
+            {job.settings?.rateLimitedDetected && job.status !== 'failed' && (
+              <section className="mb-16 border border-warning/40 bg-warning-subtle p-6">
+                <p className={`${microLabel} text-text`}>Site throttled our crawler</p>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text">
+                  This site rate-limited us while we checked it
+                  {job.settings.rateLimitedCount
+                    ? `, so ${job.settings.rateLimitedCount} ${
+                        job.settings.rateLimitedCount === 1 ? 'URL' : 'URLs'
+                      } couldn't be confirmed`
+                    : ', so some URLs couldn’t be confirmed'}
+                  . We slowed down and retried, but those pages are left out of the results rather
+                  than counted as broken. Re-running the audit later, or with a lower crawl depth,
+                  usually gets full coverage.
+                </p>
+              </section>
+            )}
+
             {/* ── Report loading / error ──────────────────────────────── */}
             {reportReady && !report && !findingsError && (
               <p className="py-16 text-center font-mono text-xs text-text-subtle">

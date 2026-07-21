@@ -209,6 +209,7 @@ export const errorUtils = {
       if (code === 404) return '404';
       if (code === 403) return '403';
       if (code === 401) return '401';
+      if (code === 429) return 'rate_limited'; // throttled, not a broken page
       if (code >= 500) return '500';
       if (code >= 400) return code.toString(); // Any 4xx error
     }

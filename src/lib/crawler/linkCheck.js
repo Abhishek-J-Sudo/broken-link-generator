@@ -47,6 +47,7 @@ export async function checkLinks(
 
   let processedCount = 0;
   let seoAnalyzedCount = 0;
+  let rateLimitedCount = 0;
 
   for (let i = 0; i < batches.length; i++) {
     if (enableStopCheck) {
@@ -129,7 +130,13 @@ export async function checkLinks(
           }
         }
 
-        if (!result.is_working) {
+        // Rate-limited URLs are undetermined, not broken — the host throttled
+        // us before it could answer. Keep them out of the broken-link findings
+        // (the httpChecker already backed off and retried); just tally them so
+        // the job can warn that its coverage is incomplete.
+        if (result.rateLimited) {
+          rateLimitedCount++;
+        } else if (!result.is_working) {
           const errorType =
             result.errorType || errorUtils.classifyError(result.http_status_code, result);
           try {
@@ -154,6 +161,22 @@ export async function checkLinks(
       await batchUtils.delay(batchDelay);
     } catch (batchError) {
       console.error(`Error in link-check batch ${i + 1}:`, batchError);
+    }
+  }
+
+  // Flag the job so the results page can warn that some URLs were throttled and
+  // couldn't be checked. Merged (not overwritten) — traditional crawl calls
+  // checkLinks many times per job, so accumulate the count across batches.
+  if (rateLimitedCount > 0) {
+    try {
+      const job = await db.getJob(jobId);
+      const prior = job.settings?.rateLimitedCount || 0;
+      await db.mergeJobSettings(jobId, {
+        rateLimitedDetected: true,
+        rateLimitedCount: prior + rateLimitedCount,
+      });
+    } catch (flagError) {
+      console.error('Failed to flag rate-limited job:', flagError);
     }
   }
 

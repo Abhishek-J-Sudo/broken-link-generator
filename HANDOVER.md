@@ -2,6 +2,58 @@
 
 ---
 
+## 2026-07-20 — Adaptive rate-limit handling (429/503) — stop mislabelling throttled URLs as broken
+
+### Branch: `phase2-h-js-sites` (same flat branch — same "robust external-site crawling" theme). Committed, NOT pushed/merged.
+
+Follow-on from the JS-site work, prompted by the user asking how a Cloudflare rate-limit is
+avoided. Answer at the time: it wasn't — a 429 was classified as a **broken link** and we kept
+hammering at the same pace (no `Retry-After`, no backoff). This closes that gap (doc 04 **C2**,
+429 half).
+
+**What shipped (all in `src/lib/httpChecker.js` unless noted):**
+- **Detect throttling** — `isRateLimitStatus`: 429 always; 503 only when it carries `Retry-After`
+  (a bare 503 is a genuine outage and stays a broken-link result).
+- **Honour `Retry-After`** — `parseRetryAfter` (delta-seconds *or* HTTP-date), bounded at 30s so
+  one URL can't stall a job for minutes.
+- **Per-host backoff + circuit breaker** — module-level `hostThrottle` Map (shared across the
+  fresh-per-batch HttpChecker instances and concurrent worker jobs; timestamp entries self-expire
+  so a cooldown can't stick). A hit escalates a per-host cooldown (4s × consecutive, cap 60s);
+  **5 consecutive hits opens a breaker** (120s) so the rest of that host's URLs are skipped fast
+  instead of hammered. A clean response clears the host's state. Wired into all three request
+  paths: `checkUrl`, `quickCheck` (HEAD), `checkUrlWithSEO`.
+- **Not "broken"** — throttled URLs return `{ rateLimited: true, errorType: 'rate_limited' }`;
+  `_generateSummary` counts them in a new `rateLimited` bucket, not `broken`. `linkCheck.js` skips
+  the `broken_links` insert for them and flags the job `rateLimitedDetected` (+`rateLimitedCount`,
+  merged across batches via `db.mergeJobSettings`). `utils.classifyError(429)` → `rate_limited`.
+- **Tell the user** — results page shows a warning banner (mirrors the jsSiteDetected banner):
+  "This site rate-limited us… N URLs couldn't be confirmed… left out rather than counted as
+  broken."
+
+### Validation
+- **35/35 unit checks** (temp tsx harness, removed): `parseRetryAfter` (seconds/date/garbage/past),
+  `isRateLimitStatus` (429/503±Retry-After/200/404), per-host cooldown escalation + Retry-After
+  capping, circuit breaker opening at the 5th hit, success-clears-state, untracked-host no-ops,
+  `_rateLimitedResult` shape, `_generateSummary` bucketing rate-limited OUT of broken,
+  `classifyError(429)`.
+- **E2E regression** — Quick Check on iana.org completed: 21 links checked, 0 broken, and
+  **neither `rateLimitedDetected` nor a false broken count** — confirms the rewritten check loop
+  doesn't regress well-behaved sites.
+- **Not tested live:** an actual 429 backoff against a real site (can't reliably force a 429;
+  `safeFetch`'s SSRF guard blocks a localhost mock server). The state machine is covered
+  deterministically by the unit harness instead.
+- ESLint: no new errors on the four touched files (utils.js keeps its one pre-existing
+  anon-default-export warning).
+
+### Next / still open (doc 04 C2 remainder)
+- **403 / Cloudflare JS-challenge** ("Just a moment…") still counts as broken — needs body
+  inspection to tell a real 403 from a bot-wall. Not built.
+- Rate-limited URLs are kept out of `broken_links`, but the **working-%** derivation elsewhere
+  hasn't been audited to formally exclude them — worth a pass if the number looks off on a
+  heavily-throttled site.
+
+---
+
 ## 2026-07-20 — JS-rendered (CSR/SPA) site handling: detection + sitemap fallback made real
 
 ### Branch: `phase2-h-js-sites` (new flat branch off main). Committed, NOT pushed/merged.
