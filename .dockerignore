@@ -3,7 +3,6 @@ node_modules
 .git
 .github
 docs
-database
 *.backup
 *.log
 npm-debug.log*
